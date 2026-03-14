@@ -1,0 +1,14 @@
+{
+	"name": "atcoder-cli-runner",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=18.0.0"
+	},
+	"scripts": {
+		"runner": "node ./runner/local-runner-server.js",
+		"test": "node ./cli/atcoder-submit-cli.mjs test",
+		"submit": "node ./cli/atcoder-submit-cli.mjs submit"
+	}
+}

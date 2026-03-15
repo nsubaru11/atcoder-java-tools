@@ -11,7 +11,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.LOCAL_RUNNER_PORT || 8080);
-const JAVA_HOME = process.env.JAVA_HOME;
 const MAX_BODY_SIZE = 4 * 1024 * 1024;
 const MAX_LOG_FILE_SIZE = Number(process.env.LOCAL_RUNNER_MAX_LOG_FILE_SIZE_BYTES || (8 * 1024 * 1024));
 const MAX_CACHE_SIZE = 10;
@@ -33,8 +32,16 @@ const COMPILE_ROOT_DIR = path.join(BASE_DIR, "compiled");
 const DISPATCHER_BUILD_DIR = path.join(BASE_DIR, "dispatcher");
 const DISPATCHER_SOURCE_FILE = resolveDispatcherSourceFile();
 const DISPATCHER_CLASS_FILE = path.join(DISPATCHER_BUILD_DIR, "Dispatcher.class");
-const WARMUP_SOURCE_CODE = "public final class Main { public static void main(String[] args) {} }";
+const WARMUP_SOURCE_FILE = path.join(__dirname, "src", "WarmUp.java");
+const WARMUP_SOURCE_CLASS_NAME = "WarmUp";
+const WARMUP_TARGET_CLASS_NAME = "Main";
 const WARMUP_STDIN = "";
+const WARMUP_PROFILE = (process.env.LOCAL_RUNNER_WARMUP_PROFILE || "full").toLowerCase();
+const WARMUP_REPEAT_COUNT = parseWarmUpRepeatCount(
+	process.env.LOCAL_RUNNER_WARMUP_REPEAT,
+	WARMUP_PROFILE === "quick" ? 1 : 2,
+);
+const WARMUP_RUN_TIMEOUT_MS = Number(process.env.LOCAL_RUNNER_WARMUP_TIMEOUT_MS || 30000);
 let hasDispatcherWarmedUp = false;
 
 const ANSI = {
@@ -148,24 +155,40 @@ function trimForLog(text, maxLen = 72) {
 	return `${text.slice(0, maxLen - 3)}...`;
 }
 
-function shortMode(modeTag) {
-	switch (modeTag) {
-		case "daemon":
-			return "D";
-		case "legacy":
-			return "L";
-		case "isolated":
-			return "I";
-		case "compile":
-			return "C";
-		default:
-			return String(modeTag || "?").slice(0, 1).toUpperCase();
-	}
-}
-
 function shortHash(hash) {
 	if (!hash) return "";
 	return hash.length <= 16 ? hash : `${hash.slice(0, 16)}...`;
+}
+
+function parseWarmUpRepeatCount(rawValue, fallbackValue) {
+	if (rawValue == null) {
+		return fallbackValue;
+	}
+	const parsed = Number(rawValue);
+	if (!Number.isFinite(parsed) || parsed < 1) {
+		return fallbackValue;
+	}
+	return Math.floor(parsed);
+}
+
+function buildWarmUpSourceCode() {
+	let sourceCode;
+	try {
+		sourceCode = fs.readFileSync(WARMUP_SOURCE_FILE, "utf8");
+	} catch (error) {
+		throw new Error(`failed to load ${WARMUP_SOURCE_FILE}: ${error.message}`);
+	}
+
+	const classDeclarationPattern = new RegExp(
+		`public\\s+final\\s+class\\s+${WARMUP_SOURCE_CLASS_NAME}\\b`,
+	);
+	if (!classDeclarationPattern.test(sourceCode)) {
+		throw new Error(`class declaration not found in ${WARMUP_SOURCE_FILE}`);
+	}
+	return sourceCode.replace(
+		classDeclarationPattern,
+		`public final class ${WARMUP_TARGET_CLASS_NAME}`,
+	);
 }
 
 function formatRunSummary(result, waitMs, totalMs, modeTag) {
@@ -568,25 +591,26 @@ async function warmUpDispatcher() {
 	if (IS_LEGACY_MODE || hasDispatcherWarmedUp) {
 		return;
 	}
-	logInfo("Warm up dispatcher...");
-	try {
-		const warmupEntry = await getCompiledEntry(WARMUP_SOURCE_CODE);
-		if (warmupEntry.status !== "compiled") {
-			logWarn("[WarmUp] skipped (compile failed)");
-			hasDispatcherWarmedUp = true;
-			return;
-		}
-		const result = await queueDispatcherRun(warmupEntry, WARMUP_STDIN);
-		if (result.timedOut) {
-			logWarn(`[WarmUp] timeout ${RUN_TIMEOUT_MS}ms`);
-		} else {
-			logInfo(`[WarmUp] done ${result.time}ms`);
-		}
-	} catch (error) {
-		logWarn(`[WarmUp] ${error.message}`);
-	} finally {
-		hasDispatcherWarmedUp = true;
+	logInfo(
+		`Warm up dispatcher... profile=${WARMUP_PROFILE} repeat=${WARMUP_REPEAT_COUNT} timeout=${WARMUP_RUN_TIMEOUT_MS}ms`,
+	);
+	const warmupSourceCode = buildWarmUpSourceCode();
+	const warmupEntry = await getCompiledEntry(warmupSourceCode);
+	if (warmupEntry.status !== "compiled") {
+		throw new Error(`[WarmUp] compile failed: ${firstLine(warmupEntry.error) || "unknown error"}`);
 	}
+	for (let i = 1; i <= WARMUP_REPEAT_COUNT; i++) {
+		const result = await queueDispatcherRun(warmupEntry, WARMUP_STDIN, WARMUP_RUN_TIMEOUT_MS);
+		if (result.timedOut) {
+			throw new Error(`[WarmUp] run ${i}/${WARMUP_REPEAT_COUNT} timeout ${WARMUP_RUN_TIMEOUT_MS}ms`);
+		}
+		if (result.exitCode !== 0) {
+			const err = firstLine(result.stderr);
+			throw new Error(`[WarmUp] run ${i}/${WARMUP_REPEAT_COUNT} runtime error${err ? `: ${trimForLog(err)}` : ""}`);
+		}
+		logInfo(`[WarmUp] run ${i}/${WARMUP_REPEAT_COUNT} done ${result.time}ms`);
+	}
+	hasDispatcherWarmedUp = true;
 }
 
 function logCaptureAndBodySizeBalance() {
@@ -597,7 +621,7 @@ function logCaptureAndBodySizeBalance() {
 	}
 }
 
-function queueDispatcherRun(entry, standardInput) {
+function queueDispatcherRun(entry, standardInput, timeoutMs = RUN_TIMEOUT_MS) {
 	dispatcherState.requestQueue = dispatcherState.requestQueue
 		.catch(() => null)
 		.then(async () => {
@@ -634,13 +658,13 @@ function queueDispatcherRun(entry, standardInput) {
 				};
 
 				timeoutHandle = setTimeout(() => {
-					const timeoutError = new Error(`Execution timed out after ${RUN_TIMEOUT_MS}ms.`);
+					const timeoutError = new Error(`Execution timed out after ${timeoutMs}ms.`);
 					if (dispatcherState.currentRequest && dispatcherState.currentRequest.id === requestId) {
 						dispatcherState.currentRequest = null;
 					}
 					stopDispatcher();
 					finishResolve({timedOut: true, error: timeoutError.message});
-				}, RUN_TIMEOUT_MS);
+				}, timeoutMs);
 
 				const command = [
 					"RUN",
@@ -894,7 +918,9 @@ const server = http.createServer(async (req, res) => {
 		} else if (request.mode === "run") {
 			response = await runCode(request);
 		} else {
-			throw new Error("Unknown mode");
+			res.writeHead(400, {"Content-Type": "application/json"});
+			res.end(JSON.stringify({status: "badRequest", stderr: `Unknown mode: ${request.mode}`}));
+			return;
 		}
 
 		res.writeHead(200, {"Content-Type": "application/json"});
@@ -913,6 +939,7 @@ async function bootstrap() {
 	logInfo(`Log file: ${LOG_FILE_PATH}`);
 	logInfo(`Log rotation size: ${MAX_LOG_FILE_SIZE} bytes`);
 	logInfo(`Dispatcher capture limit: ${DISPATCHER_CAPTURE_LIMIT_BYTES} bytes`);
+	logInfo(`WarmUp profile: ${WARMUP_PROFILE} (repeat=${WARMUP_REPEAT_COUNT}, timeout=${WARMUP_RUN_TIMEOUT_MS}ms)`);
 	logCaptureAndBodySizeBalance();
 	if (process.platform === "linux" && BASE_DIR.startsWith("/dev/shm")) {
 		logInfo("Using /dev/shm for low-latency compile cache.");

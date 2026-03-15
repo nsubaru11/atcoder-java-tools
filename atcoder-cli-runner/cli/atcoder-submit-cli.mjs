@@ -10,11 +10,8 @@ const SUBMISSION_ID_DETECT_TIMEOUT_MS = 45000;
 const SUBMISSION_ID_DETECT_INTERVAL_MS = 800;
 const SUBMIT_POST_RETRY_MAX = Number(process.env.ATCODER_SUBMIT_RETRY_MAX || 5);
 const SUBMIT_POST_RETRY_BASE_MS = Number(process.env.ATCODER_SUBMIT_RETRY_BASE_MS || 1200);
-const MAX_SOURCE_SEARCH_DEPTH = Number(process.env.ATCODER_SOURCE_SEARCH_DEPTH || 6);
-const SOURCE_SEARCH_MAX_HITS = 20;
 const DEFAULT_SESSION_FILE_RELATIVE = path.join(".atcoder", "session.txt");
-// EasyTestForJava の言語表に合わせた Java 24 の既知ID。
-const DEFAULT_JAVA24_LANGUAGE_ID = "6056";
+const DEFAULT_LANGUAGE_ID = "6056";
 
 const ANSI = {
 	RESET: "\x1b[0m",
@@ -50,62 +47,24 @@ function parseTask(taskScreenName) {
 }
 
 /**
- * パスが見つからない場合は、現在ディレクトリ配下から同名ファイルを探索して一意解決する。
+ * 絶対パスまたは作業ディレクトリ基準の相対パスのみを許可する。
  */
 function resolveSourceFilePath(sourceFilePath) {
 	const direct = path.resolve(sourceFilePath);
 	if (fs.existsSync(direct) && fs.statSync(direct).isFile()) {
 		return direct;
 	}
-
-	const simpleName = path.basename(sourceFilePath);
-	const hits = [];
-
-	function walk(dir, depth) {
-		if (hits.length >= SOURCE_SEARCH_MAX_HITS) return;
-		if (depth > MAX_SOURCE_SEARCH_DEPTH) return;
-		let entries = [];
-		try {
-			entries = fs.readdirSync(dir, {withFileTypes: true});
-		} catch {
-			return;
-		}
-		for (const entry of entries) {
-			if (hits.length >= SOURCE_SEARCH_MAX_HITS) return;
-			if (entry.name === ".git" || entry.name === "node_modules" || entry.name === "out" || entry.name === "build") {
-				continue;
-			}
-			const full = path.join(dir, entry.name);
-			if (entry.isDirectory()) {
-				walk(full, depth + 1);
-				continue;
-			}
-			if (entry.isFile() && entry.name === simpleName) {
-				hits.push(full);
-			}
-		}
-	}
-
-	walk(process.cwd(), 0);
-	if (hits.length === 1) {
-		return hits[0];
-	}
-	if (hits.length > 1) {
-		throw new Error(
-			`Source file is ambiguous: ${sourceFilePath}\n` +
-			`Found candidates:\n- ${hits.slice(0, 10).join("\n- ")}\n` +
-			"Please specify a more precise path.",
-		);
-	}
-	throw new Error(`Source file not found: ${sourceFilePath}`);
+	throw new Error(`Source file not found from current directory: ${sourceFilePath}`);
 }
 
 function normalizeNewlines(text) {
 	return text.replace(/\r\n?/g, "\n");
 }
 
-// JavaCodeSubmitter の主要変換ロジックを CLI へ移植。
 function maskJava(text) {
+	// 文字列/文字リテラルとコメントを空白化し、
+	// ソース長と改行位置を維持したマスク文字列を作る。
+	// これにより後続の正規表現・位置計算を安全に行える。
 	const out = [];
 	let inLineComment = false;
 	let inBlockComment = false;
@@ -222,8 +181,11 @@ function isPublicClass(maskedText, classKeywordIndex) {
 }
 
 function findMainClassInfo(text, maskedText) {
+	// main を含むクラスを最優先で選び、
+	// なければ public class、最後に先頭クラスへフォールバックする。
+	// クラス名差し替え時の対象特定に使う。
 	const masked = maskedText || maskJava(text);
-	const mainRegex = /(?:\bpublic\s+static|\bstatic\s+public)\s+void\s+main\s*\(\s*String\s*(?:\[\]|\.\.\.)/;
+	const mainRegex = /(?:\bpublic\s+static|\bstatic\s+public)\s+void\s+main\s*\(\s*String\s*(?:\[]|\.\.\.)/;
 	const mainMatch = mainRegex.exec(masked);
 	const mainIndex = mainMatch ? mainMatch.index : -1;
 	const classRegex = /\bclass\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
@@ -256,6 +218,9 @@ function findMainClassInfo(text, maskedText) {
 }
 
 function forceMainAndDebug(sourceCode) {
+	// AtCoder 提出用にエントリクラス名を Main に統一し、
+	// DEBUG=true の定義だけを false へ強制する。
+	// 置換は後方から適用してインデックスずれを防ぐ。
 	let modified = normalizeNewlines(sourceCode);
 	const masked = maskJava(modified);
 	const replacements = [];
@@ -448,8 +413,7 @@ function resolveFixedJavaLanguageId(submitPageHtml) {
 	if (isAtCoderLoginPage(submitPageHtml)) {
 		throw new Error("Authentication is required for submit. Set ATCODER_COOKIE or ATCODER_SESSION.");
 	}
-	// 要件どおり LanguageId は固定運用にする。
-	return DEFAULT_JAVA24_LANGUAGE_ID;
+	return DEFAULT_LANGUAGE_ID;
 }
 
 function extractLanguageOptionsFromSubmitPage(html) {
@@ -577,8 +541,10 @@ async function postLocalRunner(sourceCode, stdinText) {
 	return await res.json();
 }
 
-// EasyTest の CodeRunner.test 相当の比較ロジック。
 function evaluateByEasyTest(runResult, expectedOutput, options = {trim: true, split: true}) {
+	// EasyTest 互換の比較順序: trim -> 許容誤差付き数値比較 -> 空白分割比較。
+	// ローカル実行結果を AC/WA 判定へ正規化する。
+	// 期待値が文字列でない場合はそのまま実行状態を返す。
 	const status = runResult.status;
 	if (status !== "OK" || typeof expectedOutput !== "string") {
 		return {status, output: runResult.output || "", expectedOutput};
@@ -747,6 +713,9 @@ function printSampleResults(results) {
 }
 
 async function submitToAtCoder(task, sourceCode, cookieHeader) {
+	// 提出ページの hidden/select/textarea をそのまま引き継いで送信する。
+	// 429 は段階的にリトライし、提出IDは redirect/html/差分監視で回収する。
+	// 監視不能時は trackingUnavailable を返して呼び出し側で扱う。
 	if (!cookieHeader) {
 		throw new Error("Authentication is required for submit. Set ATCODER_COOKIE or ATCODER_SESSION.");
 	}

@@ -8,6 +8,8 @@ const SUBMISSION_POLL_INTERVAL_MS = 1000;
 const SUBMISSION_POLL_TIMEOUT_MS = 180000;
 const SUBMISSION_ID_DETECT_TIMEOUT_MS = 45000;
 const SUBMISSION_ID_DETECT_INTERVAL_MS = 800;
+const SUBMISSION_TERMINAL_EXTRA_FETCH_RETRY = 3;
+const SUBMISSION_TERMINAL_EXTRA_FETCH_INTERVAL_MS = 500;
 const SUBMIT_POST_RETRY_MAX = Number(process.env.ATCODER_SUBMIT_RETRY_MAX || 5);
 const SUBMIT_POST_RETRY_BASE_MS = Number(process.env.ATCODER_SUBMIT_RETRY_BASE_MS || 1200);
 const DEFAULT_SESSION_FILE_RELATIVE = path.join(".atcoder", "session.txt");
@@ -857,6 +859,10 @@ function extractSubmitFailureReason(html) {
 	return "";
 }
 
+function formatMetricValue(value) {
+	return value && String(value).trim() ? String(value).trim() : "N/A";
+}
+
 async function pollSubmissionFinal(submissionUrl, cookieHeader) {
 	const started = Date.now();
 	let lastStatus = "";
@@ -869,7 +875,13 @@ async function pollSubmissionFinal(submissionUrl, cookieHeader) {
 			lastStatus = status;
 		}
 		if (terminal.has(status)) {
-			const extra = parseExecAndMemory(html);
+			let extra = parseExecAndMemory(html);
+			for (let i = 0; i < SUBMISSION_TERMINAL_EXTRA_FETCH_RETRY; i++) {
+				if (extra.execTime && extra.memory) break;
+				await sleep(SUBMISSION_TERMINAL_EXTRA_FETCH_INTERVAL_MS);
+				const retryHtml = await httpGetText(submissionUrl, cookieHeader);
+				extra = parseExecAndMemory(retryHtml);
+			}
 			return {status, ...extra};
 		}
 		await sleep(SUBMISSION_POLL_INTERVAL_MS);
@@ -899,14 +911,20 @@ async function runCommand(command, taskScreenName, sourceFilePath) {
 
 	const submitResult = await submitToAtCoder(task, transformed, toCookieHeader());
 	if (submitResult.trackingUnavailable) {
+		const latestId = await fetchLatestSubmissionId(task, toCookieHeader());
+		if (!latestId) {
+			throw new Error("Submission tracking failed: could not resolve latest submission ID.");
+		}
+		const trackedSubmissionUrl = `https://atcoder.jp/contests/${task.contestId}/submissions/${latestId}`;
+		const trackedResult = await pollSubmissionFinal(trackedSubmissionUrl, toCookieHeader());
 		console.log(
-			`Result: SUBMITTED | ID: - | Exec: - | Memory: - | URL: ${submitResult.submissionUrl}`,
+			`Result: ${colorizeStatus(trackedResult.status)} | ID: ${latestId} | Exec: ${formatMetricValue(trackedResult.execTime)} | Memory: ${formatMetricValue(trackedResult.memory)} | URL: ${trackedSubmissionUrl}`,
 		);
-		return 0;
+		return trackedResult.status === "AC" ? 0 : 8;
 	}
 	const finalResult = await pollSubmissionFinal(submitResult.submissionUrl, toCookieHeader());
 	console.log(
-		`Result: ${colorizeStatus(finalResult.status)} | ID: ${submitResult.submissionId} | Exec: ${finalResult.execTime || "-"} | Memory: ${finalResult.memory || "-"} | URL: ${submitResult.submissionUrl}`,
+		`Result: ${colorizeStatus(finalResult.status)} | ID: ${submitResult.submissionId} | Exec: ${formatMetricValue(finalResult.execTime)} | Memory: ${formatMetricValue(finalResult.memory)} | URL: ${submitResult.submissionUrl}`,
 	);
 	return finalResult.status === "AC" ? 0 : 8;
 }

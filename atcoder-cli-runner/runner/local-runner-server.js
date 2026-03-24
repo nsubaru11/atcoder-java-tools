@@ -211,11 +211,19 @@ function formatRunSummary(result, waitMs, totalMs, modeTag) {
 		if (result.stderrTruncated) flags.push("stderr");
 		parts.push(`Truncated=${flags.join(",")}`);
 	}
-	const err = firstLine(result.stderr);
-	if (err && result.status !== "success") {
-		parts.push(`Error=${trimForLog(err)}`);
+	let summary = parts.join(" ");
+
+	if (result.stderr && result.status !== "success") {
+		const maxLines = 10;
+		const lines = result.stderr.trim().split(/\r?\n/);
+		const visibleLines = lines.slice(0, maxLines);
+		summary += `\nError= ` + visibleLines.join("\n  ");
+		if (lines.length > maxLines) {
+			summary += `\n  ... (and ${lines.length - maxLines} more lines)`;
+		}
 	}
-	return parts.join(" ");
+
+	return summary;
 }
 
 function isWindowsStylePath(targetPath) {
@@ -428,7 +436,7 @@ async function compileDispatcher() {
 	ensureDirectory(DISPATCHER_BUILD_DIR);
 	const result = await runCommand(
 		JAVAC_PATH,
-		["-encoding", "UTF-8", "-g:none", "-d", DISPATCHER_BUILD_DIR, DISPATCHER_SOURCE_FILE],
+		["-encoding", "UTF-8", "-g", "-d", DISPATCHER_BUILD_DIR, DISPATCHER_SOURCE_FILE],
 		{env: JAVA_ENV, timeoutMs: COMPILE_TIMEOUT_MS},
 	);
 	if (result.code !== 0 || result.timedOut || !fs.existsSync(DISPATCHER_CLASS_FILE)) {
@@ -714,7 +722,7 @@ async function compileSource(sourceCode, hash) {
 	const compileStart = Date.now();
 	const result = await runCommand(
 		JAVAC_PATH,
-		["-encoding", "UTF-8", "-g:none", "-d", "classes", "Main.java"],
+		["-encoding", "UTF-8", "-g", "-d", "classes", "Main.java"],
 		{cwd: rootDir, env: JAVA_ENV, timeoutMs: COMPILE_TIMEOUT_MS},
 	);
 	const compileTime = Date.now() - compileStart;

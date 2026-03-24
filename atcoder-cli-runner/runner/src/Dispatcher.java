@@ -1,9 +1,11 @@
 import java.io.*;
+import java.lang.Thread.*;
 import java.lang.reflect.*;
 import java.net.*;
 import java.nio.charset.*;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.atomic.*;
 
 /**
  * ローカルランナー用の常駐ディスパッチャです。
@@ -17,6 +19,8 @@ public final class Dispatcher {
 	private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
 	private static final int DEFAULT_CAPTURE_LIMIT_BYTES = 2 << 20;
 	private static final String PROTOCOL_ERROR_REQUEST_ID = "protocol";
+	private static final Charset UTF_8 = StandardCharsets.UTF_8;
+	private static final String SEPARATOR = "\t";
 	private static final long NANOS_PER_MILLI = 1_000_000L;
 	/**
 	 * 出力バッファの環境変数名
@@ -37,8 +41,8 @@ public final class Dispatcher {
 	 * @throws IOException プロトコルの入出力に失敗した場合
 	 */
 	public static void main(final String[] args) throws IOException {
-		final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
-		final ProtocolWriter protocolWriter = new ProtocolWriter(new BufferedWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8)));
+		final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, UTF_8));
+		final ProtocolWriter protocolWriter = new ProtocolWriter(new BufferedWriter(new OutputStreamWriter(System.out, UTF_8)));
 		protocolWriter.writeReady();
 		String line;
 		while ((line = reader.readLine()) != null) {
@@ -57,14 +61,9 @@ public final class Dispatcher {
 	private static void handleCommand(final String line, final ProtocolWriter protocolWriter) throws IOException {
 		final ParsedCommand parsedCommand = ProtocolParser.parse(line);
 		switch (parsedCommand.command()) {
-			case PING:
-				protocolWriter.writePong();
-				return;
-			case RUN:
-				handleRunCommand(parsedCommand, protocolWriter);
-				return;
-			default:
-				protocolWriter.writeError(PROTOCOL_ERROR_REQUEST_ID, parsedCommand.protocolErrorMessage());
+			case PING -> protocolWriter.writePong();
+			case RUN -> handleRunCommand(parsedCommand, protocolWriter);
+			default -> protocolWriter.writeError(PROTOCOL_ERROR_REQUEST_ID, parsedCommand.protocolErrorMessage());
 		}
 	}
 
@@ -90,7 +89,7 @@ public final class Dispatcher {
 			);
 			protocolWriter.writeResult(runRequest.requestId(), result);
 		} catch (final Throwable throwable) {
-			protocolWriter.writeError(runRequest.requestId(), stackTraceOf(throwable));
+			protocolWriter.writeError(runRequest.requestId(), throwable.toString());
 		}
 	}
 
@@ -103,7 +102,8 @@ public final class Dispatcher {
 	 * @return 実行結果
 	 */
 	private static ExecutionResult execute(final Path classDirectory, final String mainClassName, final byte[] standardInput) {
-		final ExecutionContext executionContext = ExecutionContext.setup(standardInput);
+		final AtomicReference<Throwable> uncaughtError = new AtomicReference<>();
+		final ExecutionContext executionContext = ExecutionContext.setup(standardInput, uncaughtError);
 		final long startTime = System.nanoTime();
 		int exitCode = 0;
 		try (executionContext; URLClassLoader classLoader = new URLClassLoader(
@@ -112,19 +112,23 @@ public final class Dispatcher {
 		)) {
 			executionContext.setContextClassLoader(classLoader);
 			invokeMain(classLoader, mainClassName);
-		} catch (final InvocationTargetException exception) {
-			exitCode = 1;
-			exception.getTargetException().printStackTrace();
 		} catch (final Throwable throwable) {
-			exitCode = 1;
-			throwable.printStackTrace();
+			uncaughtError.compareAndSet(null, throwable);
 		}
 		final long timeMillis = (System.nanoTime() - startTime) / NANOS_PER_MILLI;
+
+		Throwable error = uncaughtError.get();
+		if (error != null) {
+			exitCode = 1;
+			executionContext.redirectedErr().print(filterMainStackTrace(error));
+			executionContext.redirectedErr().flush();
+		}
+
 		return new ExecutionResult(
 				exitCode,
 				timeMillis,
-				executionContext.stdout(),
-				executionContext.stderr(),
+				executionContext.stdoutBytes(),
+				executionContext.stderrBytes(),
 				executionContext.stdoutTruncated(),
 				executionContext.stderrTruncated()
 		);
@@ -155,47 +159,16 @@ public final class Dispatcher {
 	 * @return プロトコル形式の 1 行
 	 */
 	private static String buildResultLine(final String requestId, final ExecutionResult result) {
-		StringJoiner res = new StringJoiner(Protocol.SEPARATOR);
-		return res.add(Command.RESULT.toString())
+		StringJoiner res = new StringJoiner(SEPARATOR);
+		return res.add(Command.RESULT.name())
 				.add(requestId)
 				.add(String.valueOf(result.exitCode()))
 				.add(String.valueOf(result.timeMillis()))
-				.add(encodeStr(result.stdout()))
-				.add(encodeStr(result.stderr()))
-				.add(toProtocolFlag(result.stdoutTruncated()))
-				.add(toProtocolFlag(result.stderrTruncated()))
+				.add(BASE64_ENCODER.encodeToString(result.stdout()))
+				.add(BASE64_ENCODER.encodeToString(result.stderr()))
+				.add(result.stdoutTruncated() ? "1" : "0")
+				.add(result.stderrTruncated() ? "1" : "0")
 				.toString();
-	}
-
-	/**
-	 * ERROR 応答行を書き込みます。
-	 *
-	 * @param writer       応答先
-	 * @param requestId    要求ID
-	 * @param errorMessage エラーメッセージ
-	 * @throws IOException 書き込みに失敗した場合
-	 */
-	private static void writeErrorLine(final BufferedWriter writer, final String requestId, final String errorMessage) throws IOException {
-		writeLine(writer, Command.ERROR + Protocol.SEPARATOR + requestId + Protocol.SEPARATOR + encodeStr(errorMessage));
-	}
-
-	/**
-	 * 真偽値をプロトコル互換のフラグ文字列へ変換します。
-	 *
-	 * @param value 真偽値
-	 * @return true なら "1"、false なら "0"
-	 */
-	private static String toProtocolFlag(final boolean value) {
-		return value ? Protocol.TRUE_FLAG : Protocol.FALSE_FLAG;
-	}
-
-	/**
-	 * 実行前のグローバルランタイム状態を保存します。
-	 *
-	 * @return 保存した状態
-	 */
-	private static RuntimeState snapshotRuntimeState() {
-		return new RuntimeState(System.in, System.out, System.err, Thread.currentThread().getContextClassLoader());
 	}
 
 	/**
@@ -212,6 +185,7 @@ public final class Dispatcher {
 		System.setIn(runtimeState.standardIn());
 		System.setOut(runtimeState.standardOut());
 		System.setErr(runtimeState.standardErr());
+		Thread.setDefaultUncaughtExceptionHandler(runtimeState.defaultUncaughtExceptionHandler());
 	}
 
 	/**
@@ -232,50 +206,6 @@ public final class Dispatcher {
 	}
 
 	/**
-	 * 文字列を Base64 エンコードします。
-	 *
-	 * @param value 対象文字列
-	 * @return Base64 文字列
-	 */
-	private static String encodeStr(final String value) {
-		return BASE64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8));
-	}
-
-	/**
-	 * Base64 文字列をデコードします。
-	 *
-	 * @param value Base64 文字列
-	 * @return 復元後の文字列
-	 */
-	private static String decodeStr(final String value) {
-		return new String(BASE64_DECODER.decode(value), StandardCharsets.UTF_8);
-	}
-
-	/**
-	 * 例外のスタックトレースを文字列化します。
-	 *
-	 * @param throwable 対象例外
-	 * @return スタックトレース文字列
-	 */
-	private static String stackTraceOf(final Throwable throwable) {
-		final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-		try (PrintStream printStream = createUtf8PrintStream(buffer)) {
-			throwable.printStackTrace(printStream);
-		}
-		return buffer.toString(StandardCharsets.UTF_8);
-	}
-
-	/**
-	 * UTF-8 固定の {@link PrintStream} を生成します。
-	 *
-	 * @param buffer 出力先バッファ
-	 * @return 生成した PrintStream
-	 */
-	private static PrintStream createUtf8PrintStream(final OutputStream buffer) {
-		return new PrintStream(buffer, true, StandardCharsets.UTF_8);
-	}
-
-	/**
 	 * 1 行の応答を書き込みます。
 	 *
 	 * @param writer 出力先ライター
@@ -288,41 +218,33 @@ public final class Dispatcher {
 		writer.flush();
 	}
 
-	private enum Command {
-		READY("READY"),
-		RUN("RUN"),
-		PING("PING"),
-		PONG("PONG"),
-		RESULT("RESULT"),
-		ERROR("ERROR");
-		private final String command;
+	/**
+	 * 例外から Main クラスおよびその内部クラスに関連するスタックトレースのみを抽出します。
+	 */
+	private static String filterMainStackTrace(Throwable throwable) {
+		Throwable cause = throwable instanceof InvocationTargetException targetException ? targetException.getTargetException() : throwable;
 
-		Command(String command) {
-			this.command = command;
+		StringBuilder sb = new StringBuilder();
+		sb.append(cause.toString()).append("\n");
+		for (StackTraceElement element : cause.getStackTrace()) {
+			String className = element.getClassName();
+			if (className.equals("Main") || className.startsWith("Main$"))
+				sb.append("\tat ").append(element).append("\n");
 		}
-
-		public static Command fromString(final String command) {
-			for (final Command value : Command.values()) {
-				if (value.command.equals(command)) return value;
-			}
-			return ERROR;
-		}
-
-		public String toString() {
-			return command;
-		}
+		return sb.toString();
 	}
 
-	/**
-	 * プロトコル定数を管理する内部クラスです。
-	 */
-	private static final class Protocol {
-		private static final String SEPARATOR = "\t";
-		private static final String TRUE_FLAG = "1";
-		private static final String FALSE_FLAG = "0";
+	private enum Command {
+		READY, RUN, PING, PONG, RESULT, ERROR;
 
-		private Protocol() {
+		public static Command fromString(final String command) {
+			try {
+				return Command.valueOf(command);
+			} catch (IllegalArgumentException e) {
+				return ERROR;
+			}
 		}
+
 	}
 
 	/**
@@ -346,7 +268,7 @@ public final class Dispatcher {
 		 * @return 解析結果
 		 */
 		private static ParsedCommand parse(final String line) {
-			final String[] parts = line.split(Protocol.SEPARATOR, -1);
+			final String[] parts = line.split(SEPARATOR, -1);
 			final Command command = Command.fromString(parts[0]);
 			if (command == Command.RUN) return parseRun(parts);
 			if (command == Command.ERROR) return new ParsedCommand(Command.ERROR, null, "Unknown command: " + parts[0]);
@@ -366,8 +288,8 @@ public final class Dispatcher {
 			try {
 				final RunRequest runRequest = new RunRequest(
 						parts[RUN_REQUEST_ID_INDEX],
-						Paths.get(decodeStr(parts[RUN_CLASS_DIRECTORY_INDEX])),
-						decodeStr(parts[RUN_MAIN_CLASS_INDEX]),
+						Paths.get(new String(BASE64_DECODER.decode(parts[RUN_CLASS_DIRECTORY_INDEX]), UTF_8)),
+						new String(BASE64_DECODER.decode(parts[RUN_MAIN_CLASS_INDEX]), UTF_8),
 						BASE64_DECODER.decode(parts[RUN_STANDARD_INPUT_INDEX])
 				);
 				return new ParsedCommand(Command.RUN, runRequest, null);
@@ -379,23 +301,16 @@ public final class Dispatcher {
 
 	/**
 	 * プロトコル応答を出力する内部ユーティリティです。
+	 * @param writer 出力先
 	 */
 	private record ProtocolWriter(BufferedWriter writer) {
-		/**
-		 * 応答ライターを構築します。
-		 *
-		 * @param writer 出力先
-		 */
-		private ProtocolWriter {
-		}
-
 		/**
 		 * READY を出力します。
 		 *
 		 * @throws IOException 書き込みに失敗した場合
 		 */
 		private void writeReady() throws IOException {
-			writeLine(writer, Command.READY.toString());
+			writeLine(writer, Command.READY.name());
 		}
 
 		/**
@@ -404,7 +319,7 @@ public final class Dispatcher {
 		 * @throws IOException 書き込みに失敗した場合
 		 */
 		private void writePong() throws IOException {
-			writeLine(writer, Command.PONG.toString());
+			writeLine(writer, Command.PONG.name());
 		}
 
 		/**
@@ -413,7 +328,7 @@ public final class Dispatcher {
 		 * @throws IOException 書き込みに失敗した場合
 		 */
 		private void writeRunAck() throws IOException {
-			writeLine(writer, Command.RUN.toString());
+			writeLine(writer, Command.RUN.name());
 		}
 
 		/**
@@ -435,7 +350,7 @@ public final class Dispatcher {
 		 * @throws IOException 書き込みに失敗した場合
 		 */
 		private void writeError(final String requestId, final String errorMessage) throws IOException {
-			writeErrorLine(writer, requestId, errorMessage);
+			writeLine(writer, Command.ERROR.name() + SEPARATOR + requestId + SEPARATOR + BASE64_ENCODER.encodeToString(errorMessage.getBytes(UTF_8)));
 		}
 	}
 
@@ -453,13 +368,14 @@ public final class Dispatcher {
 		 * @param standardInput 標準入力
 		 * @return 実行コンテキスト
 		 */
-		private static ExecutionContext setup(final byte[] standardInput) {
-			final RuntimeState runtimeState = snapshotRuntimeState();
+		private static ExecutionContext setup(final byte[] standardInput, final AtomicReference<Throwable> uncaughtError) {
+			final RuntimeState runtimeState = new RuntimeState(System.in, System.out, System.err, Thread.currentThread().getContextClassLoader(), Thread.getDefaultUncaughtExceptionHandler());
 			final LimitedByteArrayOutputStream stdoutBuffer = new LimitedByteArrayOutputStream(MAX_CAPTURE_BYTES);
 			final LimitedByteArrayOutputStream stderrBuffer = new LimitedByteArrayOutputStream(MAX_CAPTURE_BYTES);
-			final PrintStream redirectedOut = createUtf8PrintStream(stdoutBuffer);
-			final PrintStream redirectedErr = createUtf8PrintStream(stderrBuffer);
+			final PrintStream redirectedOut = new PrintStream(stdoutBuffer, true, UTF_8);
+			final PrintStream redirectedErr = new PrintStream(stderrBuffer, true, UTF_8);
 			final Thread currentThread = Thread.currentThread();
+			Thread.setDefaultUncaughtExceptionHandler((_, e) -> uncaughtError.compareAndSet(null, e));
 			System.setIn(new ByteArrayInputStream(standardInput));
 			System.setOut(redirectedOut);
 			System.setErr(redirectedErr);
@@ -480,8 +396,8 @@ public final class Dispatcher {
 		 *
 		 * @return 標準出力
 		 */
-		private String stdout() {
-			return stdoutBuffer.toUtf8String();
+		private byte[] stdoutBytes() {
+			return stdoutBuffer.toByteArray();
 		}
 
 		/**
@@ -489,8 +405,8 @@ public final class Dispatcher {
 		 *
 		 * @return 標準エラー
 		 */
-		private String stderr() {
-			return stderrBuffer.toUtf8String();
+		private byte[] stderrBytes() {
+			return stderrBuffer.toByteArray();
 		}
 
 		/**
@@ -554,15 +470,6 @@ public final class Dispatcher {
 			return truncated;
 		}
 
-		/**
-		 * バッファ内容を UTF-8 文字列で返します。
-		 *
-		 * @return UTF-8 文字列
-		 */
-		private String toUtf8String() {
-			return new String(toByteArray(), StandardCharsets.UTF_8);
-		}
-
 		@Override
 		public synchronized void write(final int value) {
 			if (count >= limit) {
@@ -595,20 +502,8 @@ public final class Dispatcher {
 	 * @param stdoutTruncated 標準出力が切り詰められたかどうかです。
 	 * @param stderrTruncated 標準エラー出力が切り詰められたかどうかです。
 	 */
-	private record ExecutionResult(int exitCode, long timeMillis, String stdout, String stderr, boolean stdoutTruncated,
+	private record ExecutionResult(int exitCode, long timeMillis, byte[] stdout, byte[] stderr, boolean stdoutTruncated,
 	                               boolean stderrTruncated) {
-		/**
-		 * 実行結果を構築します。
-		 *
-		 * @param exitCode        終了コード相当
-		 * @param timeMillis      実行時間
-		 * @param stdout          標準出力
-		 * @param stderr          標準エラー出力
-		 * @param stdoutTruncated 標準出力が切り詰められたかどうか
-		 * @param stderrTruncated 標準エラー出力が切り詰められたかどうか
-		 */
-		private ExecutionResult {
-		}
 	}
 
 	/**
@@ -619,15 +514,6 @@ public final class Dispatcher {
 	 * @param protocolErrorMessage プロトコルエラーメッセージ
 	 */
 	private record ParsedCommand(Command command, RunRequest runRequest, String protocolErrorMessage) {
-		/**
-		 * パース結果を構築します。
-		 *
-		 * @param command              コマンド種別
-		 * @param runRequest           RUN 用リクエスト
-		 * @param protocolErrorMessage プロトコルエラーメッセージ
-		 */
-		private ParsedCommand {
-		}
 	}
 
 	/**
@@ -639,16 +525,6 @@ public final class Dispatcher {
 	 * @param standardInput  標準入力
 	 */
 	private record RunRequest(String requestId, Path classDirectory, String mainClassName, byte[] standardInput) {
-		/**
-		 * 実行リクエストを構築します。
-		 *
-		 * @param requestId      要求ID
-		 * @param classDirectory クラスディレクトリ
-		 * @param mainClassName  実行クラス名
-		 * @param standardInput  標準入力
-		 */
-		private RunRequest {
-		}
 	}
 
 	/**
@@ -660,16 +536,6 @@ public final class Dispatcher {
 	 * @param contextClassLoader コンテキストクラスローダー
 	 */
 	private record RuntimeState(InputStream standardIn, PrintStream standardOut, PrintStream standardErr,
-	                            ClassLoader contextClassLoader) {
-		/**
-		 * 状態を構築します。
-		 *
-		 * @param standardIn         標準入力
-		 * @param standardOut        標準出力
-		 * @param standardErr        標準エラー
-		 * @param contextClassLoader コンテキストクラスローダー
-		 */
-		private RuntimeState {
-		}
+	                            ClassLoader contextClassLoader, UncaughtExceptionHandler defaultUncaughtExceptionHandler) {
 	}
 }

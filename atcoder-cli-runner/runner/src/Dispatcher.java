@@ -120,7 +120,7 @@ public final class Dispatcher {
 		Throwable error = uncaughtError.get();
 		if (error != null) {
 			exitCode = 1;
-			executionContext.redirectedErr().print(filterMainStackTrace(error));
+			executionContext.redirectedErr().print(filterMainStackTrace(error, mainClassName));
 			executionContext.redirectedErr().flush();
 		}
 
@@ -219,16 +219,20 @@ public final class Dispatcher {
 	}
 
 	/**
-	 * 例外から Main クラスおよびその内部クラスに関連するスタックトレースのみを抽出します。
+	 * 例外から実行対象クラスおよびその内部クラスに関連するスタックトレースのみを抽出します。
+	 *
+	 * @param throwable     例外
+	 * @param mainClassName 実行対象クラス名
+	 * @return 抽出済みスタックトレース
 	 */
-	private static String filterMainStackTrace(Throwable throwable) {
+	private static String filterMainStackTrace(final Throwable throwable, final String mainClassName) {
 		Throwable cause = throwable instanceof InvocationTargetException targetException ? targetException.getTargetException() : throwable;
 
 		StringBuilder sb = new StringBuilder();
 		sb.append(cause.toString()).append("\n");
 		for (StackTraceElement element : cause.getStackTrace()) {
 			String className = element.getClassName();
-			if (className.equals("Main") || className.startsWith("Main$"))
+			if (className.equals(mainClassName) || className.startsWith(mainClassName + "$"))
 				sb.append("\tat ").append(element).append("\n");
 		}
 		return sb.toString();
@@ -432,8 +436,6 @@ public final class Dispatcher {
 			redirectedOut.flush();
 			redirectedErr.flush();
 			restoreRuntimeState(runtimeState, currentThread);
-			redirectedOut.close();
-			redirectedErr.close();
 		}
 	}
 

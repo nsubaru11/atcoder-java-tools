@@ -678,7 +678,7 @@ async function runSampleTests(sourceCode, samplePairs) {
 	return results;
 }
 
-function printSampleResults(results) {
+function printSampleResults(results, originalClassName, originalFileName) {
 	let acCount = 0;
 	let totalExecTime = 0;
 	const statusCounts = new Map();
@@ -697,8 +697,15 @@ function printSampleResults(results) {
 			details.push(`trunc=${flags.join(",")}`);
 		}
 		console.log(`[${r.index}] ${colorizeStatus(r.status)} ${details.join(" ")}`);
-		if (r.status !== "AC" && r.stderr) {
-			console.log(`  stderr: ${r.stderr.split("\n")[0]}`);
+		if (r.stderr && r.stderr.trim().length > 0) {
+			console.log(`  [stderr]`);
+			let displayStderr = r.stderr.trim();
+			if (originalClassName) {
+				displayStderr = displayStderr
+					.replace(/Main\.java/g, originalFileName)
+					.replace(/\bMain\b/g, originalClassName);
+			}
+			console.log(displayStderr.split(/\r?\n/).map(line => `    ${line}`).join("\n"));
 		}
 	}
 	const breakdown = Array.from(statusCounts.entries())
@@ -894,15 +901,15 @@ async function runCommand(command, taskScreenName, sourceFilePath) {
 	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
 	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
 	const transformed = forceMainAndDebug(source);
+	const originalFileName = path.basename(resolvedSourcePath);
+	const originalClassName = originalFileName.replace(/\.java$/i, "");
 
 	const taskHtml = await httpGetText(task.taskUrl, toCookieHeader());
 	const samples = extractSamples(taskHtml);
 	const sampleResults = await runSampleTests(transformed, samples);
-	const allAccepted = printSampleResults(sampleResults);
+	const allAccepted = printSampleResults(sampleResults, originalClassName, originalFileName);
 
-	if (command === "test") {
-		return allAccepted ? 0 : 5;
-	}
+	if (command === "test") return allAccepted ? 0 : 5;
 
 	if (!allAccepted) {
 		console.log("Not submitting because at least one sample test is not AC.");

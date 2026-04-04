@@ -8,8 +8,8 @@ const SUBMISSION_POLL_INTERVAL_MS = 1000;
 const SUBMISSION_POLL_TIMEOUT_MS = 180000;
 const SUBMISSION_ID_DETECT_TIMEOUT_MS = 45000;
 const SUBMISSION_ID_DETECT_INTERVAL_MS = 800;
-const SUBMISSION_TERMINAL_EXTRA_FETCH_RETRY = 3;
-const SUBMISSION_TERMINAL_EXTRA_FETCH_INTERVAL_MS = 500;
+const SUBMISSION_TERMINAL_EXTRA_FETCH_RETRY = 10;
+const SUBMISSION_TERMINAL_EXTRA_FETCH_INTERVAL_MS = 1000;
 const SUBMIT_POST_RETRY_MAX = Number(process.env.ATCODER_SUBMIT_RETRY_MAX || 5);
 const SUBMIT_POST_RETRY_BASE_MS = Number(process.env.ATCODER_SUBMIT_RETRY_BASE_MS || 1200);
 const DEFAULT_SESSION_FILE_RELATIVE = path.join(".atcoder", "session.txt");
@@ -883,6 +883,7 @@ async function pollSubmissionFinal(submissionUrl, cookieHeader) {
 		}
 		if (terminal.has(status)) {
 			let extra = parseExecAndMemory(html);
+			if (status !== "AC") return {status, ...extra};
 			for (let i = 0; i < SUBMISSION_TERMINAL_EXTRA_FETCH_RETRY; i++) {
 				if (extra.execTime && extra.memory) break;
 				await sleep(SUBMISSION_TERMINAL_EXTRA_FETCH_INTERVAL_MS);

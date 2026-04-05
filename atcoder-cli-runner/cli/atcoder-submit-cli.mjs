@@ -10,6 +10,9 @@ const SUBMISSION_ID_DETECT_TIMEOUT_MS = 45000;
 const SUBMISSION_ID_DETECT_INTERVAL_MS = 800;
 const SUBMISSION_TERMINAL_EXTRA_FETCH_RETRY = 10;
 const SUBMISSION_TERMINAL_EXTRA_FETCH_INTERVAL_MS = 1000;
+const SUBMISSION_TERMINAL_EXTRA_FETCH_MAX_WAIT_MS = Number(process.env.ATCODER_SUBMISSION_METRIC_WAIT_MS || 30000);
+const SUBMISSION_EXEC_TIME_LABELS = ["Execution Time", "Exec Time", "実行時間"];
+const SUBMISSION_MEMORY_LABELS = ["Memory", "メモリ"];
 const SUBMIT_POST_RETRY_MAX = Number(process.env.ATCODER_SUBMIT_RETRY_MAX || 5);
 const SUBMIT_POST_RETRY_BASE_MS = Number(process.env.ATCODER_SUBMIT_RETRY_BASE_MS || 1200);
 const DEFAULT_SESSION_FILE_RELATIVE = path.join(".atcoder", "session.txt");
@@ -27,7 +30,9 @@ const ANSI = {
 function printUsage() {
 	console.error("Usage:");
 	console.error("  test <taskScreenName> <sourceFile>");
-	console.error("  submit <taskScreenName> <sourceFile>");
+	console.error("  submit [-f|--force] <taskScreenName> <sourceFile>");
+	console.error("Options:");
+	console.error("  -f, --force    submit even if sample tests are not all AC");
 }
 
 function parseTask(taskScreenName) {
@@ -411,13 +416,6 @@ function isAtCoderLoginPage(html) {
 	);
 }
 
-function resolveFixedJavaLanguageId(submitPageHtml) {
-	if (isAtCoderLoginPage(submitPageHtml)) {
-		throw new Error("Authentication is required for submit. Set ATCODER_COOKIE or ATCODER_SESSION.");
-	}
-	return DEFAULT_LANGUAGE_ID;
-}
-
 function extractLanguageOptionsFromSubmitPage(html) {
 	const selectMatch = html.match(/<select[^>]*name=["']data\.LanguageId["'][^>]*>([\s\S]*?)<\/select>/i);
 	if (!selectMatch) return [];
@@ -734,7 +732,7 @@ async function submitToAtCoder(task, sourceCode, cookieHeader) {
 	}
 	const csrfToken = extractCsrfToken(submitPage);
 	const submitForm = extractSubmitForm(submitPage, task);
-	const fixedLanguageId = resolveFixedJavaLanguageId(submitPage);
+	const fixedLanguageId = DEFAULT_LANGUAGE_ID;
 	const submitPageJavaLanguageId = chooseJavaLanguageIdFromOptions(extractLanguageOptionsFromSubmitPage(submitPage));
 	const languageCandidates = [];
 	for (const candidate of [fixedLanguageId, submitPageJavaLanguageId]) {
@@ -841,12 +839,42 @@ function parseSubmissionStatus(html) {
 	return "";
 }
 
+function escapeRegExp(text) {
+	return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseMetricByDataTitle(html, labelCandidates) {
+	for (const label of labelCandidates) {
+		const pattern = new RegExp(`data-title=["']${escapeRegExp(label)}["'][^>]*>([\\s\\S]*?)<\\/td>`, "i");
+		const m = html.match(pattern);
+		if (m) {
+			const value = stripTags(m[1]);
+			if (value) return value;
+		}
+	}
+	return "";
+}
+
+function parseMetricByHeaderRow(html, labelCandidates) {
+	for (const label of labelCandidates) {
+		const pattern = new RegExp(`<tr[^>]*>[\\s\\S]*?<th[^>]*>\\s*${escapeRegExp(label)}\\s*<\\/th>[\\s\\S]*?<td[^>]*>([\\s\\S]*?)<\\/td>[\\s\\S]*?<\\/tr>`, "i");
+		const m = html.match(pattern);
+		if (m) {
+			const value = stripTags(m[1]);
+			if (value) return value;
+		}
+	}
+	return "";
+}
+
 function parseExecAndMemory(html) {
-	const execMatch = html.match(/data-title=["']Execution Time["'][^>]*>([\s\S]*?)<\/td>/i);
-	const memMatch = html.match(/data-title=["']Memory["'][^>]*>([\s\S]*?)<\/td>/i);
+	const execTime = parseMetricByDataTitle(html, SUBMISSION_EXEC_TIME_LABELS)
+		|| parseMetricByHeaderRow(html, SUBMISSION_EXEC_TIME_LABELS);
+	const memory = parseMetricByDataTitle(html, SUBMISSION_MEMORY_LABELS)
+		|| parseMetricByHeaderRow(html, SUBMISSION_MEMORY_LABELS);
 	return {
-		execTime: execMatch ? stripTags(execMatch[1]) : "",
-		memory: memMatch ? stripTags(memMatch[1]) : "",
+		execTime,
+		memory,
 	};
 }
 
@@ -884,8 +912,10 @@ async function pollSubmissionFinal(submissionUrl, cookieHeader) {
 		if (terminal.has(status)) {
 			let extra = parseExecAndMemory(html);
 			if (status !== "AC") return {status, ...extra};
+			const extraFetchStarted = Date.now();
 			for (let i = 0; i < SUBMISSION_TERMINAL_EXTRA_FETCH_RETRY; i++) {
 				if (extra.execTime && extra.memory) break;
+				if (Date.now() - extraFetchStarted >= SUBMISSION_TERMINAL_EXTRA_FETCH_MAX_WAIT_MS) break;
 				await sleep(SUBMISSION_TERMINAL_EXTRA_FETCH_INTERVAL_MS);
 				const retryHtml = await httpGetText(submissionUrl, cookieHeader);
 				extra = parseExecAndMemory(retryHtml);
@@ -897,7 +927,8 @@ async function pollSubmissionFinal(submissionUrl, cookieHeader) {
 	return {status: lastStatus || "PENDING", execTime: "", memory: ""};
 }
 
-async function runCommand(command, taskScreenName, sourceFilePath) {
+async function runCommand(command, taskScreenName, sourceFilePath, options = {}) {
+	const forceSubmit = !!options.force;
 	const task = parseTask(taskScreenName);
 	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
 	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
@@ -913,8 +944,11 @@ async function runCommand(command, taskScreenName, sourceFilePath) {
 	if (command === "test") return allAccepted ? 0 : 5;
 
 	if (!allAccepted) {
-		console.log("Not submitting because at least one sample test is not AC.");
-		return 5;
+		if (!forceSubmit) {
+			console.log("Not submitting because at least one sample test is not AC.");
+			return 5;
+		}
+		console.log("Warning: forcing submit despite non-AC sample results (-f/--force).");
 	}
 
 	const submitResult = await submitToAtCoder(task, transformed, toCookieHeader());
@@ -938,14 +972,36 @@ async function runCommand(command, taskScreenName, sourceFilePath) {
 }
 
 async function main() {
-	const [command, taskScreenName, sourceFilePath] = process.argv.slice(2);
+	const rawArgs = process.argv.slice(2);
+	const positionalArgs = [];
+	let force = false;
+
+	for (const arg of rawArgs) {
+		if (arg === "-f" || arg === "--force") {
+			force = true;
+			continue;
+		}
+		if (arg.startsWith("-")) {
+			console.error(`Unknown option: ${arg}`);
+			printUsage();
+			process.exit(1);
+		}
+		positionalArgs.push(arg);
+	}
+
+	const [command, taskScreenName, sourceFilePath] = positionalArgs;
 	if (!["test", "submit"].includes(command) || !taskScreenName || !sourceFilePath) {
+		printUsage();
+		process.exit(1);
+	}
+	if (force && command !== "submit") {
+		console.error("-f/--force is only supported with the submit command.");
 		printUsage();
 		process.exit(1);
 	}
 
 	try {
-		const code = await runCommand(command, taskScreenName, sourceFilePath);
+		const code = await runCommand(command, taskScreenName, sourceFilePath, {force});
 		process.exit(code);
 	} catch (error) {
 		console.error(`Error: ${error.message}`);

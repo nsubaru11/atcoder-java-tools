@@ -1,0 +1,23 @@
+{
+	"name": "atcoder-runner",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"bun": ">=1.0.0",
+		"node": ">=18.0.0"
+	},
+	"scripts": {
+		"runner": "bun ./src/runner/server.ts",
+		"test": "bun ./src/cli/index.ts test",
+		"submit": "bun ./src/cli/index.ts submit",
+		"build:cli:win": "bun build --compile ./src/cli/index.ts --outfile ./bin/atcoder-runner.exe",
+		"build:cli:linux": "bun build --compile ./src/cli/index.ts --outfile ./bin/atcoder-runner",
+		"build:runner:linux": "bun build --compile ./src/runner/server.ts --outfile ./bin/atcoder-local-runner",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/node": "^24.12.4",
+		"typescript": "^5.9.0"
+	}
+}

@@ -1,0 +1,132 @@
+{
+	"pairs": [
+		{
+			"key": "name",
+			"value": "AtCoder Easy Test for Java"
+		},
+		{
+			"key": "namespace",
+			"value": "https://github.com/nsubaru11/AtCoder/tools/userscripts"
+		},
+		{
+			"key": "version",
+			"value": "1.5.3"
+		},
+		{
+			"key": "description",
+			"value": "Make testing sample cases easy (Modified by nsubaru11)"
+		},
+		{
+			"key": "author",
+			"value": "magurofly (original), nsubaru11 (modified)"
+		},
+		{
+			"key": "license",
+			"value": "MIT"
+		},
+		{
+			"key": "homepageURL",
+			"value": "https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderEasyTestForJava"
+		},
+		{
+			"key": "supportURL",
+			"value": "https://github.com/nsubaru11/AtCoder/issues"
+		},
+		{
+			"key": "match",
+			"value": "https://atcoder.jp/contests/*/tasks/*"
+		},
+		{
+			"key": "match",
+			"value": "https://atcoder.jp/contests/*/submit*"
+		},
+		{
+			"key": "match",
+			"value": "https://yukicoder.me/problems/no/*"
+		},
+		{
+			"key": "match",
+			"value": "https://yukicoder.me/problems/*"
+		},
+		{
+			"key": "match",
+			"value": "http://codeforces.com/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "http://codeforces.com/gym/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "http://codeforces.com/problemset/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "http://codeforces.com/group/*/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "http://*.contest.codeforces.com/group/*/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://codeforces.com/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://codeforces.com/gym/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://codeforces.com/problemset/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://codeforces.com/group/*/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://*.contest.codeforces.com/group/*/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://m1.codeforces.com/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://m2.codeforces.com/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://m3.codeforces.com/contest/*/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://greasyfork.org/*/scripts/433152-atcoder-easy-test-v2"
+		},
+		{
+			"key": "grant",
+			"value": "unsafeWindow"
+		},
+		{
+			"key": "grant",
+			"value": "GM_getValue"
+		},
+		{
+			"key": "grant",
+			"value": "GM_setValue"
+		},
+		{
+			"key": "run-at",
+			"value": "document-end"
+		},
+		{
+			"key": "updateURL",
+			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js"
+		},
+		{
+			"key": "downloadURL",
+			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js"
+		}
+	]
+}

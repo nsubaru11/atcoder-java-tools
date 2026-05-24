@@ -1,0 +1,72 @@
+{
+	"pairs": [
+		{
+			"key": "name",
+			"value": "AtCoder Highlighter"
+		},
+		{
+			"key": "name:en",
+			"value": "AtCoder Highlighter"
+		},
+		{
+			"key": "namespace",
+			"value": "https://github.com/nsubaru11/AtCoder/tools/userscripts"
+		},
+		{
+			"key": "version",
+			"value": "1.3.4"
+		},
+		{
+			"key": "description",
+			"value": "AtCoder の問題文中の数字と変数、実行時間/メモリ制限を自動で強調表示させます"
+		},
+		{
+			"key": "description:en",
+			"value": "Automatically highlights numbers, variables, and time/memory limits in AtCoder task statements"
+		},
+		{
+			"key": "author",
+			"value": "nsubaru11"
+		},
+		{
+			"key": "license",
+			"value": "MIT"
+		},
+		{
+			"key": "match",
+			"value": "https://atcoder.jp/contests/*/tasks/*"
+		},
+		{
+			"key": "grant",
+			"value": "GM_getValue"
+		},
+		{
+			"key": "grant",
+			"value": "GM_setValue"
+		},
+		{
+			"key": "grant",
+			"value": "GM_registerMenuCommand"
+		},
+		{
+			"key": "run-at",
+			"value": "document-idle"
+		},
+		{
+			"key": "homepageURL",
+			"value": "https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderHighlighter"
+		},
+		{
+			"key": "supportURL",
+			"value": "https://github.com/nsubaru11/AtCoder/issues"
+		},
+		{
+			"key": "downloadURL",
+			"value": "https://update.greasyfork.org/scripts/566471/AtCoder%20Highlighter.user.js"
+		},
+		{
+			"key": "updateURL",
+			"value": "https://update.greasyfork.org/scripts/566471/AtCoder%20Highlighter.meta.js"
+		}
+	]
+}

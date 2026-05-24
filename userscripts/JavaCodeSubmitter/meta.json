@@ -1,0 +1,68 @@
+{
+	"pairs": [
+		{
+			"key": "name",
+			"value": "Java Code Submitter"
+		},
+		{
+			"key": "namespace",
+			"value": "https://github.com/nsubaru11/AtCoder/tools/userscripts"
+		},
+		{
+			"key": "version",
+			"value": "1.0.6"
+		},
+		{
+			"key": "description",
+			"value": "Java submission helper (Main/DEBUG/fold/shortcuts)"
+		},
+		{
+			"key": "author",
+			"value": "nsubaru11"
+		},
+		{
+			"key": "license",
+			"value": "MIT"
+		},
+		{
+			"key": "homepageURL",
+			"value": "https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/JavaCodeSubmitter"
+		},
+		{
+			"key": "supportURL",
+			"value": "https://github.com/nsubaru11/AtCoder/issues"
+		},
+		{
+			"key": "match",
+			"value": "https://onlinejudge.u-aizu.ac.jp/*"
+		},
+		{
+			"key": "match",
+			"value": "https://atcoder.jp/contests/*"
+		},
+		{
+			"key": "match",
+			"value": "https://judge.yosupo.jp/problem/*"
+		},
+		{
+			"key": "match",
+			"value": "https://paiza.jp/*"
+		},
+		{
+			"key": "grant",
+			"value": "unsafeWindow"
+		},
+		{
+			"key": "run-at",
+			"value": "document-end"
+		},
+		{
+			"key": "updateURL",
+			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js"
+		},
+		{
+			"key": "downloadURL",
+			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js"
+		}
+	]
+}

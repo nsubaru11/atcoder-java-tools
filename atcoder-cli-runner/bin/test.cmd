@@ -1,5 +1,1 @@
-@echo off
-setlocal
-for %%I in ("%~dp0..") do set "BASE_DIR=%%~fI"
-node "%BASE_DIR%\cli\atcoder-submit-cli.mjs" test %*
-exit /b %errorlevel%
+@call "%~dp0_runner.cmd" test %*

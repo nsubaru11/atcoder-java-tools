@@ -4,28 +4,19 @@ $ErrorActionPreference = "Stop"
 
 if ( [string]::IsNullOrWhiteSpace($Session)) {
 	$secure = Read-Host "Enter REVEL_SESSION value" -AsSecureString
-	$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-	try {
-		$Session = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-	}
-	finally {
-		[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-	}
+	$Session = [System.Net.NetworkCredential]::new("", $secure).Password
 }
 
 if ( [string]::IsNullOrWhiteSpace($Session)) {
-	throw "Session value is empty."
+	Write-Host "Error: Session value is empty." -ForegroundColor Red
+	exit 1
 }
 
-if ($Session -match "^REVEL_SESSION=") {
-	$Session = $Session.Substring("REVEL_SESSION=".Length)
-}
+$Session = $Session -replace "^REVEL_SESSION="
 
-$dir = Split-Path -Parent $SessionFile
-if (-not (Test-Path $dir)) {
-	New-Item -ItemType Directory -Path $dir -Force | Out-Null
-}
+$null = New-Item -ItemType Directory -Path (Split-Path $SessionFile) -Force
 
 Set-Content -Path $SessionFile -Value $Session -Encoding UTF8
-Write-Output "Saved session to: $SessionFile"
-Write-Output "submit will auto-read this file if ATCODER_SESSION and ATCODER_COOKIE are not set."
+
+Write-Host "Saved session to: $SessionFile" -ForegroundColor Green
+Write-Host "You are now ready to use the submit command." -ForegroundColor Magenta

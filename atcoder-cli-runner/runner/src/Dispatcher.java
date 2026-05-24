@@ -458,7 +458,7 @@ public final class Dispatcher {
 		 * @param limit 最大保持サイズ
 		 */
 		private LimitedByteArrayOutputStream(final int limit) {
-			super(Math.min(8192, Math.max(1, limit)));
+			super(Math.clamp(limit, 1, 8192));
 			this.limit = Math.max(1, limit);
 			this.truncated = false;
 		}

@@ -1,25 +1,18 @@
-param()
-
 $ErrorActionPreference = "Stop"
 
-$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-$pathList = @()
-if (-not [string]::IsNullOrWhiteSpace($userPath)) {
-	$pathList = $userPath.Split(";") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-}
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User") ?? ""
+$pathList = $userPath.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)
 
-if ($pathList -contains $repoRoot) {
-	Write-Output "Path already contains: $repoRoot"
+if ($PSScriptRoot -in $pathList) {
+	Write-Host "Path already contains: $PSScriptRoot" -ForegroundColor Cyan
 } else {
-	$updated = ($pathList + $repoRoot) -join ";"
-	[Environment]::SetEnvironmentVariable("Path", $updated, "User")
-	Write-Output "Added to user PATH: $repoRoot"
+	[Environment]::SetEnvironmentVariable("Path", ($pathList + $PSScriptRoot) -join ";", "User")
+	Write-Host "Added to user PATH: $PSScriptRoot" -ForegroundColor Green
 }
 
-if (-not (($env:Path.Split(";") | Where-Object { $_ -eq $repoRoot }).Count -gt 0)) {
-	$env:Path = "$repoRoot;$env:Path"
-	Write-Output "Added to current session PATH: $repoRoot"
+if ($PSScriptRoot -notin ($env:Path.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries))) {
+	$env:Path = "$PSScriptRoot;$env:Path"
+	Write-Host "Added to current session PATH: $PSScriptRoot" -ForegroundColor Yellow
 }
 
-Write-Output "You can now run: test <task> <file> and submit <task> <file>"
+Write-Host "You can now run: test <task> <file> and submit <task> <file>" -ForegroundColor Magenta

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AtCoder Custom Default Submissions
 // @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.6.3
+// @version     1.6.4
 // @description AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。
 // @author      ktnyori (original), nsubaru11 (modified)
 // @license     MIT

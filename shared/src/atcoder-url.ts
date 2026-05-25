@@ -1,4 +1,5 @@
 import type {AtCoderTaskId} from "./types";
+import {buildQueryString, type QueryValue} from "./query";
 
 const ATCODER_TASK_URL_PATTERN =
 	/^https:\/\/atcoder\.jp\/contests\/([^/?#]+)\/tasks\/([^/?#]+)/;
@@ -34,4 +35,31 @@ export function buildAtCoderSubmitUrl(task: AtCoderTaskId): string {
 
 export function buildAtCoderSubmitPostUrl(contestId: string): string {
 	return `https://atcoder.jp/contests/${contestId}/submit`;
+}
+
+export type AtCoderSubmissionsFilter = {
+	language?: string;
+	status?: string;
+	orderBy?: string;
+	task?: string;
+};
+
+export function buildAtCoderSubmissionsQuery(filter: AtCoderSubmissionsFilter): string {
+	const params: Record<string, QueryValue> = {};
+	if (filter.language) params["f.LanguageName"] = filter.language;
+	if (filter.status) params["f.Status"] = filter.status;
+	if (filter.orderBy) params["orderBy"] = filter.orderBy;
+	if (filter.task) params["f.Task"] = filter.task;
+	return buildQueryString(params);
+}
+
+export function buildAtCoderSubmissionsMeUrl(contestId: string, filter?: AtCoderSubmissionsFilter): string {
+	const base = `https://atcoder.jp/contests/${contestId}/submissions/me`;
+	if (!filter) return base;
+	const query = buildAtCoderSubmissionsQuery(filter);
+	return query ? `${base}?${query}` : base;
+}
+
+export function buildAtCoderSubmissionUrl(contestId: string, submissionId: string | number): string {
+	return `https://atcoder.jp/contests/${contestId}/submissions/${submissionId}`;
 }

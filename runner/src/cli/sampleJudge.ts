@@ -1,75 +1,24 @@
-import type {EasyTestJudgeResult, EasyTestRunResult, LocalRunnerResult, SamplePair, SampleResult} from "../types";
-import {CLI_CONFIG} from "../shared/config";
-import {colorizeStatus} from "../shared/utils";
+import {
+	buildLocalRunnerRunRequest,
+	type EasyTestRunResult,
+	evaluateEasyTestOutput,
+	type LocalRunnerRunResponse,
+	toEasyTestStatus,
+} from "@atcoder-tools/shared";
+import type {SamplePair, SampleResult} from "../types";
+import {CLI_CONFIG} from "../config";
+import {colorizeStatus} from "../utils";
 
-export async function postLocalRunner(sourceCode: string, stdinText: string): Promise<LocalRunnerResult> {
+export async function postLocalRunner(sourceCode: string, stdinText: string): Promise<LocalRunnerRunResponse> {
 	const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
-		body: JSON.stringify({mode: "run", sourceCode, stdin: stdinText}),
+		body: JSON.stringify(buildLocalRunnerRunRequest(sourceCode, stdinText)),
 	});
 	if (!res.ok) {
 		throw new Error(`Local runner request failed: ${res.status}`);
 	}
-	return await res.json() as LocalRunnerResult;
-}
-
-export function evaluateByEasyTest(
-	runResult: EasyTestRunResult,
-	expectedOutput: string,
-	options: { trim?: boolean; split?: boolean; allowableError?: number } = {trim: true, split: true},
-): EasyTestJudgeResult {
-	const status = runResult.status;
-	if (status !== "OK" || typeof expectedOutput !== "string") {
-		return {status, output: runResult.output || "", expectedOutput};
-	}
-	let output = runResult.output || "";
-	let expected = expectedOutput;
-	if (options.trim) {
-		expected = expected.trim();
-		output = output.trim();
-	}
-	let equals = (x: string, y: string) => x === y;
-	if (options.allowableError) {
-		const floatPattern = /^[-+]?[0-9]*\.[0-9]+([eE][-+]?[0-9]+)?$/;
-		const superEquals = equals;
-		equals = (x, y) => {
-			if (floatPattern.test(x) || floatPattern.test(y)) {
-				const a = Number.parseFloat(x);
-				const b = Number.parseFloat(y);
-				return Math.abs(a - b) <= Math.max(options.allowableError!, Math.abs(b) * options.allowableError!);
-			}
-			return superEquals(x, y);
-		};
-	}
-	if (options.split) {
-		const superEquals = equals;
-		equals = (x, y) => {
-			const xs = x.split(/\s+/);
-			const ys = y.split(/\s+/);
-			if (xs.length !== ys.length) return false;
-			for (let i = 0; i < xs.length; i++) {
-				if (!superEquals(xs[i], ys[i])) return false;
-			}
-			return true;
-		};
-	}
-	return {status: equals(output, expected) ? "AC" : "WA", output, expectedOutput: expected};
-}
-
-export function mapRunnerStatusToEasyTestStatus(localRunnerResult: LocalRunnerResult) {
-	switch (localRunnerResult.status) {
-		case "success":
-			return "OK";
-		case "compileError":
-			return "CE";
-		case "timeLimitExceeded":
-			return "TLE";
-		case "runtimeError":
-		case "internalError":
-		default:
-			return "RE";
-	}
+	return await res.json() as LocalRunnerRunResponse;
 }
 
 export async function runSampleTests(sourceCode: string, samplePairs: SamplePair[]) {
@@ -77,12 +26,12 @@ export async function runSampleTests(sourceCode: string, samplePairs: SamplePair
 	for (const sample of samplePairs) {
 		const runnerRaw = await postLocalRunner(sourceCode, sample.input);
 		const easyLikeRun: EasyTestRunResult = {
-			status: mapRunnerStatusToEasyTestStatus(runnerRaw),
+			status: toEasyTestStatus(runnerRaw.status, runnerRaw.exitCode),
 			output: runnerRaw.stdout || "",
 			error: runnerRaw.stderr || "",
 			execTime: runnerRaw.time || 0,
 		};
-		const judged = evaluateByEasyTest(easyLikeRun, sample.expectedOutput, {trim: true, split: true});
+		const judged = evaluateEasyTestOutput(easyLikeRun, sample.expectedOutput, {trim: true, split: true});
 		results.push({
 			index: sample.index,
 			status: judged.status,

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AtCoder Perf Graph
 // @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.1.5
+// @version     1.1.6
 // @description レーティンググラフにパフォーマンスのグラフを重ねて表示します
 // @author      nzm_ort (original), nsubaru11 (modified)
 // @license     MIT
@@ -219,8 +219,9 @@
 		perf_y_min = Infinity;
 		perf_y_max = -Infinity;
 		for (let i = 0; i < perf_rating_history.length; i++) {
-			perf_y_min = Math.min(perf_y_min, perf_rating_history[i].Performance);
-			perf_y_max = Math.max(perf_y_max, perf_rating_history[i].Performance);
+			const performance = perf_rating_history[i].Performance ?? 0;
+			perf_y_min = Math.min(perf_y_min, performance);
+			perf_y_max = Math.max(perf_y_max, performance);
 		}
 		perf_y_min = Math.min(1500, Math.max(0, perf_y_min - MARGIN_VAL_Y_LOW));
 		perf_y_max += MARGIN_VAL_Y_HIGH;
@@ -413,7 +414,9 @@
 		}
 		let highest_i_perf = 0;
 		for (let i = 0; i < perf_n; i++) {
-			if (perf_rating_history[highest_i_perf].Performance < perf_rating_history[i].Performance) {
+			const current = perf_rating_history[i].Performance ?? 0;
+			const highest = perf_rating_history[highest_i_perf].Performance ?? 0;
+			if (highest < current) {
 				highest_i_perf = i;
 			}
 		}
@@ -424,17 +427,18 @@
 				perf_vertex_shapes[i].graphics.s("#000");
 				perf_vertex_shapes[i].graphics
 					.setStrokeStyle(1)
-					.beginFill(getColor(perf_rating_history[i].Performance)[1])
+					.beginFill(getColor(perf_rating_history[i].Performance ?? 0)[1])
 					.dc(0, 0, 2.5);
 			} else {
 				perf_vertex_shapes[i].graphics
 					.setStrokeStyle(0.5)
-					.beginFill(getColor(perf_rating_history[i].Performance)[1])
+					.beginFill(getColor(perf_rating_history[i].Performance ?? 0)[1])
 					.dc(0, 0, 2.8);
 			}
 			perf_vertex_shapes[i].x = OFFSET_X + PANEL_WIDTH * getPer(rating_history[i].EndTime, x_min, x_max);
 			perf_vertex_shapes[i].y =
-				OFFSET_Y + (PANEL_HEIGHT - PANEL_HEIGHT * getPer(perf_rating_history[i].Performance, y_min, y_max));
+				OFFSET_Y +
+				(PANEL_HEIGHT - PANEL_HEIGHT * getPer(perf_rating_history[i].Performance ?? 0, y_min, y_max));
 			perf_vertex_shapes[i].i = i;
 			let hitArea = new cj.Shape();
 			hitArea.graphics.f("#000").dc(1.5, 1.5, 6);

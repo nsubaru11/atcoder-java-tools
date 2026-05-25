@@ -36,30 +36,6 @@ export interface SubmissionFinalResult {
 	memory: string;
 }
 
-export interface LocalRunnerResult {
-	status: string;
-	exitCode?: number;
-	stdout?: string;
-	stderr?: string;
-	time?: number;
-	memory?: number;
-	stdoutTruncated?: boolean;
-	stderrTruncated?: boolean;
-}
-
-export interface EasyTestRunResult {
-	status: string;
-	output: string;
-	error?: string;
-	execTime?: number;
-}
-
-export interface EasyTestJudgeResult {
-	status: string;
-	output: string;
-	expectedOutput: string;
-}
-
 export interface SampleResult {
 	index: number;
 	status: string;

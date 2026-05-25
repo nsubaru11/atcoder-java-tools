@@ -1,8 +1,8 @@
 import http from "node:http";
 import {pathToFileURL} from "node:url";
-import type {LocalRunnerCompilerInfo, LocalRunnerRequest, LocalRunnerRunResponse} from "@shared/local-runner";
-import {LOG_FILE_PATH, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../shared/config";
-import {ensureDirectory, formatRunSummary, logError, logInfo, logWarn,} from "../shared/utils";
+import type {LocalRunnerCompilerInfo, LocalRunnerRequest, LocalRunnerRunResponse} from "@atcoder-tools/shared";
+import {LOG_FILE_PATH, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../config";
+import {ensureDirectory, formatRunSummary, logError, logInfo, logWarn,} from "../utils";
 import {getCompiledEntry, JAVA_VERSION, runCodeInIsolatedJvm, RUNNER_LABEL, warmUpJavaTools,} from "./compiler";
 import {
 	ensureDispatcherReady,
@@ -123,8 +123,23 @@ const server = http.createServer(async (req, res) => {
 		body += buffer.toString("utf8");
 	}
 
+	let request: Partial<LocalRunnerRequest> & { mode?: string };
 	try {
-		const request = JSON.parse(body) as Partial<LocalRunnerRequest> & {mode?: string};
+		request = JSON.parse(body) as Partial<LocalRunnerRequest> & { mode?: string };
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		res.writeHead(400, {"Content-Type": "application/json"});
+		res.end(JSON.stringify({status: "badRequest", stderr: `Invalid JSON: ${message}`}));
+		return;
+	}
+
+	if (!request || typeof request !== "object" || Array.isArray(request)) {
+		res.writeHead(400, {"Content-Type": "application/json"});
+		res.end(JSON.stringify({status: "badRequest", stderr: "Request body must be a JSON object."}));
+		return;
+	}
+
+	try {
 		let response;
 		if (request.mode === "list") {
 			response = [

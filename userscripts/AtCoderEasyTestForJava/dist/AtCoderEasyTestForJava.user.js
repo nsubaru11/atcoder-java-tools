@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AtCoder Easy Test for Java
 // @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.5.3
+// @version     1.5.4
 // @description Make testing sample cases easy (Modified by nsubaru11)
 // @author      magurofly (original), nsubaru11 (modified)
 // @license     MIT
@@ -38,7 +38,65 @@
 	function sleep(ms) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
-
+	// ../shared/src/query.ts
+	function buildQueryString(data) {
+		const params = new URLSearchParams();
+		for (const [key, value] of Object.entries(data)) {
+			if (value == null) continue;
+			params.set(key, String(value));
+		}
+		return params.toString();
+	}
+	// ../shared/src/easy-test-judge.ts
+	var FLOAT_PATTERN = /^[-+]?[0-9]*\.[0-9]+([eE][-+]?[0-9]+)?$/;
+	function evaluateEasyTestOutput(runResult, expectedOutput, options = { trim: true, split: true }) {
+		const status = runResult.status;
+		if (status !== "OK" || typeof expectedOutput !== "string") {
+			return { status, output: runResult.output || "", expectedOutput };
+		}
+		let output = runResult.output || "";
+		let expected = expectedOutput;
+		if (options.trim) {
+			expected = expected.trim();
+			output = output.trim();
+		}
+		let equals = (x, y) => x === y;
+		const allowableError = options.allowableError;
+		if (allowableError) {
+			const superEquals = equals;
+			equals = (x, y) => {
+				if (FLOAT_PATTERN.test(x) || FLOAT_PATTERN.test(y)) {
+					const a = Number.parseFloat(x);
+					const b = Number.parseFloat(y);
+					return Math.abs(a - b) <= Math.max(allowableError, Math.abs(b) * allowableError);
+				}
+				return superEquals(x, y);
+			};
+		}
+		if (options.split) {
+			const superEquals = equals;
+			equals = (x, y) => {
+				const xs = x.split(/\s+/);
+				const ys = y.split(/\s+/);
+				if (xs.length !== ys.length) return false;
+				for (let i = 0; i < xs.length; i++) {
+					if (!superEquals(xs[i], ys[i])) return false;
+				}
+				return true;
+			};
+		}
+		const judgedStatus = equals(output, expected) ? "AC" : "WA";
+		return { status: judgedStatus, output, expectedOutput: expected };
+	}
+	// ../shared/src/json.ts
+	function safeJsonParse(text, fallback) {
+		if (typeof text !== "string") return fallback;
+		try {
+			return JSON.parse(text);
+		} catch {
+			return fallback;
+		}
+	}
 	// ../shared/src/local-runner.ts
 	function isHttpUrl(value) {
 		return /^https?:\/\//.test(value);
@@ -79,28 +137,9 @@
 				return "IE";
 		}
 	}
-
-	// ../shared/src/query.ts
-	function buildQueryString(data) {
-		const params = new URLSearchParams();
-		for (const [key, value] of Object.entries(data)) {
-			if (value == null) continue;
-			params.set(key, String(value));
-		}
-		return params.toString();
-	}
-
 	// AtCoderEasyTestForJava/src/main.ts
 	(function () {
 		const STORAGE_KEY = "AtCoderEasyTest";
-		function safeJsonParse(text, fallback) {
-			if (typeof text !== "string") return fallback;
-			try {
-				return JSON.parse(text);
-			} catch (_e) {
-				return fallback;
-			}
-		}
 		if (typeof GM_getValue !== "function" || typeof GM_setValue !== "function") {
 			const hasAsyncGM =
 				typeof GM === "object" && typeof GM.getValue === "function" && typeof GM.setValue === "function";
@@ -167,7 +206,7 @@
 				keys.push(key);
 				values.push(value);
 			}
-			unsafeWindow["Function"](keys.join(), js).apply(ctx, values);
+			globalThis.Function(keys.join(), js).apply(ctx, values);
 		}
 		const eventListeners = new Map();
 		const events = {
@@ -408,8 +447,8 @@
 				}
 			},
 			set(key, value) {
-				const json = JSON.stringify(value);
-				config.setString(key, json === undefined ? "null" : json);
+				const json2 = JSON.stringify(value);
+				config.setString(key, json2 === undefined ? "null" : json2);
 			},
 			save,
 			load,
@@ -462,11 +501,11 @@
 		config.registerCount("codeSaver.limit", 10, "Max number to save codes");
 		const codeSaver = {
 			get() {
-				let json = unsafeWindow.localStorage.AtCoderEasyTest$lastCode;
+				let json2 = unsafeWindow.localStorage.AtCoderEasyTest$lastCode;
 				let data2 = [];
 				try {
-					if (typeof json === "string") {
-						data2.push(...JSON.parse(json));
+					if (typeof json2 === "string") {
+						data2.push(...JSON.parse(json2));
 					} else {
 						data2 = [];
 					}
@@ -475,7 +514,7 @@
 						path:
 							unsafeWindow.localStorage.AtCoderEasyTest$lastPage ||
 							unsafeWindow.localStorage.AtCoderEasyTset$lastPage,
-						code: json,
+						code: json2,
 					});
 				}
 				return data2;
@@ -577,41 +616,19 @@
 				}
 				if (expectedOutput != null) result.expectedOutput = expectedOutput;
 				if (result.status !== "OK" || typeof expectedOutput !== "string") return result;
-				let output = result.output || "";
-				if (options2.trim) {
-					expectedOutput = expectedOutput.trim();
-					output = output.trim();
-				}
-				let equals = (x, y) => x === y;
-				if (options2.allowableError) {
-					const floatPattern = /^[-+]?[0-9]*\.[0-9]+([eE][-+]?[0-9]+)?$/;
-					const superEquals = equals;
-					equals = (x, y) => {
-						if (floatPattern.test(x) || floatPattern.test(y)) {
-							const a = parseFloat(x);
-							const b = parseFloat(y);
-							return (
-								Math.abs(a - b) <=
-								Math.max(options2.allowableError, Math.abs(b) * options2.allowableError)
-							);
-						}
-						return superEquals(x, y);
-					};
-				}
-				if (options2.split) {
-					const superEquals = equals;
-					equals = (x, y) => {
-						const xs = x.split(/\s+/);
-						const ys = y.split(/\s+/);
-						if (xs.length !== ys.length) return false;
-						const len = xs.length;
-						for (let i = 0; i < len; i++) {
-							if (!superEquals(xs[i], ys[i])) return false;
-						}
-						return true;
-					};
-				}
-				result.status = equals(output, expectedOutput) ? "AC" : "WA";
+				const judged = evaluateEasyTestOutput(
+					{
+						status: result.status,
+						output: result.output || "",
+						error: result.error,
+						execTime: result.execTime,
+					},
+					expectedOutput,
+					options2,
+				);
+				result.status = judged.status;
+				result.output = judged.output;
+				result.expectedOutput = judged.expectedOutput;
 				return result;
 			}
 		}
@@ -789,8 +806,9 @@
 			const script = await fetch("https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js").then((res) =>
 				res.text(),
 			);
-			unsafeWindow["Function"](script)();
-			const pyodide = await unsafeWindow["loadPyodide"]({
+			globalThis.Function(script)();
+			const loadPyodide2 = unsafeWindow.loadPyodide;
+			const pyodide = await loadPyodide2({
 				indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.0/full/",
 			});
 			await pyodide.runPythonAsync(`
@@ -853,7 +871,7 @@ def __run():
 						} catch (error) {
 							status = "RE";
 							exitCode = "-1";
-							stderr += error.toString();
+							stderr += error instanceof Error ? error.message : String(error);
 						}
 						resolve({
 							status,
@@ -1270,15 +1288,14 @@ def __run():
 				langMap: langMap2,
 				get sourceCode() {
 					const $ = unsafeWindow.document.querySelector.bind(unsafeWindow.document);
-					if (typeof unsafeWindow["ace"] !== "undefined") {
-						if (!$(".btn-toggle-editor").classList.contains("active")) {
-							return unsafeWindow["ace"].edit($("#editor")).getValue();
-						} else {
-							return $("#plain-textarea").value;
+					if (typeof unsafeWindow["ace"] !== "undefined" && unsafeWindow.ace) {
+						const toggle = $(".btn-toggle-editor");
+						if (toggle && !toggle.classList.contains("active")) {
+							return unsafeWindow.ace.edit($("#editor")).getValue();
 						}
-					} else {
-						return unsafeWindow.getSourceCode();
+						return $("#plain-textarea")?.value ?? "";
 					}
+					return unsafeWindow.getSourceCode?.() ?? "";
 				},
 				set sourceCode(sourceCode) {
 					const $ = unsafeWindow.document.querySelector.bind(unsafeWindow.document);
@@ -1294,7 +1311,7 @@ def __run():
 					doc.querySelector("#submit").click();
 				},
 				get testButtonContainer() {
-					return doc.querySelector("#submit").parentElement;
+					return doc.querySelector("#submit")?.parentElement ?? null;
 				},
 				get sideButtonContainer() {
 					return doc.querySelector(".editor-buttons");
@@ -1387,7 +1404,7 @@ def __run():
 				text: "Text cat 8.3",
 			};
 			for (const btnCopyInput of doc.querySelectorAll(".copy-sample-input")) {
-				btnCopyInput.parentElement.insertBefore(
+				btnCopyInput.parentElement?.insertBefore(
 					newElement("span", { className: "atcoder-easy-test-anchor" }),
 					btnCopyInput,
 				);
@@ -1414,7 +1431,7 @@ def __run():
 					return doc.querySelector("#submit_form");
 				},
 				get sideButtonContainer() {
-					return doc.querySelector("#toggle_source_editor").parentElement;
+					return doc.querySelector("#toggle_source_editor")?.parentElement ?? null;
 				},
 				get bottomMenuContainer() {
 					return doc.body;
@@ -1529,11 +1546,13 @@ def __run():
 				}),
 			);
 			const eButtons = newElement("span");
-			doc.querySelector(".submitForm").appendChild(eButtons);
+			doc.querySelector(".submitForm")?.appendChild(eButtons);
 			await loadScript("https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js");
-			const jQuery = unsafeWindow["jQuery"].noConflict();
-			unsafeWindow["jQuery"] = unsafeWindow["$"];
-			unsafeWindow["jQuery11"] = jQuery;
+			const jQuery = unsafeWindow.jQuery?.noConflict?.();
+			if (!jQuery) throw new Error("jQuery was not loaded.");
+			const codeforcesWindow = unsafeWindow;
+			codeforcesWindow.jQuery = codeforcesWindow.$;
+			codeforcesWindow.jQuery11 = jQuery;
 			await loadScript("https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js", null, {
 				jQuery,
 				$: jQuery,
@@ -1546,8 +1565,9 @@ def __run():
 			const submitForm = doc.querySelector(".submitForm");
 			const eFile = submitForm.elements.namedItem("sourceFile");
 			eFile.addEventListener("change", async () => {
-				if (eFile.files[0]) {
-					_sourceCode = await eFile.files[0].text();
+				const file = eFile.files?.[0];
+				if (file) {
+					_sourceCode = await file.text();
 					if (editor) editor.sourceCode = _sourceCode;
 				}
 			});
@@ -1566,7 +1586,7 @@ def __run():
 							language.value = langMap[eLang.value];
 						});
 					}
-					const aceEditor = unsafeWindow["ace"].edit("editor");
+					const aceEditor = unsafeWindow.ace.edit("editor");
 					editor = {
 						get sourceCode() {
 							return aceEditor.getValue();
@@ -1602,9 +1622,10 @@ def __run():
 			}, 100);
 			if (config.get("site.codeforces.showEditor", true)) {
 				editor = new Editor(langMap[eLang.value].split(" ")[0]);
-				doc.getElementById("pageContent")?.appendChild(editor.element);
+				const pageContent = doc.getElementById("pageContent");
+				if (pageContent && editor.element) pageContent.appendChild(editor.element);
 				language.addListener((lang) => {
-					editor.setLanguage(lang);
+					editor?.setLanguage(lang);
 				});
 			}
 			return {
@@ -1685,10 +1706,12 @@ def __run():
 		async function init$2() {
 			if (!/^m[1-3]\.codeforces\.com$/.test(location.host)) throw "not Codeforces Mobile";
 			const url = /\/contest\/(\d+)\/problem\/([^/]+)/.exec(location.pathname);
+			if (!url) throw new Error("Codeforces Mobile problem URL was not matched.");
 			const contestId = url[1];
 			const problemId = url[2];
 			const doc = unsafeWindow.document;
 			const main = doc.querySelector("main");
+			if (!main) throw new Error("Codeforces Mobile main element was not found.");
 			doc.head.appendChild(
 				newElement("link", {
 					rel: "stylesheet",
@@ -1729,7 +1752,7 @@ def __run():
 					const control = row.querySelector("*[name]");
 					if (control) control.classList.add("form-control");
 				}
-				form.parentElement.removeChild(form);
+				form.parentElement?.removeChild(form);
 				main.appendChild(form);
 				submit = () => form.submit();
 				getSourceCode = () => sourceInput.value;
@@ -1794,7 +1817,7 @@ def __run():
 				$: jQuery,
 			});
 			const e = newElement("div");
-			doc.getElementById("install-area").appendChild(
+			doc.getElementById("install-area")?.appendChild(
 				newElement("button", {
 					type: "button",
 					textContent: "Open config",
@@ -1971,11 +1994,17 @@ def __run():
 		);
 		async function fetchWandboxCompilers() {
 			const cached = config.get("wandboxAPI.cachedCompilerList", { value: null, lastModified: -Infinity });
-			if (Date.now() - cached.lastModified <= config.get("wandboxAPI.cacheLifetime", 24 * 60 * 60 * 1000)) {
+			if (
+				Array.isArray(cached.value) &&
+				Date.now() - cached.lastModified <= config.get("wandboxAPI.cacheLifetime", 24 * 60 * 60 * 1000)
+			) {
 				return cached.value;
 			}
 			const response = await fetch("https://wandbox.org/api/list.json");
 			const compilers = await response.json();
+			if (!Array.isArray(compilers)) {
+				throw new Error("Wandbox compiler list is not a JSON array.");
+			}
 			config.set("wandboxAPI.cachedCompilerList", { value: compilers, lastModified: Date.now() });
 			config.save();
 			return compilers;
@@ -2654,9 +2683,9 @@ def __run():
 			const root = newElement("div");
 			const text = win.document.createTextNode.bind(win.document);
 			const textAuto = (property) => {
-				const t = text(property.value);
+				const t = text(String(property.value));
 				property.addListener((value) => {
-					t.textContent = value;
+					t.textContent = String(value);
 				});
 				return t;
 			};
@@ -2989,6 +3018,7 @@ def __run():
 					const pResult = codeRunner.run(language, sourceCode, input, output, options2);
 					pResult
 						.then((result) => {
+							if (!result) return;
 							content.result = result;
 							if (result.status === "AC") {
 								pTab.then((tab) => (tab.color = "#dff0d8"));
@@ -3079,7 +3109,7 @@ def __run():
 						config.set("langSelection", langSelection);
 						config.save();
 					}
-					if (unsafeWindow["jQuery"] && unsafeWindow["jQuery"].fn.select2) {
+					if (unsafeWindow.jQuery?.fn?.select2) {
 						unsafeWindow["jQuery"](eLanguage).on("change", onEnvChange);
 					} else {
 						eLanguage.addEventListener("change", onEnvChange);
@@ -3102,7 +3132,7 @@ def __run():
 								for (const [runnerId, label] of langs) {
 									const option = document.createElement("option");
 									option.value = runnerId;
-									option.textContent = label;
+									option.textContent = label ?? "";
 									fragment.appendChild(option);
 								}
 								eLanguage.appendChild(fragment);

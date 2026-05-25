@@ -169,14 +169,15 @@
 		const nodesToProcess: Text[] = [];
 		let currentNode: Node | null;
 		while ((currentNode = walker.nextNode())) {
-			if (/\d/.test(currentNode.nodeValue)) {
+			const nodeValue = currentNode.nodeValue;
+			if (nodeValue && /\d/.test(nodeValue)) {
 				nodesToProcess.push(currentNode as Text);
 			}
 		}
 
 		nodesToProcess.forEach((node: Text) => {
 			const text = node.nodeValue;
-			if (!NUM_PATTERN.test(text)) return;
+			if (!text || !NUM_PATTERN.test(text)) return;
 
 			const fragment = document.createDocumentFragment();
 			let lastIndex = 0;

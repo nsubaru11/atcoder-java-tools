@@ -1,6 +1,8 @@
 import fs from "node:fs";
-export {sleep} from "@shared/async";
 import {LOG_FILE_PATH, RUNNER_CONFIG} from "./config";
+
+export {normalizeNewlines} from "@atcoder-tools/shared";
+export {sleep} from "@atcoder-tools/shared";
 
 export const ANSI = {
 	RESET: "\x1b[0m",
@@ -10,10 +12,6 @@ export const ANSI = {
 	ORANGE: "\x1b[38;5;208m",
 	CYAN: "\x1b[36m",
 };
-
-export function normalizeNewlines(text: string) {
-	return text.replace(/\r\n?/g, "\n");
-}
 
 export function supportsCliColor() {
 	return process.stdout.isTTY && !process.env.NO_COLOR;

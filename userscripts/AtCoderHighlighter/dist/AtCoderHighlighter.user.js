@@ -2,7 +2,7 @@
 // @name           AtCoder Highlighter
 // @name:en        AtCoder Highlighter
 // @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.3.4
+// @version        1.3.5
 // @description    AtCoder の問題文中の数字と変数、実行時間/メモリ制限を自動で強調表示させます
 // @description:en Automatically highlights numbers, variables, and time/memory limits in AtCoder task statements
 // @author         nsubaru11
@@ -157,13 +157,14 @@
 			const nodesToProcess = [];
 			let currentNode;
 			while ((currentNode = walker.nextNode())) {
-				if (/\d/.test(currentNode.nodeValue)) {
+				const nodeValue = currentNode.nodeValue;
+				if (nodeValue && /\d/.test(nodeValue)) {
 					nodesToProcess.push(currentNode);
 				}
 			}
 			nodesToProcess.forEach((node) => {
 				const text = node.nodeValue;
-				if (!NUM_PATTERN.test(text)) return;
+				if (!text || !NUM_PATTERN.test(text)) return;
 				const fragment = document.createDocumentFragment();
 				let lastIndex = 0;
 				let match;

@@ -1,126 +1,71 @@
 # tools
 
-AtCoder 用の補助ツール群です。
+AtCoder 向けの補助ツールを Bun ワークスペースで管理しています。
 
-このディレクトリでは、UserScript、ローカルランナー、両者で共有する TypeScript コードを管理します。
-
-## 構成
+## ワークスペース構成
 
 ```text
 tools/
-	shared/
-		src/
-			async.ts
-			atcoder-url.ts
-			local-runner.ts
-			query.ts
-			types.ts
-			index.ts
-	userscripts/
-		<ScriptName>/
-			meta.json
-			src/main.ts
-			dist/<ScriptName>.user.js
-		build.ts
-		package.json
-		tsconfig.json
-	runner/
-		src/
-			cli/
-			runner/
-			shared/
-			types/
-		bin/
-		runner/src/
-		package.json
-		README.md
+├── package.json          # workspaces: shared, runner, userscripts
+├── bun.lock
+├── tsconfig.base.json
+├── shared/               # @atcoder-tools/shared
+├── userscripts/          # @atcoder-tools/userscripts
+└── runner/               # @atcoder-tools/runner
 ```
 
 ## shared
 
-`tools/shared` は、UserScript 側と runner 側の両方から使う共通コードです。
+runner と userscripts の両方が使うコードです。詳細は [shared/README.md](./shared/README.md) を参照してください。
 
-- `atcoder-url.ts`: AtCoder の contest/task URL 解析、submit URL 生成
-- `local-runner.ts`: Local Runner API の request/response 型、status 変換、key 生成
-- `async.ts`: `sleep`
-- `query.ts`: query string 生成
-- `types.ts`: 共通型
+主なモジュール:
 
-各プロジェクトからは `@shared/*` で参照します。
+- AtCoder URL・提出一覧クエリ (`atcoder-url.ts`)
+- Local Runner API 型とリクエスト (`local-runner.ts`)
+- Easy Test 互換ジャッジ (`easy-test-judge.ts`)
+- Java ソース変換 (`java-transform.ts`)
+- JSON 設定の読み込み (`json.ts`)
 
 ```ts
-import {parseAtCoderTaskUrl} from "@shared/atcoder-url";
-import {buildLocalRunnerRunRequest} from "@shared/local-runner";
+import {parseAtCoderTaskUrl, evaluateEasyTestOutput} from "@atcoder-tools/shared";
 ```
 
 ## userscripts
 
-UserScript は TypeScript で開発し、Bun の bundler で `.user.js` に変換します。
-
-```text
-tools/userscripts/<ScriptName>/src/main.ts
-	-> tools/userscripts/<ScriptName>/dist/<ScriptName>.user.js
-```
-
-`meta.json` の `pairs` から UserScript metadata を生成し、ビルド時に `.user.js` の先頭へ付けます。
-生成された `.user.js` は Prettier で整形し、コード部のインデントをタブに揃えます。
-Tampermonkey / Violentmonkey には `dist/*.user.js` を登録してください。
-
-### Commands
+TypeScript で開発し、Bun で Tampermonkey 用の単一 `.user.js`
+にバンドルします。詳細は [userscripts/README.md](./userscripts/README.md) を参照してください。
 
 ```powershell
-cd tools/userscripts
-bun install
-bun run typecheck
-bun run build
-bun run watch
-```
-
-特定のスクリプトだけをビルドする場合:
-
-```powershell
-bun ./build.ts AtCoderHighlighter
+cd tools
+bun --cwd userscripts run typecheck
+bun --cwd userscripts run build
+bun --cwd userscripts run watch
 ```
 
 ## runner
 
-`tools/runner` は Bun + TypeScript 製の CLI / Local Runner です。
-
-- `src/cli`: `test` / `submit` コマンド
-- `src/runner`: Local Runner HTTP API、Java コンパイル、Dispatcher 連携
-- `src/shared`: runner 内部の設定、ログ、ファイル操作
-- `runner/src`: Java 側の常駐 Dispatcher / WarmUp
-
-詳細は [runner/README.md](./runner/README.md) を参照してください。
-
-### Commands
+サンプルケースのローカル実行 (`test`) と提出 (`submit`) を行う CLI と、常駐 Local Runner HTTP
+サーバーです。詳細は [runner/README.md](./runner/README.md) を参照してください。
 
 ```powershell
-cd tools/runner
-bun install
-bun run typecheck
-bun run runner
-bun run test abc001_a A.java
-bun run submit abc001_a A.java
+cd tools
+bun --cwd runner run typecheck
+bun --cwd runner run test abc001_a A.java
 ```
 
-## TypeScript 方針
+## TypeScript の方針
 
-- 依存管理と実行は基本的に Bun を使います。
-- `package-lock.json` ではなく `bun.lock` を使います。
-- `@ts-nocheck` / `@ts-ignore` は使わず、型定義や型ガードで解決します。
-- UserScript と `build.ts` は `tools/userscripts/tsconfig.json` で確認します。
-- `dist/*.user.js` は生成物です。直接編集せず、`src/main.ts` を編集して再ビルドしてください。
+- パッケージマネージャは **Bun**（`tools/bun.lock`）
+- `@ts-nocheck` / `@ts-ignore` は使わない
+- 共通設定は `tsconfig.base.json`
+- `userscripts/dist/*.user.js` は生成物。`src/main.ts` を編集して再ビルドする
 
-## Verification
-
-変更後は最低限、次を確認します。
+## 変更後の確認
 
 ```powershell
-cd tools/userscripts
-bun run typecheck
-bun run build
-
-cd ../runner
-bun run typecheck
+cd tools
+bun install
+bun --cwd userscripts run typecheck
+bun --cwd userscripts run build
+bun --cwd runner run typecheck
 ```

@@ -1,151 +1,108 @@
-# AtCoder CLI Runner
+# runner
 
-`test` / `submit` CLI と常駐ローカルランナーをまとめた Bun + TypeScript 製の実行ツールです。
+AtCoder 向けの **ローカル Java 実行** と **CLI**（`test` / `submit`）です。Bun + TypeScript で実装し、Java 側は常駐
+`Dispatcher` と連携します。
 
 ## 構成
 
 ```text
-AtCoder/
-└── tools/runner/
-    ├── package.json
-    ├── bun.lock
-    ├── tsconfig.json
-    ├── src/
-    │   ├── types/index.ts
-    │   ├── cli/
-    │   │   ├── index.ts
-    │   │   ├── commands.ts
-    │   │   ├── atcoder.ts
-    │   │   └── parser.ts
-    │   ├── runner/
-    │   │   ├── server.ts
-    │   │   ├── compiler.ts
-    │   │   └── dispatcher.ts
-    │   └── shared/
-    │       ├── config.ts
-    │       └── utils.ts
-    └── runner/src/
-        ├── Dispatcher.java
-        └── WarmUp.java
+tools/runner/
+├── package.json
+├── src/
+│   ├── cli/           # test / submit、AtCoder HTTP、サンプルジャッジ
+│   ├── daemon/        # Local Runner HTTP API (server.ts)
+│   ├── compiler/      # javac キャッシュ・実行
+│   └── shared/        # runner 専用の設定・ログ（@atcoder-tools/shared とは別）
+├── bin/               # test.cmd / submit.cmd、起動スクリプト
+└── java/src/          # Dispatcher.java, WarmUp.java
 ```
 
-- `src/types/index.ts`: CLI と runner で共有する型定義。
-- `src/cli`: `test` / `submit` のコマンド処理、AtCoder 通信、HTML パース。
-- `src/runner`: ローカル HTTP API、javac コンパイルキャッシュ、`Dispatcher.java` との通信。
-- `src/shared`: 環境変数、パス、ログ、色表示などの共通処理。
-- `runner/src`: Java 側の常駐 dispatcher と warmup コード。既存 Java 実装は維持しています。
+`@atcoder-tools/shared` から URL 生成・Local Runner リクエスト・Easy Test ジャッジを利用しています。CLI のサンプル判定は
+userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` です。
 
 ## 前提条件
 
 - Bun
 - Java / javac
-- WSL runner のため、WSL 側にも Bun と JDK が必要です。
+- WSL で runner を使う場合は WSL 側にも Bun と JDK
 
-## Commands
+## コマンド
 
-- `test <taskScreenName> <sourceFile>`
-	- 問題ページのサンプルを取得し、`AtCoderEasyTestForJava` と同じ比較ロジック（trim + split）で判定します。
-- `submit [-f|--force] <taskScreenName> <sourceFile>`
-	- `test` を先に実行し、全サンプル AC の場合のみ提出します。
-	- `-f` / `--force` を付けるとサンプル非 AC でも提出します。
-	- 提出後は最終結果（AC/WA/RE/TLE/MLE/CE など）までポーリングします。
+| コマンド                                        | 説明                                             |
+|---------------------------------------------|------------------------------------------------|
+| `test <taskScreenName> <sourceFile>`        | サンプルを Local Runner で実行し、Easy Test 互換で AC/WA 判定 |
+| `submit [-f] <taskScreenName> <sourceFile>` | 全サンプル AC 後に提出（`-f` で強制提出）                      |
 
-実行エントリは `bin/test.cmd` / `bin/submit.cmd` です。
-これらは直接 `src/cli/index.ts` を Bun で起動します。
+`taskScreenName` は URL の `/tasks/` 以降そのまま（例: `abc448_d`）。`contestId` は最後の `_` より前から自動解決します。
 
-`taskScreenName` は `/tasks/` の後ろそのまま（例: `abc448_d`, `masters2026_qual_b`）を指定してください。
-`contestId` は `taskScreenName` の最後の `_` より前で解決します。
-
-## Environment Variables
-
-- `LOCAL_RUNNER_URL`
-	- Local Runner API URL。既定値: `http://localhost:8080`
-- `LOCAL_RUNNER_PORT`
-	- Local Runner の待受ポート。既定値: `8080`
-- `ATCODER_COOKIE`
-	- 提出時に使う Cookie ヘッダー全体（例: `REVEL_SESSION=...;`）
-- `ATCODER_SESSION`
-	- `REVEL_SESSION` の値のみを入れる簡易指定
-- `ATCODER_SESSION_FILE`
-	- セッションファイルのパス。未指定時は `~/.atcoder/session.txt` を自動で読みます。
-	- ファイル内容は `REVEL_SESSION=...` 形式または値のみのどちらでも可。
-
-## Quick Start
+### 実行例
 
 ```powershell
-cd "C:\Users\20051\Projects\IntelliJ IDEA\AtCoder\tools\runner"
+cd tools/runner
 bun install
 
-# 1) Local Runner を起動
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File ".\bin\start-local-runner.ps1" 24
+# Local Runner 起動 (Windows)
+powershell -File .\bin\start-local-runner.ps1 24
 
-# 2) テスト
-".\bin\test.cmd" abc448_d D.java
+# テスト
+.\bin\test.cmd abc448_d D.java
 
-# 3) 提出（ATCODER_SESSION か ATCODER_COOKIE が必要）
-".\bin\submit.cmd" abc448_d D.java
+# 提出（要セッション）
+.\bin\submit.cmd abc448_d D.java
 ```
 
-`package.json` の scripts から直接実行する場合:
+`package.json` から:
 
 ```powershell
-bun run runner
-bun run test abc448_d D.java
-bun run submit abc448_d D.java
+cd tools
+bun --cwd runner run runner
+bun --cwd runner run test abc448_d D.java
+bun --cwd runner run submit abc448_d D.java
 ```
 
-## 単一バイナリ化 (CLI / Runner)
+## 環境変数
 
-このツールは Bun の `--compile` で単一バイナリ化できます。CLI は Windows、Runner は WSL/Linux で別ビルドが必要です。
-なお、JDK とセッション情報は引き続き外部で必要です（バイナリに埋め込みません）。
+| 変数                     | 説明                   | 既定値                      |
+|------------------------|----------------------|--------------------------|
+| `LOCAL_RUNNER_URL`     | Local Runner API     | `http://localhost:8080`  |
+| `LOCAL_RUNNER_PORT`    | 待受ポート                | `8080`                   |
+| `ATCODER_COOKIE`       | 提出用 Cookie 全体        | —                        |
+| `ATCODER_SESSION`      | `REVEL_SESSION` の値のみ | —                        |
+| `ATCODER_SESSION_FILE` | セッションファイル            | `~/.atcoder/session.txt` |
 
-### CLI (Windows)
-
-```powershell
-bun run build:cli:win
-```
-
-`bin/atcoder-runner.exe` が生成され、`bin/test.cmd` / `bin/submit.cmd` はこの exe を優先して実行します。
-
-### Local Runner (WSL / Linux)
-
-WSL 上で次を実行します。
-
-```bash
-bun run build:runner:linux
-```
-
-`bin/atcoder-local-runner` が生成され、`start-local-runner.sh` はこのバイナリを優先して起動します。
-Bun を WSL に入れていない場合でも、Runner バイナリがあれば起動できます。
-Runner バイナリは `tools/runner/bin` に置いたまま使ってください。
-別の場所に移動する場合は `LOCAL_RUNNER_PROJECT_ROOT` で `tools/runner` のパスを指定してください。
-
-## Run From Anywhere
-
-`submit.cmd` / `test.cmd` をどこからでも呼ぶには、次を1回実行して `tools/runner/bin` を PATH に追加してください。
-
-```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "C:\Users\20051\Projects\IntelliJ IDEA\AtCoder\tools\runner\bin\install-submit-test-path.ps1"
-```
-
-以後は任意ディレクトリから実行できます。
-
-```powershell
-test abc448_d D.java
-submit masters2026_qual_b B.java
-```
-
-## Session File Example
+## セッションファイル例
 
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\.atcoder" | Out-Null
 Set-Content -Path "$HOME\.atcoder\session.txt" -Value "<REVEL_SESSIONの値>" -Encoding UTF8
 ```
 
-この設定があると、`submit` 実行時に自動で読み込みます。
+## 単一バイナリ化
 
-## Notes
+```powershell
+# CLI (Windows)
+bun run build:cli:win
 
-- カスタム入力は非対応です。
-- 色表示は ANSI を使います。`NO_COLOR=1` で無効化できます。
-- 旧 `cli/atcoder-submit-cli.mjs` と `runner/local-runner-server.js` は TypeScript 分割に移行済みです。
+# Local Runner (WSL / Linux)
+bun run build:runner:linux
+```
+
+## PATH に登録（任意）
+
+```powershell
+powershell -File ".\bin\install-submit-test-path.ps1"
+```
+
+以後、任意ディレクトリから `test` / `submit` を実行できます。
+
+## 注意
+
+- カスタム入力テストは非対応（サンプルのみ）
+- 色付きログは ANSI。`NO_COLOR=1` で無効化
+- `java/README.md` は Java 常駐側の補足（本 README の対象外）
+
+## 関連ドキュメント
+
+- [tools/README.md](../README.md)
+- [shared/README.md](../shared/README.md)
+- [userscripts/README.md](../userscripts/README.md)（ブラウザ側 Easy Test）

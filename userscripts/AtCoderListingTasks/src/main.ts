@@ -824,7 +824,7 @@
 					}
 				}
 				modal.modal('hide');
-				blank.close();
+				blank?.close();
 			});
 			footer.append(cancel, open);
 

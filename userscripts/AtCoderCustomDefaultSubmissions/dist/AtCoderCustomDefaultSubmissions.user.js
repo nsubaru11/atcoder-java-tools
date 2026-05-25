@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AtCoder Custom Default Submissions
 // @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.6.2
+// @version     1.6.3
 // @description AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。
 // @author      ktnyori (original), nsubaru11 (modified)
 // @license     MIT
@@ -16,6 +16,16 @@
 // ==/UserScript==
 
 (() => {
+	// ../shared/src/query.ts
+	function buildQueryString(data) {
+		const params = new URLSearchParams();
+		for (const [key, value] of Object.entries(data)) {
+			if (value == null) continue;
+			params.set(key, String(value));
+		}
+		return params.toString();
+	}
+
 	// ../shared/src/atcoder-url.ts
 	var ATCODER_TASK_URL_PATTERN = /^https:\/\/atcoder\.jp\/contests\/([^/?#]+)\/tasks\/([^/?#]+)/;
 	function parseAtCoderTaskUrl(url) {
@@ -26,7 +36,40 @@
 			taskId: match[2],
 		};
 	}
-
+	function buildAtCoderSubmissionsQuery(filter) {
+		const params = {};
+		if (filter.language) params["f.LanguageName"] = filter.language;
+		if (filter.status) params["f.Status"] = filter.status;
+		if (filter.orderBy) params["orderBy"] = filter.orderBy;
+		if (filter.task) params["f.Task"] = filter.task;
+		return buildQueryString(params);
+	}
+	// ../shared/src/json.ts
+	function safeJsonParse(text, fallback) {
+		if (typeof text !== "string") return fallback;
+		try {
+			return JSON.parse(text);
+		} catch {
+			return fallback;
+		}
+	}
+	function parseStoredObject(raw) {
+		if (raw == null) return {};
+		if (typeof raw === "string") {
+			const parsed = safeJsonParse(raw, null);
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				return parsed;
+			}
+			return {};
+		}
+		if (typeof raw === "object" && !Array.isArray(raw)) {
+			return raw;
+		}
+		return {};
+	}
+	function mergeWithDefaults(defaults, raw) {
+		return Object.assign({}, defaults, parseStoredObject(raw));
+	}
 	// AtCoderCustomDefaultSubmissions/src/main.ts
 	(function () {
 		const DEFAULTS = {
@@ -36,9 +79,8 @@
 			includeTaskFilter: true,
 		};
 		function readConfig() {
-			const raw = typeof GM_getValue === "function" ? GM_getValue("config", {}) : {};
-			if (raw && typeof raw === "object") return Object.assign({}, DEFAULTS, raw);
-			return Object.assign({}, DEFAULTS);
+			const raw = typeof GM_getValue === "function" ? GM_getValue("config") : undefined;
+			return mergeWithDefaults(DEFAULTS, raw);
 		}
 		function writeConfig(config2) {
 			if (typeof GM_setValue === "function") {
@@ -101,13 +143,12 @@
 			return parseAtCoderTaskUrl(location.href)?.taskId ?? "";
 		}
 		function buildSubmissionQuery(config2, task2) {
-			const params = new URLSearchParams({
-				"f.LanguageName": config2.language,
-				"f.Status": config2.status,
+			return buildAtCoderSubmissionsQuery({
+				language: config2.language,
+				status: config2.status,
 				orderBy: config2.orderBy,
+				task: task2 || undefined,
 			});
-			if (task2) params.set("f.Task", task2);
-			return params.toString();
 		}
 		function isSubmissionLink(url) {
 			return /\/submissions(?:\/me)?\/?$/.test(url.pathname);

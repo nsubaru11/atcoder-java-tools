@@ -92,11 +92,16 @@ function parseMetaFile(raw: string, name: string): MetaFile {
 		throw new Error(`meta.json for ${name} is not valid JSON: ${errorMessage(error)}`);
 	}
 
-	if (!json || typeof json !== "object" || !Array.isArray((json as { pairs?: unknown }).pairs)) {
+	if (!json || typeof json !== "object" || Array.isArray(json)) {
+		throw new Error(`meta.json for ${name} must be a JSON object.`);
+	}
+
+	const record = json as { pairs?: unknown };
+	if (!Array.isArray(record.pairs)) {
 		throw new Error(`meta.json for ${name} must contain a "pairs" array.`);
 	}
 
-	const pairs = (json as { pairs: unknown[] }).pairs;
+	const pairs = record.pairs;
 	if (pairs.length === 0 || !pairs.every(isMetaPair)) {
 		throw new Error(`meta.json for ${name} contains invalid metadata pairs.`);
 	}
@@ -210,7 +215,10 @@ async function buildOne(name: string): Promise<void> {
 		naming: `${name}.user.js`,
 		minify: false,
 		banner,
-	});
+		alias: {
+			"@shared": join(scriptDir, "../shared/src"),
+		},
+	} as Parameters<typeof Bun.build>[0]);
 
 	if (!result.success) {
 		for (const log of result.logs) {

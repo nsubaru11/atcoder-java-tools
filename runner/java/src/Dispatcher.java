@@ -305,6 +305,7 @@ public final class Dispatcher {
 
 	/**
 	 * プロトコル応答を出力する内部ユーティリティです。
+	 *
 	 * @param writer 出力先
 	 */
 	private record ProtocolWriter(BufferedWriter writer) {
@@ -538,6 +539,8 @@ public final class Dispatcher {
 	 * @param contextClassLoader コンテキストクラスローダー
 	 */
 	private record RuntimeState(InputStream standardIn, PrintStream standardOut, PrintStream standardErr,
-	                            ClassLoader contextClassLoader, UncaughtExceptionHandler defaultUncaughtExceptionHandler) {
+	                            ClassLoader contextClassLoader,
+	                            UncaughtExceptionHandler defaultUncaughtExceptionHandler) {
 	}
 }
+

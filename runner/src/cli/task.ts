@@ -4,7 +4,7 @@ import {
 	buildAtCoderSubmitUrl,
 	buildAtCoderTaskUrl,
 	parseAtCoderTaskScreenName,
-} from "@shared/atcoder-url";
+} from "@atcoder-tools/shared";
 
 export function parseTask(taskScreenName: string): Task {
 	const task = parseAtCoderTaskScreenName(taskScreenName);

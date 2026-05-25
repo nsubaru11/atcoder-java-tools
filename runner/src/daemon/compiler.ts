@@ -2,10 +2,10 @@ import {spawn, spawnSync} from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type {LocalRunnerRunResponse} from "@shared/local-runner";
+import type {LocalRunnerRunResponse} from "@atcoder-tools/shared";
 import type {CompileEntry, ProcessResult} from "../types";
-import {DISPATCHER_CLASS_FILE, resolveDispatcherSourceFile, RUNNER_CONFIG,} from "../shared/config";
-import {ensureDirectory, logInfo, logWarn, removeDirectory, shortHash,} from "../shared/utils";
+import {DISPATCHER_CLASS_FILE, resolveDispatcherSourceFile, RUNNER_CONFIG,} from "../config";
+import {ensureDirectory, logInfo, logWarn, removeDirectory, shortHash,} from "../utils";
 
 function isWindowsStylePath(targetPath: string) {
 	return /^[A-Za-z]:\\/.test(targetPath);

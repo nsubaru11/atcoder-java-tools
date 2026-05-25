@@ -1,22 +1,16 @@
+import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/shared";
+
 (function () {
 	'use strict';
 
 	type SubmitterSettings = typeof DEFAULT_SETTINGS;
-	type ClassInfo = {
-		name: string;
-		nameStart: number;
-		nameEnd: number;
-		classStart: number;
-		openBraceIdx: number;
-		closeBraceIdx: number;
-		isPublic: boolean;
-	};
-	type Replacement = { start: number; end: number; text: string };
 
 	const g = (typeof unsafeWindow !== 'undefined' && unsafeWindow) ? unsafeWindow : window;
 
 	// --------------- Utilities ---------------
 	const DEFAULT_SETTINGS = {
+		// パッケージ宣言を削除するか
+		removePackage: true,
 		// Java のクラス名を Main に強制変更するか
 		renameClass: true,
 		// DEBUG = true を自動的に false に強制するか
@@ -33,8 +27,7 @@
 			if (!ls) return DEFAULT_SETTINGS;
 			const raw = ls.getItem('smartSubmitterSettings');
 			if (!raw) return DEFAULT_SETTINGS;
-			const parsed = JSON.parse(raw);
-			return Object.assign({}, DEFAULT_SETTINGS, parsed);
+			return mergeWithDefaults(DEFAULT_SETTINGS, safeJsonParse(raw, null));
 		} catch {
 			return DEFAULT_SETTINGS;
 		}
@@ -68,223 +61,24 @@
 		}
 	};
 
-	const escapeRegExp = (s: string): string => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-	/**
-	 * Java コードからコメント/文字列/文字リテラルをマスクする。
-	 * - 返り値の長さは入力と同じ (index をそのまま使える)
-	 * - マスク部分は基本的に空白にするが、改行は保持する
-	 */
-	function maskJava(text: string): string {
-		const out: string[] = [];
-		let inLineComment = false;
-		let inBlockComment = false;
-		let inString = false;
-		let inChar = false;
-		let isEscape = false;
-
-		for (let i = 0; i < text.length; i++) {
-			const c = text[i];
-			const n = i + 1 < text.length ? text[i + 1] : '';
-
-			if (inLineComment) {
-				if (c === '\n') {
-					inLineComment = false;
-					out.push('\n');
-				} else {
-					out.push(' ');
-				}
-				continue;
-			}
-			if (inBlockComment) {
-				if (c === '*' && n === '/') {
-					out.push(' ', ' ');
-					i++;
-					inBlockComment = false;
-					continue;
-				}
-				out.push((c === '\n') ? '\n' : ' ');
-				continue;
-			}
-
-			if (inString) {
-				if (isEscape) {
-					isEscape = false;
-					out.push(' ');
-					continue;
-				}
-				if (c === '\\') {
-					isEscape = true;
-					out.push(' ');
-					continue;
-				}
-				if (c === '"') {
-					inString = false;
-					out.push(' ');
-					continue;
-				}
-				out.push((c === '\n') ? '\n' : ' ');
-				continue;
-			}
-			if (inChar) {
-				if (isEscape) {
-					isEscape = false;
-					out.push(' ');
-					continue;
-				}
-				if (c === '\\') {
-					isEscape = true;
-					out.push(' ');
-					continue;
-				}
-				if (c === "'") {
-					inChar = false;
-					out.push(' ');
-					continue;
-				}
-				out.push((c === '\n') ? '\n' : ' ');
-				continue;
-			}
-
-			// code
-			if (c === '/' && n === '/') {
-				out.push(' ', ' ');
-				i++;
-				inLineComment = true;
-				continue;
-			}
-			if (c === '/' && n === '*') {
-				out.push(' ', ' ');
-				i++;
-				inBlockComment = true;
-				continue;
-			}
-			if (c === '"') {
-				inString = true;
-				out.push(' ');
-				continue;
-			}
-			if (c === "'") {
-				inChar = true;
-				out.push(' ');
-				continue;
-			}
-
-			out.push(c);
-		}
-		return out.join('');
-	}
-
-	function findMatchingBrace(maskedText: string, openBraceIdx: number): number {
-		let depth = 1;
-		for (let i = openBraceIdx + 1; i < maskedText.length; i++) {
-			const c = maskedText[i];
-			if (c === '{') depth++;
-			else if (c === '}') {
-				depth--;
-				if (depth === 0) return i;
-			}
-		}
-		return -1;
-	}
-
-	function isPublicClass(maskedText: string, classKeywordIndex: number): boolean {
-		const lineStart = maskedText.lastIndexOf('\n', classKeywordIndex) + 1;
-		const head = maskedText.slice(lineStart, classKeywordIndex);
-		return /\bpublic\b/.test(head);
-	}
-
-	/**
-	 * main メソッドを含むクラスを探す (文字列リテラル内の括弧を無視する強化版)
-	 */
-	function findMainClassInfo(text: string, maskedText?: string): ClassInfo | null {
-		const masked = maskedText || maskJava(text);
-
-		// String... args 等にも対応
-		const MAIN_REGEX = /(?:\bpublic\s+static|\bstatic\s+public)\s+void\s+main\s*\(\s*String\s*(?:\[]|\.\.\.)/;
-		const mainMatch = MAIN_REGEX.exec(masked);
-		const mainIndex = mainMatch ? mainMatch.index : -1;
-
-		const CLASS_REGEX = /\bclass\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
-		const candidates: ClassInfo[] = [];
-		let m: RegExpExecArray | null;
-		while ((m = CLASS_REGEX.exec(masked)) !== null) {
-			const name = m[1];
-			const classStart = m.index;
-			const nameStart = classStart + m[0].lastIndexOf(name);
-			const nameEnd = nameStart + name.length;
-			const openBraceIdx = masked.indexOf('{', nameEnd);
-			if (openBraceIdx === -1) continue;
-			const closeBraceIdx = findMatchingBrace(masked, openBraceIdx);
-			const isPublic = isPublicClass(masked, classStart);
-			const info = {name, nameStart, nameEnd, classStart, openBraceIdx, closeBraceIdx, isPublic};
-			candidates.push(info);
-			if (mainIndex !== -1 && closeBraceIdx !== -1 && mainIndex > classStart && mainIndex < closeBraceIdx) {
-				return info;
-			}
-		}
-
-		if (!candidates.length) return null;
-		return candidates.find(c => c.isPublic) || candidates[0];
-	}
-
 	/**
 	 * ペーストされたコードを自動修正する
 	 */
 	function modifyPastedCode(text: unknown): { modified: string; didModify: boolean } {
-		let modified = (typeof text === 'string') ? text.replace(/\r\n?/g, '\n') : '';
-		let classReplaced = false;
-		let debugReplaced = false;
-		const masked = maskJava(modified);
-		const replacements: Replacement[] = [];
+		const code = (typeof text === 'string') ? text : '';
+		if (!code) return {modified: '', didModify: false};
 
-		const applyReplacements = (): void => {
-			if (!replacements.length) return;
-			replacements.sort((a, b) => b.start - a.start);
-			for (const r of replacements) {
-				modified = modified.slice(0, r.start) + r.text + modified.slice(r.end);
-			}
-		};
+		const result = modifyJavaCode(code, {
+			removePackage: SETTINGS.removePackage,
+			renameClass: SETTINGS.renameClass,
+			fixDebug: SETTINGS.fixDebug,
+		});
 
-		// 1. クラス名置換 (コメント/文字列/文字リテラル内は触らない)
-		if (SETTINGS.renameClass) {
-			const info = findMainClassInfo(modified, masked);
-			if (info && info.name && info.name !== 'Main') {
-				const oldName = info.name;
-				const newName = 'Main';
-				replacements.push({start: info.nameStart, end: info.nameEnd, text: newName});
+		const didModify = result.classReplaced || result.debugReplaced;
+		if (result.classReplaced) log('Class renamed to Main');
+		if (result.debugReplaced) log('DEBUG flag disabled');
 
-				const refRegex = new RegExp(`\\b${escapeRegExp(oldName)}\\b`, 'g');
-				refRegex.lastIndex = info.nameEnd;
-				let rm: RegExpExecArray | null;
-				while ((rm = refRegex.exec(masked)) !== null) {
-					replacements.push({start: rm.index, end: rm.index + oldName.length, text: newName});
-				}
-				classReplaced = true;
-			}
-		}
-
-		// 2. DEBUG フラグ (コメント/文字列/文字リテラル内は触らない)
-		if (SETTINGS.fixDebug) {
-			const DEBUG_REGEX = /\bDEBUG\s*=\s*true\s*;/g;
-			let dm: RegExpExecArray | null;
-			while ((dm = DEBUG_REGEX.exec(masked)) !== null) {
-				const seg = modified.slice(dm.index, dm.index + dm[0].length);
-				const replacedSeg = seg.replace(/\btrue\b/, 'false');
-				if (seg !== replacedSeg) {
-					replacements.push({start: dm.index, end: dm.index + dm[0].length, text: replacedSeg});
-					debugReplaced = true;
-				}
-			}
-		}
-
-		applyReplacements();
-
-		// ログ出力は控えめに
-		if (classReplaced) log('Class renamed to Main');
-		if (debugReplaced) log('DEBUG flag disabled');
-
-		return {modified, didModify: classReplaced || debugReplaced};
+		return {modified: result.modified, didModify};
 	}
 
 	// --------------- Editor Adapters ---------------
@@ -488,7 +282,7 @@
 		}
 	}
 
-	class SmartSubmitter {
+	class JavaCodeSubmitter {
 		g: any;
 		sites: Site[];
 		active: Site | null;
@@ -544,8 +338,8 @@
 			document.addEventListener('keydown', (event) => {
 				// エディタ以外の入力欄での暴発を抑止
 				if (isProbablyEditable(event.target) && !isInEditor(event.target)) return;
-				if (this.active.shortcut(event)) {
-					const btn = this.active.findSubmitButton();
+				if (this.active?.shortcut(event)) {
+					const btn = this.active?.findSubmitButton();
 					if (btn) {
 						event.preventDefault();
 						event.stopPropagation();
@@ -555,7 +349,7 @@
 				} else if (event.ctrlKey && event.shiftKey && (event.key === 'M' || event.key === 'm')) {
 					event.preventDefault();
 					event.stopPropagation();
-					this.active.editor && this.active.editor.foldMain();
+					this.active?.editor?.foldMain();
 				}
 			}, true);
 		}
@@ -567,7 +361,7 @@
 		}
 	}
 
-	const submitter = new SmartSubmitter(g);
+	const submitter = new JavaCodeSubmitter(g);
 
 	// AOJ
 	submitter.registerSite(new Site(

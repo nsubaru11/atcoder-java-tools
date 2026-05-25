@@ -1,6 +1,6 @@
 import type {IndexedBlock, SamplePair, SubmitForm, Task} from "../types";
-import {CLI_CONFIG} from "../shared/config";
-import {normalizeNewlines} from "../shared/utils";
+import {CLI_CONFIG} from "../config";
+import {normalizeNewlines} from "../utils";
 
 export function decodeHtmlEntities(text: string) {
 	const named: Record<string, string> = {

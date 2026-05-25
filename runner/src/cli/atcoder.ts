@@ -1,8 +1,9 @@
+import {buildAtCoderSubmissionsMeUrl, buildAtCoderSubmissionUrl,} from "@atcoder-tools/shared";
 import fs from "node:fs";
 import path from "node:path";
 import type {SubmissionFinalResult, SubmitResult, Task} from "../types";
-import {CLI_CONFIG} from "../shared/config";
-import {colorizeStatus, sleep} from "../shared/utils";
+import {CLI_CONFIG} from "../config";
+import {colorizeStatus, sleep} from "../utils";
 import {
 	chooseJavaLanguageIdFromOptions,
 	extractCsrfToken,
@@ -89,7 +90,7 @@ async function httpGetTextWith429Retry(url: string, cookieHeader = "", maxAttemp
 }
 
 export async function fetchLatestSubmissionId(task: Task, cookieHeader: string) {
-	const listUrl = `https://atcoder.jp/contests/${task.contestId}/submissions/me?f.Task=${task.taskScreenName}`;
+	const listUrl = buildAtCoderSubmissionsMeUrl(task.contestId, {task: task.taskScreenName});
 	const html = await httpGetTextWith429Retry(listUrl, cookieHeader);
 	return extractSubmissionIdFromHtml(html, task.contestId);
 }
@@ -210,7 +211,7 @@ export async function submitToAtCoder(task: Task, sourceCode: string, cookieHead
 		if (htmlSubmissionId && (!canTrackByDiff || htmlSubmissionId !== previousSubmissionId)) {
 			return {
 				submissionId: htmlSubmissionId,
-				submissionUrl: `https://atcoder.jp/contests/${task.contestId}/submissions/${htmlSubmissionId}`,
+				submissionUrl: buildAtCoderSubmissionUrl(task.contestId, htmlSubmissionId),
 			};
 		}
 		if (canTrackByDiff) {
@@ -218,7 +219,7 @@ export async function submitToAtCoder(task: Task, sourceCode: string, cookieHead
 			if (latestId) {
 				return {
 					submissionId: latestId,
-					submissionUrl: `https://atcoder.jp/contests/${task.contestId}/submissions/${latestId}`,
+					submissionUrl: buildAtCoderSubmissionUrl(task.contestId, latestId),
 				};
 			}
 		}
@@ -230,7 +231,7 @@ export async function submitToAtCoder(task: Task, sourceCode: string, cookieHead
 	}
 	return {
 		submissionId: "-",
-		submissionUrl: `https://atcoder.jp/contests/${task.contestId}/submissions/me?f.Task=${task.taskScreenName}`,
+		submissionUrl: buildAtCoderSubmissionsMeUrl(task.contestId, {task: task.taskScreenName}),
 		trackingUnavailable: true,
 	};
 }

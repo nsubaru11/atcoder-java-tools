@@ -1,8 +1,8 @@
 import {type ChildProcessWithoutNullStreams, spawn} from "node:child_process";
 import readline from "node:readline";
 import type {CompileEntry, DispatcherRunResult} from "../types";
-import {RUNNER_CONFIG, WARMUP_REPEAT_COUNT,} from "../shared/config";
-import {firstLine, logInfo, logWarn, trimForLog,} from "../shared/utils";
+import {RUNNER_CONFIG, WARMUP_REPEAT_COUNT,} from "../config";
+import {firstLine, logInfo, logWarn, trimForLog,} from "../utils";
 import {compileDispatcher, getCompiledEntry, JAVA_ENV, JAVA_PATH,} from "./compiler";
 import fs from "node:fs";
 

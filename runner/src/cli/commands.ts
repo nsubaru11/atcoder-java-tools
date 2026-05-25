@@ -1,7 +1,8 @@
+import {buildAtCoderSubmissionUrl} from "@atcoder-tools/shared";
 import fs from "node:fs";
 import path from "node:path";
 import type {CliCommand} from "../types";
-import {colorizeStatus, normalizeNewlines} from "../shared/utils";
+import {colorizeStatus, normalizeNewlines} from "../utils";
 import {
 	fetchLatestSubmissionId,
 	formatMetricValue,
@@ -57,7 +58,7 @@ export async function runCommand(command: CliCommand, taskScreenName: string, so
 		if (!latestId) {
 			throw new Error("Submission tracking failed: could not resolve latest submission ID.");
 		}
-		const trackedSubmissionUrl = `https://atcoder.jp/contests/${task.contestId}/submissions/${latestId}`;
+		const trackedSubmissionUrl = buildAtCoderSubmissionUrl(task.contestId, latestId);
 		const trackedResult = await pollSubmissionFinal(trackedSubmissionUrl, toCookieHeader());
 		console.log(
 			`Result: ${colorizeStatus(trackedResult.status)} | ID: ${latestId} | Exec: ${formatMetricValue(trackedResult.execTime)} | Memory: ${formatMetricValue(trackedResult.memory)} | URL: ${trackedSubmissionUrl}`,

@@ -1,0 +1,14 @@
+{
+	"name": "atcoder-tools",
+	"private": true,
+	"workspaces": [
+		"shared",
+		"runner",
+		"userscripts"
+	],
+	"scripts": {
+		"typecheck:userscripts": "bun --cwd userscripts run typecheck",
+		"build:userscripts": "bun --cwd userscripts run build",
+		"typecheck:runner": "bun --cwd runner run typecheck"
+	}
+}

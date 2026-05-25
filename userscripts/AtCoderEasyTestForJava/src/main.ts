@@ -1,15 +1,17 @@
-import {sleep} from "@shared/async";
 import {
 	buildLocalRunnerKey,
 	buildLocalRunnerListRequest,
 	buildLocalRunnerPrecompileRequest,
 	buildLocalRunnerRunRequest,
+	buildQueryString as buildParams,
+	evaluateEasyTestOutput,
 	isHttpUrl,
 	type LocalRunnerCompilerInfo,
 	type LocalRunnerRunResponse,
-	toEasyTestStatus,
-} from "@shared/local-runner";
-import {buildQueryString as buildParams} from "@shared/query";
+	safeJsonParse,
+	sleep,
+	toEasyTestStatus
+} from "@atcoder-tools/shared";
 
 type RunnerOptions = {
 	trim?: boolean;
@@ -62,7 +64,7 @@ type TestCase = {
 	title: string;
 	input: string;
 	output: string | null;
-	anchor: Element;
+	anchor: Element | null;
 	selector?: string;
 };
 type LanguageMap = Record<string, string>;
@@ -82,15 +84,6 @@ type WandboxRequest = Record<string, unknown> & {
 
 (function () {
 	const STORAGE_KEY = "AtCoderEasyTest";
-
-	function safeJsonParse<T>(text: unknown, fallback: T): T {
-		if (typeof text !== "string") return fallback;
-		try {
-			return JSON.parse(text);
-		} catch (_e) {
-			return fallback;
-		}
-	}
 
 	// Greasemonkey 4 などの GM4 は GM.getValue/GM.setValue(非同期) で、GM_getValue/GM_setValue(同期) が存在しない。
 	// このスクリプトは同期的に設定値へアクセスする箇所があるため、GM_getValue が無い環境では
@@ -173,7 +166,7 @@ type WandboxRequest = Record<string, unknown> & {
 			keys.push(key);
 			values.push(value);
 		}
-		unsafeWindow["Function"](keys.join(), js).apply(ctx, values);
+		(globalThis.Function as FunctionConstructor)(keys.join(), js).apply(ctx, values);
 	}
 
 	const eventListeners = new Map<string, EventListenerFn[]>();
@@ -590,40 +583,14 @@ type WandboxRequest = Record<string, unknown> & {
 				result.expectedOutput = expectedOutput;
 			if (result.status !== "OK" || typeof expectedOutput !== "string")
 				return result;
-			let output = result.output || "";
-			if (options.trim) {
-				expectedOutput = expectedOutput.trim();
-				output = output.trim();
-			}
-			let equals = (x: string, y: string): boolean => x === y;
-			if (options.allowableError) {
-				const floatPattern = /^[-+]?[0-9]*\.[0-9]+([eE][-+]?[0-9]+)?$/;
-				const superEquals = equals;
-				equals = (x, y) => {
-					if (floatPattern.test(x) || floatPattern.test(y)) {
-						const a = parseFloat(x);
-						const b = parseFloat(y);
-						return Math.abs(a - b) <= Math.max(options.allowableError, Math.abs(b) * options.allowableError);
-					}
-					return superEquals(x, y);
-				};
-			}
-			if (options.split) {
-				const superEquals = equals;
-				equals = (x, y) => {
-					const xs = x.split(/\s+/);
-					const ys = y.split(/\s+/);
-					if (xs.length !== ys.length)
-						return false;
-					const len = xs.length;
-					for (let i = 0; i < len; i++) {
-						if (!superEquals(xs[i], ys[i]))
-							return false;
-					}
-					return true;
-				};
-			}
-			result.status = equals(output, expectedOutput) ? "AC" : "WA";
+			const judged = evaluateEasyTestOutput(
+				{status: result.status, output: result.output || "", error: result.error, execTime: result.execTime},
+				expectedOutput,
+				options,
+			);
+			result.status = judged.status;
+			result.output = judged.output;
+			result.expectedOutput = judged.expectedOutput;
 			return result;
 		}
 	}
@@ -797,8 +764,11 @@ type WandboxRequest = Record<string, unknown> & {
 
 	async function loadPyodide(): Promise<any> {
 		const script = await fetch("https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js").then((res) => res.text());
-		unsafeWindow["Function"](script)();
-		const pyodide = await unsafeWindow["loadPyodide"]({
+		(globalThis.Function as FunctionConstructor)(script)();
+		const loadPyodide = (unsafeWindow as Window & {
+			loadPyodide: (options: { indexURL: string }) => Promise<any>
+		}).loadPyodide;
+		const pyodide: any = await loadPyodide({
 			indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.0/full/",
 		});
 		await pyodide.runPythonAsync(`
@@ -853,10 +823,10 @@ def __run():
 					if (__code !== 0)
 						status = "RE";
 				}
-			} catch (error) {
+			} catch (error: unknown) {
 				status = "RE";
 				exitCode = "-1";
-				stderr += error.toString();
+				stderr += error instanceof Error ? error.message : String(error);
 			}
 			resolve({
 				status,
@@ -1292,15 +1262,14 @@ def __run():
 			langMap,
 			get sourceCode() {
 				const $ = unsafeWindow.document.querySelector.bind(unsafeWindow.document);
-				if (typeof unsafeWindow["ace"] !== "undefined") {
-					if (!$(".btn-toggle-editor").classList.contains("active")) {
-						return unsafeWindow["ace"].edit($("#editor")).getValue();
-					} else {
-						return $("#plain-textarea").value;
+				if (typeof unsafeWindow["ace"] !== "undefined" && unsafeWindow.ace) {
+					const toggle = $(".btn-toggle-editor");
+					if (toggle && !toggle.classList.contains("active")) {
+						return unsafeWindow.ace.edit($("#editor")).getValue();
 					}
-				} else {
-					return unsafeWindow.getSourceCode();
+					return ($("#plain-textarea") as HTMLTextAreaElement | null)?.value ?? "";
 				}
+				return unsafeWindow.getSourceCode?.() ?? "";
 			},
 			set sourceCode(sourceCode) {
 				const $ = unsafeWindow.document.querySelector.bind(unsafeWindow.document);
@@ -1316,7 +1285,7 @@ def __run():
 				(doc.querySelector("#submit") as HTMLElement).click();
 			},
 			get testButtonContainer() {
-				return doc.querySelector("#submit").parentElement;
+				return doc.querySelector("#submit")?.parentElement ?? null;
 			},
 			get sideButtonContainer() {
 				return doc.querySelector(".editor-buttons");
@@ -1358,7 +1327,7 @@ def __run():
 			throw "Not yukicoder";
 		const $ = unsafeWindow.$;
 		const doc = unsafeWindow.document as Document;
-		const editor = unsafeWindow.ace.edit("rich_source");
+		const editor = unsafeWindow.ace!.edit("rich_source");
 		const eSourceObject = $("#source");
 		const eLang = $("#lang");
 		const eSamples = $(".sample");
@@ -1412,7 +1381,7 @@ def __run():
 		};
 		// place anchor elements
 		for (const btnCopyInput of doc.querySelectorAll(".copy-sample-input")) {
-			btnCopyInput.parentElement.insertBefore(newElement("span", {className: "atcoder-easy-test-anchor"}), btnCopyInput);
+			btnCopyInput.parentElement?.insertBefore(newElement("span", {className: "atcoder-easy-test-anchor"}), btnCopyInput);
 		}
 		const language = new ObservableValue<string>(langMap[String(eLang.val())] ?? "");
 		eLang.on("change", () => {
@@ -1437,7 +1406,7 @@ def __run():
 				return doc.querySelector("#submit_form");
 			},
 			get sideButtonContainer() {
-				return doc.querySelector("#toggle_source_editor").parentElement;
+				return doc.querySelector("#toggle_source_editor")?.parentElement ?? null;
 			},
 			get bottomMenuContainer() {
 				return doc.body;
@@ -1558,11 +1527,17 @@ def __run():
     `,
 		}));
 		const eButtons = newElement("span");
-		doc.querySelector(".submitForm").appendChild(eButtons);
+		doc.querySelector(".submitForm")?.appendChild(eButtons);
 		await loadScript("https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js");
-		const jQuery = unsafeWindow["jQuery"].noConflict();
-		unsafeWindow["jQuery"] = unsafeWindow["$"];
-		unsafeWindow["jQuery11"] = jQuery;
+		const jQuery = (unsafeWindow as Window & { jQuery?: UserScriptJQuery }).jQuery?.noConflict?.();
+		if (!jQuery) throw new Error("jQuery was not loaded.");
+		const codeforcesWindow = unsafeWindow as Window & {
+			jQuery?: UserScriptJQuery;
+			$?: UserScriptJQuery;
+			jQuery11?: UserScriptJQuery
+		};
+		codeforcesWindow.jQuery = codeforcesWindow.$;
+		codeforcesWindow.jQuery11 = jQuery;
 		await loadScript("https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js", null, {
 			jQuery,
 			$: jQuery
@@ -1575,8 +1550,9 @@ def __run():
 		const submitForm = doc.querySelector(".submitForm") as HTMLFormElement;
 		const eFile = submitForm.elements.namedItem("sourceFile") as HTMLInputElement;
 		eFile.addEventListener("change", async () => {
-			if (eFile.files[0]) {
-				_sourceCode = await eFile.files[0].text();
+			const file = eFile.files?.[0];
+			if (file) {
+				_sourceCode = await file.text();
 				if (editor)
 					editor.sourceCode = _sourceCode;
 			}
@@ -1600,7 +1576,7 @@ def __run():
 					});
 				}
 				// エディタを使う
-				const aceEditor = unsafeWindow["ace"].edit("editor");
+				const aceEditor = unsafeWindow.ace!.edit("editor");
 				editor = {
 					get sourceCode() {
 						return aceEditor.getValue();
@@ -1635,9 +1611,10 @@ def __run():
 		}, 100);
 		if (config.get("site.codeforces.showEditor", true)) {
 			editor = new Editor(langMap[eLang.value].split(" ")[0]);
-			doc.getElementById("pageContent")?.appendChild(editor.element);
+			const pageContent = doc.getElementById("pageContent");
+			if (pageContent && editor.element) pageContent.appendChild(editor.element);
 			language.addListener((lang: string) => {
-				editor.setLanguage(lang);
+				editor?.setLanguage(lang);
 			});
 		}
 		return {
@@ -1716,10 +1693,12 @@ def __run():
 		if (!/^m[1-3]\.codeforces\.com$/.test(location.host))
 			throw "not Codeforces Mobile";
 		const url = /\/contest\/(\d+)\/problem\/([^/]+)/.exec(location.pathname);
+		if (!url) throw new Error("Codeforces Mobile problem URL was not matched.");
 		const contestId = url[1];
 		const problemId = url[2];
 		const doc = unsafeWindow.document as Document;
 		const main = doc.querySelector("main");
+		if (!main) throw new Error("Codeforces Mobile main element was not found.");
 		doc.head.appendChild(newElement("link", {
 			rel: "stylesheet",
 			href: "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css",
@@ -1763,7 +1742,7 @@ def __run():
 				if (control)
 					control.classList.add("form-control");
 			}
-			form.parentElement.removeChild(form);
+			form.parentElement?.removeChild(form);
 			main.appendChild(form);
 			submit = () => form.submit();
 			getSourceCode = () => sourceInput.value;
@@ -1827,7 +1806,7 @@ def __run():
 			$: jQuery
 		});
 		const e = newElement("div");
-		doc.getElementById("install-area").appendChild(newElement("button", {
+		doc.getElementById("install-area")?.appendChild(newElement("button", {
 			type: "button",
 			textContent: "Open config",
 			onclick: () => settings.open(),
@@ -1998,12 +1977,18 @@ def __run():
 	async function fetchWandboxCompilers(): Promise<WandboxCompiler[]> {
 		// キャッシュが有効な場合はキャッシュを使う
 		const cached = config.get("wandboxAPI.cachedCompilerList", {value: null, lastModified: -Infinity});
-		if (Date.now() - cached.lastModified <= config.get("wandboxAPI.cacheLifetime", 24 * 60 * 60 * 1000)) {
+		if (
+			Array.isArray(cached.value)
+			&& Date.now() - cached.lastModified <= config.get("wandboxAPI.cacheLifetime", 24 * 60 * 60 * 1000)
+		) {
 			return cached.value;
 		}
 		// キャッシュが無効な場合は fetch
 		const response = await fetch("https://wandbox.org/api/list.json");
-		const compilers = await response.json();
+		const compilers = await response.json() as WandboxCompiler[];
+		if (!Array.isArray(compilers)) {
+			throw new Error("Wandbox compiler list is not a JSON array.");
+		}
 		config.set("wandboxAPI.cachedCompilerList", {value: compilers, lastModified: Date.now()});
 		config.save();
 		return compilers;
@@ -2510,7 +2495,7 @@ def __run():
 				const h = date.getHours().toString().padStart(2, "0");
 				const m = date.getMinutes().toString().padStart(2, "0");
 				const s = date.getSeconds().toString().padStart(2, "0");
-				this._element.querySelector(".atcoder-easy-test-cases-row-date").textContent = `${h}:${m}:${s}`;
+				this._element.querySelector(".atcoder-easy-test-cases-row-date")!.textContent = `${h}:${m}:${s}`;
 			}
 			const numCases = pairs.length;
 			let numFinished = 0;
@@ -2642,16 +2627,16 @@ def __run():
 	settings.add("version", (win) => {
 		const root = newElement("div");
 		const text = win.document.createTextNode.bind(win.document);
-		const textAuto = (property: ObservableValue<string | number>) => {
-			const t = text(property.value);
-			property.addListener((value: string | number) => {
-				t.textContent = value;
+		const textAuto = <T extends string | number>(property: ObservableValue<T>) => {
+			const t = text(String(property.value));
+			property.addListener((value: T) => {
+				t.textContent = String(value);
 			});
 			return t;
 		};
 		const tCurrent = textAuto(version.currentProperty);
 		const tLatest = textAuto(version.latestProperty);
-		const tLastCheck = textAuto(version.lastCheckProperty.map(time => new Date(time).toLocaleString()));
+		const tLastCheck = textAuto(version.lastCheckProperty.map((time: number) => new Date(time).toLocaleString()));
 		root.appendChild(newElement("p", {}, [
 			text("AtCoder Easy Test v"),
 			tCurrent,
@@ -2860,6 +2845,7 @@ def __run():
 				}));
 				const pResult = codeRunner.run(language, sourceCode, input, output, options);
 				pResult.then(result => {
+					if (!result) return;
 					content.result = result;
 					if (result.status === "AC") {
 						pTab.then(tab => tab.color = "#dff0d8");
@@ -2934,7 +2920,7 @@ def __run():
 					config.save();
 				}
 
-				if (unsafeWindow["jQuery"] && unsafeWindow["jQuery"].fn.select2) {
+				if (unsafeWindow.jQuery?.fn?.select2) {
 					unsafeWindow["jQuery"](eLanguage).on("change", onEnvChange);
 				} else {
 					eLanguage.addEventListener("change", onEnvChange);
@@ -2957,7 +2943,7 @@ def __run():
 							for (const [runnerId, label] of langs) {
 								const option = document.createElement("option");
 								option.value = runnerId;
-								option.textContent = label;
+								option.textContent = label ?? "";
 								fragment.appendChild(option);
 							}
 							eLanguage.appendChild(fragment);

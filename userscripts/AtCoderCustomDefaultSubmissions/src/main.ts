@@ -1,4 +1,4 @@
-import {parseAtCoderTaskUrl} from '@shared/atcoder-url';
+import {buildAtCoderSubmissionsQuery, mergeWithDefaults, parseAtCoderTaskUrl,} from "@atcoder-tools/shared";
 
 (function () {
 	'use strict';
@@ -18,9 +18,8 @@ import {parseAtCoderTaskUrl} from '@shared/atcoder-url';
 	};
 
 	function readConfig(): SubmissionConfig {
-		const raw = typeof GM_getValue === 'function' ? GM_getValue('config', {}) : {};
-		if (raw && typeof raw === 'object') return Object.assign({}, DEFAULTS, raw);
-		return Object.assign({}, DEFAULTS);
+		const raw = typeof GM_getValue === 'function' ? GM_getValue('config') : undefined;
+		return mergeWithDefaults(DEFAULTS, raw);
 	}
 
 	function writeConfig(config: SubmissionConfig): void {
@@ -89,15 +88,12 @@ import {parseAtCoderTaskUrl} from '@shared/atcoder-url';
 	}
 
 	function buildSubmissionQuery(config: SubmissionConfig, task: string): string {
-		const params = new URLSearchParams({
-			'f.LanguageName': config.language,
-			// AC, WA, TLE, MLE, RE, CE, QLE, OLE, IE, WJ, WR, Judging
-			'f.Status': config.status,
-			// source_length, time_consumption, memory_consumption, score
-			'orderBy': config.orderBy,
+		return buildAtCoderSubmissionsQuery({
+			language: config.language,
+			status: config.status,
+			orderBy: config.orderBy,
+			task: task || undefined,
 		});
-		if (task) params.set('f.Task', task);
-		return params.toString();
 	}
 
 	function isSubmissionLink(url: URL): boolean {

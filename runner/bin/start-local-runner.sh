@@ -37,7 +37,7 @@ fi
 source_optional "$HOME/.sdkman/bin/sdkman-init.sh"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_PATH="$SCRIPT_DIR/../src/runner/server.ts"
+SERVER_PATH="$SCRIPT_DIR/../src/daemon/server.ts"
 
 JAVA_VER="${1:-24}"
 

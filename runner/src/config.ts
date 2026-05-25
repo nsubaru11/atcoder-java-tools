@@ -12,10 +12,7 @@ function resolveProjectRoot() {
 		: "";
 	const candidates = [envRoot, importMetaRoot, argvRoot].filter(Boolean) as string[];
 	for (const candidate of candidates) {
-		if (
-			fs.existsSync(path.join(candidate, "java", "src", "Dispatcher.java"))
-			|| fs.existsSync(path.join(candidate, "java", "Dispatcher.java"))
-		) {
+		if (fs.existsSync(path.join(candidate, "runner", "java", "src", "Dispatcher.java"))) {
 			return candidate;
 		}
 	}
@@ -50,8 +47,7 @@ export function resolveDispatcherSourceFile() {
 	const envPath = process.env.LOCAL_RUNNER_DISPATCHER_SOURCE;
 	const candidates = [
 		envPath,
-		path.join(PROJECT_ROOT, "java", "Dispatcher.java"),
-		path.join(PROJECT_ROOT, "java", "src", "Dispatcher.java"),
+		path.join(PROJECT_ROOT, "runner", "java", "src", "Dispatcher.java")
 	].filter(Boolean) as string[];
 	for (const candidate of candidates) {
 		if (fs.existsSync(candidate)) {
@@ -73,7 +69,7 @@ export const RUNNER_CONFIG = {
 	baseDir: process.env.LOCAL_RUNNER_BASE_DIR || defaultRunnerBaseDir,
 	compileRootDir: path.join(process.env.LOCAL_RUNNER_BASE_DIR || defaultRunnerBaseDir, "compiled"),
 	dispatcherBuildDir: path.join(process.env.LOCAL_RUNNER_BASE_DIR || defaultRunnerBaseDir, "dispatcher"),
-	warmUpSourceFile: path.join(PROJECT_ROOT, "java", "src", "WarmUp.java"),
+	warmUpSourceFile: path.join(PROJECT_ROOT, "runner", "java", "src", "WarmUp.java"),
 	warmUpSourceClassName: "WarmUp",
 	warmUpTargetClassName: "Main",
 	warmUpStdin: "",

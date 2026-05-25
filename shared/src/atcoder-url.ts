@@ -46,9 +46,9 @@ export type AtCoderSubmissionsFilter = {
 
 export function buildAtCoderSubmissionsQuery(filter: AtCoderSubmissionsFilter): string {
 	const params: Record<string, QueryValue> = {};
-	if (filter.language) params["f.LanguageName"] = filter.language;
-	if (filter.status) params["f.Status"] = filter.status;
-	if (filter.orderBy) params["orderBy"] = filter.orderBy;
+	if (filter.language !== undefined) params["f.LanguageName"] = filter.language;
+	if (filter.status !== undefined) params["f.Status"] = filter.status;
+	if (filter.orderBy !== undefined) params["orderBy"] = filter.orderBy;
 	if (filter.task) params["f.Task"] = filter.task;
 	return buildQueryString(params);
 }

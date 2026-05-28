@@ -2773,102 +2773,88 @@ def __run():
 				settings.open();
 			});
 			// 言語選択関係
-			{
-				let latestSetLanguageToken = 0;
+			let latestSetLanguageToken = 0;
 
-				async function onEnvChange() {
-					const langSelection = config.get("langSelection", {}) as Record<string, string>;
-					langSelection[site$1.language.value] = eLanguage.value;
-					config.set("langSelection", langSelection);
-					config.save();
-				}
+			async function onEnvChange() {
+				const langSelection = config.get("langSelection", {}) as Record<string, string>;
+				langSelection[site$1.language.value] = eLanguage.value;
+				config.set("langSelection", langSelection);
+				config.save();
+			}
 
-				if (unsafeWindow.jQuery?.fn?.select2) {
-					unsafeWindow["jQuery"](eLanguage).on("change", onEnvChange);
-				} else {
-					eLanguage.addEventListener("change", onEnvChange);
-				}
+			if (unsafeWindow.jQuery?.fn?.select2) {
+				unsafeWindow["jQuery"](eLanguage).on("change", onEnvChange);
+			} else {
+				eLanguage.addEventListener("change", onEnvChange);
+			}
 
-				async function setLanguage(refreshLocalRunner = true) {
-					const currentToken = ++latestSetLanguageToken;
-					const languageId = site$1.language.value;
-					try {
-						if (!languageId) throw new Error("AtCoder Easy Test: language not set");
-						const langs = await codeRunner.getEnvironment(languageId, {refreshLocalRunner});
-						if (currentToken !== latestSetLanguageToken) return;
-						log.debug("getEnvironment:", languageId, `(${langs.length} candidates)`);
-						const previousValue = eLanguage.value;
-						const nextSignature = langs.map(([runnerId, label]) => `${runnerId}\u0000${label}`).join("\u0001");
-						if (eLanguage.dataset.envSignature !== nextSignature) {
-							while (eLanguage.firstChild)
-								eLanguage.removeChild(eLanguage.firstChild);
-							const fragment = document.createDocumentFragment();
-							for (const [runnerId, label] of langs) {
-								const option = document.createElement("option");
-								option.value = runnerId;
-								option.textContent = label ?? "";
-								fragment.appendChild(option);
-							}
-							eLanguage.appendChild(fragment);
-							eLanguage.dataset.envSignature = nextSignature;
-						}
-						let nextValue = previousValue;
-						const langSelection = config.get("langSelection", {}) as Record<string, string>;
-						if (!langs.some(([runnerId, _]) => runnerId === nextValue)) {
-							nextValue = "";
-						}
-						if (!nextValue && languageId in langSelection) {
-							const prev = langSelection[languageId];
-							if (langs.some(([runnerId, _]) => runnerId === prev)) {
-								nextValue = prev;
-							}
-						}
-						if (!nextValue && langs.length > 0) {
-							nextValue = langs[0][0];
-						}
-						if (nextValue && eLanguage.value !== nextValue) {
-							eLanguage.value = nextValue;
-						}
-						events.trig("enable");
-					} catch (error) {
-						if (currentToken !== latestSetLanguageToken) return;
-						log.debug("getEnvironment failed:", languageId);
-						log.error(error);
-						eLanguage.dataset.envSignature = "";
+			async function setLanguage(refreshLocalRunner = true) {
+				const currentToken = ++latestSetLanguageToken;
+				const languageId = site$1.language.value;
+				try {
+					if (!languageId) throw new Error("AtCoder Easy Test: language not set");
+					const langs = await codeRunner.getEnvironment(languageId, {refreshLocalRunner});
+					if (currentToken !== latestSetLanguageToken) return;
+					log.debug("getEnvironment:", languageId, `(${langs.length} candidates)`);
+					const previousValue = eLanguage.value;
+					const nextSignature = langs.map(([runnerId, label]) => `${runnerId}\u0000${label}`).join("\u0001");
+					if (eLanguage.dataset.envSignature !== nextSignature) {
 						while (eLanguage.firstChild)
 							eLanguage.removeChild(eLanguage.firstChild);
-						const option = document.createElement("option");
-						option.className = "fg-danger";
-						option.textContent = String(error);
-						eLanguage.appendChild(option);
-						events.trig("disable");
+						const fragment = document.createDocumentFragment();
+						for (const [runnerId, label] of langs) {
+							const option = document.createElement("option");
+							option.value = runnerId;
+							option.textContent = label ?? "";
+							fragment.appendChild(option);
+						}
+						eLanguage.appendChild(fragment);
+						eLanguage.dataset.envSignature = nextSignature;
 					}
+					let nextValue = previousValue;
+					const langSelection = config.get("langSelection", {}) as Record<string, string>;
+					if (!langs.some(([runnerId, _]) => runnerId === nextValue)) {
+						nextValue = "";
+					}
+					// LocalRunnerが存在する場合は優先選択する
+					const localEntry = langs.find(([_, label]) => (label ?? "").includes("[Local]"));
+					if (localEntry) {
+						nextValue = localEntry[0];
+						log.debug("[LocalRunner] Auto-selected in setLanguage:", nextValue);
+					} else if (!nextValue && languageId in langSelection) {
+						const prev = langSelection[languageId];
+						if (langs.some(([runnerId, _]) => runnerId === prev)) {
+							nextValue = prev;
+						}
+					}
+					if (!nextValue && langs.length > 0) {
+						nextValue = langs[0][0];
+					}
+					if (nextValue && eLanguage.value !== nextValue) {
+						eLanguage.value = nextValue;
+					}
+					events.trig("enable");
+				} catch (error) {
+					if (currentToken !== latestSetLanguageToken) return;
+					log.debug("getEnvironment failed:", languageId);
+					log.error(error);
+					eLanguage.dataset.envSignature = "";
+					while (eLanguage.firstChild)
+						eLanguage.removeChild(eLanguage.firstChild);
+					const option = document.createElement("option");
+					option.className = "fg-danger";
+					option.textContent = String(error);
+					eLanguage.appendChild(option);
+					events.trig("disable");
 				}
+			}
 
-				site$1.language.addListener(() => setLanguage());
+			site$1.language.addListener(() => setLanguage());
 
+			eAllowableError.disabled = !eAllowableErrorCheck.checked;
+			eAllowableErrorCheck.addEventListener("change", () => {
 				eAllowableError.disabled = !eAllowableErrorCheck.checked;
-				eAllowableErrorCheck.addEventListener("change", () => {
-					eAllowableError.disabled = !eAllowableErrorCheck.checked;
-				});
-
-			}
-
-			// --- Run実行時にローカルサーバーが起動していればLocalRunnerへ自動切り替え ---
-			async function autoSelectLocalRunnerIfAvailable() {
-				// 既に LocalRunner が選択されている場合は何もしない
-				const currentOption = eLanguage.options[eLanguage.selectedIndex];
-				if (currentOption && currentOption.text.includes("[Local]")) return;
-				// 最新のLocalRunner状態をfetchしてから選択肢を確認
-				await LocalRunner.update();
-				for (const option of Array.from(eLanguage.options)) {
-					if (option.text.includes("[Local]")) {
-						eLanguage.value = option.value;
-						log.debug("[LocalRunner] Auto-selected on run:", option.value);
-						return;
-					}
-				}
-			}
+			});
 
 			// テスト実行
 			function runTest(title: string, input: string, output: string | null = null, options: RunnerOptions = {}): ResultPair {
@@ -2890,7 +2876,7 @@ def __run():
 			}
 
 			eRun.addEventListener("click", async (_event: MouseEvent) => {
-				await autoSelectLocalRunnerIfAvailable();
+				await setLanguage();
 				const title = "Run";
 				const input = eInput.value;
 				const output = eOutput.value;
@@ -2901,6 +2887,7 @@ def __run():
 			for (const testCase of site$1.testCases) {
 				const eRunButton = html2element(hRunButton);
 				eRunButton.addEventListener("click", async () => {
+					await setLanguage();
 					const [pResult, pTab] = runTest(testCase.title, testCase.input, testCase.output) as ResultPair;
 					await pResult;
 					(await pTab).show();
@@ -2918,6 +2905,7 @@ def __run():
 				const button = html2element(hTestAndSubmit);
 				site$1.testButtonContainer.appendChild(button);
 				const testAndSubmit = async () => {
+					await setLanguage();
 					await runAllCases(site$1.testCases);
 					site$1.submit();
 				};
@@ -2930,7 +2918,10 @@ def __run():
 			{
 				const button = html2element(hTestAllSamples);
 				site$1.testButtonContainer.appendChild(button);
-				const testAllSamples = () => runAllCases(site$1.testCases);
+				const testAllSamples = async () => {
+					await setLanguage();
+					await runAllCases(site$1.testCases);
+				};
 				button.addEventListener("click", testAllSamples);
 				events.on("testAllSamples", testAllSamples);
 				events.on("disable", () => button.classList.add("disabled"));

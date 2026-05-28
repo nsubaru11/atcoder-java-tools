@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AtCoder Easy Test for Java
 // @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.6.2
+// @version     1.6.3
 // @description Make testing sample cases easy (Modified by nsubaru11)
 // @author      magurofly (original), nsubaru11 (modified)
 // @license     MIT
@@ -3021,7 +3021,12 @@ def __run():
 							nextValue = langs[0][0];
 						}
 						if (nextValue && eLanguage.value !== nextValue) {
-							eLanguage.value = nextValue;
+							if (unsafeWindow.jQuery?.fn?.select2) {
+								unsafeWindow["jQuery"](eLanguage).val(nextValue).trigger("change");
+							} else {
+								eLanguage.value = nextValue;
+								eLanguage.dispatchEvent(new Event("change"));
+							}
 						}
 						events.trig("enable");
 					} catch (error) {

@@ -2831,7 +2831,12 @@ def __run():
 						nextValue = langs[0][0];
 					}
 					if (nextValue && eLanguage.value !== nextValue) {
-						eLanguage.value = nextValue;
+						if (unsafeWindow.jQuery?.fn?.select2) {
+							unsafeWindow["jQuery"](eLanguage).val(nextValue).trigger("change");
+						} else {
+							eLanguage.value = nextValue;
+							eLanguage.dispatchEvent(new Event("change"));
+						}
 					}
 					events.trig("enable");
 				} catch (error) {

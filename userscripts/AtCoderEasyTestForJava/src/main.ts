@@ -1256,7 +1256,7 @@ def __run():
 			return [];
 		}
 
-		const atcoder = {
+		return {
 			name: "AtCoder",
 			language,
 			langMap,
@@ -1319,7 +1319,6 @@ def __run():
 				return getTaskURI();
 			},
 		};
-		return atcoder;
 	}
 
 	async function init$4() {
@@ -2103,7 +2102,7 @@ def __run():
 					error: String(error),
 				};
 			}
-			const result: RunnerResult = {
+			return {
 				status: toEasyTestStatus(res.status, res.exitCode),
 				exitCode: String(res.exitCode),
 				execTime: +res.time,
@@ -2112,7 +2111,6 @@ def __run():
 				output: res.stdout ?? "",
 				error: res.stderr ?? "",
 			};
-			return result;
 		}
 	}
 
@@ -2312,7 +2310,7 @@ def __run():
 		// @return runnerIdとラベルのペアの配列
 		async getEnvironment(languageId: string, options: RunnerOptions = {}): Promise<Array<[string, string | undefined]>> {
 			const {refreshLocalRunner = true} = options;
-			ensureWandboxCompilersLoaded(); // wandboxAPI がコンパイラ情報を取ってくるのを待つ
+			await ensureWandboxCompilersLoaded(); // wandboxAPI がコンパイラ情報を取ってくるのを待つ
 			await localRunnerPromise; // LocalRunner がコンパイラ情報を取ってくるのを待つ
 			// リロード時・言語変更時にローカルサーバーの起動状態を再チェック
 			if (refreshLocalRunner) await LocalRunner.update();
@@ -2777,7 +2775,6 @@ def __run():
 			// 言語選択関係
 			{
 				let latestSetLanguageToken = 0;
-				let isLocalServerPolling = false;
 
 				async function onEnvChange() {
 					const langSelection = config.get("langSelection", {}) as Record<string, string>;
@@ -2850,66 +2847,26 @@ def __run():
 
 				site$1.language.addListener(() => setLanguage());
 
-				// --- LocalServer定期チェック機能 ---
-				setInterval(async () => {
-					if (isLocalServerPolling) return;
-					isLocalServerPolling = true;
-					try {
-						// 現在の言語IDを取得
-						const currentLangId = site$1.language.value;
-						if (!currentLangId) return;
-						const updated = await LocalRunner.update();
-						if (updated) {
-							await setLanguage(false);
-						}
-					} finally {
-						isLocalServerPolling = false;
-					}
-				}, 5000);
-
 				eAllowableError.disabled = !eAllowableErrorCheck.checked;
 				eAllowableErrorCheck.addEventListener("change", () => {
 					eAllowableError.disabled = !eAllowableErrorCheck.checked;
 				});
 
-				// --- コード貼り付け時にローカルサーバーを自動選択 ---
-				function autoSelectLocalRunnerIfAvailable() {
-					// 既に LocalRunner が選択されている場合は何もしない
-					const currentOption = eLanguage.options[eLanguage.selectedIndex];
-					if (currentOption && currentOption.text.includes("[Local]")) return;
-					// LocalRunner の選択肢を探す
-					for (const option of Array.from(eLanguage.options)) {
-						if (option.text.includes("[Local]")) {
-							eLanguage.value = option.value;
-							onEnvChange();
-							log.debug("[LocalRunner] Auto-selected LocalRunner on editor change:", option.value);
-							return;
-						}
-					}
-				}
+			}
 
-				// ACE エディタが利用可能になったら change イベントをフックする
-				{
-					let editorChangeHookCount = 0;
-					const editorChangeHookMax = 40;
-					const editorChangeHookTimer = setInterval(() => {
-						editorChangeHookCount++;
-						if (typeof unsafeWindow["ace"] !== "undefined") {
-							clearInterval(editorChangeHookTimer);
-							try {
-								const editorEl = unsafeWindow.document.getElementById("editor");
-								if (editorEl) {
-									const aceEditor = unsafeWindow["ace"].edit(editorEl);
-									aceEditor.getSession().on("change", autoSelectLocalRunnerIfAvailable);
-									log.debug("[LocalRunner] Auto-select hook registered on editor");
-								}
-							} catch (e) {
-								log.error("[LocalRunner] Failed to register auto-select hook:", e);
-							}
-						} else if (editorChangeHookCount >= editorChangeHookMax) {
-							clearInterval(editorChangeHookTimer);
-						}
-					}, 500);
+			// --- Run実行時にローカルサーバーが起動していればLocalRunnerへ自動切り替え ---
+			async function autoSelectLocalRunnerIfAvailable() {
+				// 既に LocalRunner が選択されている場合は何もしない
+				const currentOption = eLanguage.options[eLanguage.selectedIndex];
+				if (currentOption && currentOption.text.includes("[Local]")) return;
+				// 最新のLocalRunner状態をfetchしてから選択肢を確認
+				await LocalRunner.update();
+				for (const option of Array.from(eLanguage.options)) {
+					if (option.text.includes("[Local]")) {
+						eLanguage.value = option.value;
+						log.debug("[LocalRunner] Auto-selected on run:", option.value);
+						return;
+					}
 				}
 			}
 
@@ -2932,7 +2889,8 @@ def __run():
 				})));
 			}
 
-			eRun.addEventListener("click", (_event: MouseEvent) => {
+			eRun.addEventListener("click", async (_event: MouseEvent) => {
+				await autoSelectLocalRunnerIfAvailable();
 				const title = "Run";
 				const input = eInput.value;
 				const output = eOutput.value;

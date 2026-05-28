@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        AtCoder Easy Test for Java
 // @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.5.4
+// @version     1.6.0
 // @description Make testing sample cases easy (Modified by nsubaru11)
 // @author      magurofly (original), nsubaru11 (modified)
 // @license     MIT
@@ -2622,112 +2622,6 @@ def __run():
 				return result;
 			},
 		};
-		const version = {
-			currentProperty: new ObservableValue("2.15.1"),
-			get current() {
-				return this.currentProperty.value;
-			},
-			latestProperty: new ObservableValue(config.get("version.latest", "2.15.1")),
-			get latest() {
-				return this.latestProperty.value;
-			},
-			lastCheckProperty: new ObservableValue(config.get("version.lastCheck", 0)),
-			get lastCheck() {
-				return this.lastCheckProperty.value;
-			},
-			get hasUpdate() {
-				return this.compare(this.current, this.latest) < 0;
-			},
-			compare(a, b) {
-				const x = a.split(".").map((s) => parseInt(s, 10));
-				const y = b.split(".").map((s) => parseInt(s, 10));
-				for (let i = 0; i < 3; i++) {
-					if (x[i] < y[i]) {
-						return -1;
-					} else if (x[i] > y[i]) {
-						return 1;
-					}
-				}
-				return 0;
-			},
-			async checkUpdate(force = false) {
-				const now = Date.now();
-				if (!force && now - version.lastCheck < config.get("version.checkInterval", aDay)) {
-					return this.current;
-				}
-				try {
-					const url = "https://raw.githubusercontent.com/magurofly/atcoder-easy-test/main/v2/package.json";
-					const res = await fetch(url, { credentials: "omit" });
-					if (!res.ok) throw new Error(`Failed to fetch package.json: ${res.status} ${res.statusText}`);
-					const packageJson = await res.json();
-					const latest = packageJson["version"];
-					log.debug("checkUpdate latest:", latest);
-					this.latestProperty.value = latest;
-					config.set("version.latest", latest);
-					this.lastCheckProperty.value = now;
-					config.set("version.lastCheck", now);
-					return latest;
-				} catch (e) {
-					log.debug("checkUpdate failed:", e);
-					return this.current;
-				}
-			},
-		};
-		const aDay = 24 * 60 * 60 * 1000;
-		config.registerCount("version.checkInterval", aDay, "Interval [ms] of checking for new version");
-		config.get("version.checkInterval", aDay);
-		setInterval(() => {
-			doneOrFail(version.checkUpdate(false));
-		}, 60000);
-		settings.add("version", (win) => {
-			const root = newElement("div");
-			const text = win.document.createTextNode.bind(win.document);
-			const textAuto = (property) => {
-				const t = text(String(property.value));
-				property.addListener((value) => {
-					t.textContent = String(value);
-				});
-				return t;
-			};
-			const tCurrent = textAuto(version.currentProperty);
-			const tLatest = textAuto(version.latestProperty);
-			const tLastCheck = textAuto(version.lastCheckProperty.map((time) => new Date(time).toLocaleString()));
-			root.appendChild(newElement("p", {}, [text("AtCoder Easy Test v"), tCurrent]));
-			const updateButton = newElement("a", {
-				className: "btn btn-info",
-				textContent: "Install",
-				href: "https://github.com/magurofly/atcoder-easy-test/raw/main/v2/atcoder-easy-test.user.js",
-				target: "_blank",
-			});
-			const showButton = () => {
-				if (version.hasUpdate) updateButton.style.display = "inline";
-				else updateButton.style.display = "none";
-			};
-			showButton();
-			version.lastCheckProperty.addListener(showButton);
-			root.appendChild(
-				newElement("p", {}, [
-					text("Latest: v"),
-					tLatest,
-					text(" (Last Check: "),
-					tLastCheck,
-					text(") "),
-					updateButton,
-				]),
-			);
-			root.appendChild(
-				newElement("p", {}, [
-					newElement("a", {
-						className: "btn btn-primary",
-						textContent: "Check Update",
-						onclick() {
-							version.checkUpdate(true);
-						},
-					}),
-				]),
-			);
-			return root;
-		});
 		const hTabTemplate = `<div class="atcoder-easy-test-result container">
   <div class="row">
     <div class="atcoder-easy-test-result-col-input col-xs-12" data-if-expected-output="col-sm-6 col-sm-push-6">
@@ -2937,7 +2831,6 @@ def __run():
       <div class="col-xs-12 col-md-6">
           <div class="col-xs-11 col-xs-offset=1">
               <div class="form-group text-right">
-                  <small>AtCoder Easy Test v<span id="atcoder-easy-test-version"></span></small>
                   <a id="atcoder-easy-test-setting" class="btn btn-xs btn-default">Setting</a>
               </div>
           </div>
@@ -2980,7 +2873,6 @@ def __run():
 			unsafeWindow.codeRunner = codeRunner;
 			doc.head.appendChild(html2element(hStyle));
 			const atCoderEasyTest = {
-				version,
 				site: site$1,
 				config,
 				codeSaver,
@@ -3069,8 +2961,6 @@ def __run():
 				const eOutput = E("output");
 				const eRun = E("run");
 				const eSetting = E("setting");
-				const eVersion = E("version");
-				eVersion.textContent = atCoderEasyTest.version.current;
 				events.on("enable", () => {
 					eRun.classList.remove("disabled");
 				});
@@ -3081,26 +2971,18 @@ def __run():
 					settings.open();
 				});
 				{
-					let button = null;
-					const showButton = () => {
-						if (!version.hasUpdate) return;
-						if (button) {
-							button.textContent = `Update to v${version.latest}`;
-							return;
+					let autoSelectLocalRunnerIfAvailable = function () {
+						const currentOption = eLanguage.options[eLanguage.selectedIndex];
+						if (currentOption && currentOption.text.includes("[Local]")) return;
+						for (const option of Array.from(eLanguage.options)) {
+							if (option.text.includes("[Local]")) {
+								eLanguage.value = option.value;
+								onEnvChange();
+								log.debug("[LocalRunner] Auto-selected LocalRunner on editor change:", option.value);
+								return;
+							}
 						}
-						log.debug(`New version available: v${version.latest}`);
-						button = newElement("a", {
-							href: "https://github.com/magurofly/atcoder-easy-test/raw/main/v2/atcoder-easy-test.user.js",
-							target: "_blank",
-							className: "btn btn-xs btn-info",
-							textContent: `Update to v${version.latest}`,
-						});
-						eVersion.insertAdjacentElement("afterend", button);
 					};
-					version.latestProperty.addListener(showButton);
-					showButton();
-				}
-				{
 					let latestSetLanguageToken = 0;
 					let isLocalServerPolling = false;
 					async function onEnvChange() {
@@ -3188,6 +3070,28 @@ def __run():
 					eAllowableErrorCheck.addEventListener("change", () => {
 						eAllowableError.disabled = !eAllowableErrorCheck.checked;
 					});
+					{
+						let editorChangeHookCount = 0;
+						const editorChangeHookMax = 40;
+						const editorChangeHookTimer = setInterval(() => {
+							editorChangeHookCount++;
+							if (typeof unsafeWindow["ace"] !== "undefined") {
+								clearInterval(editorChangeHookTimer);
+								try {
+									const editorEl = unsafeWindow.document.getElementById("editor");
+									if (editorEl) {
+										const aceEditor = unsafeWindow["ace"].edit(editorEl);
+										aceEditor.getSession().on("change", autoSelectLocalRunnerIfAvailable);
+										log.debug("[LocalRunner] Auto-select hook registered on editor");
+									}
+								} catch (e) {
+									log.error("[LocalRunner] Failed to register auto-select hook:", e);
+								}
+							} else if (editorChangeHookCount >= editorChangeHookMax) {
+								clearInterval(editorChangeHookTimer);
+							}
+						}, 500);
+					}
 				}
 				eRun.addEventListener("click", (_event) => {
 					const title = "Run";

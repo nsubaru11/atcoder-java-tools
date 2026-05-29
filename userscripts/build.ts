@@ -46,7 +46,7 @@ type ScriptMeta = { [K in MetaSingleKey]?: string; } & { [K in MetaMultiKey]?: s
 // endregion
 
 // region 共通メタ（全スクリプト共通で自動補完されるフィールド）
-const REPO_ROOT = "https://github.com/nsubaru/AtCoder";
+const REPO_ROOT = "https://github.com/nsubaru11/AtCoder";
 
 function buildCommonMeta(scriptName: string): Partial<ScriptMeta> {
 	return {
@@ -55,8 +55,8 @@ function buildCommonMeta(scriptName: string): Partial<ScriptMeta> {
 		license: "MIT",
 		homepageURL: `${REPO_ROOT}/tree/main/tools/userscripts/${scriptName}`,
 		supportURL: `${REPO_ROOT}/issues`,
-		downloadURL: `https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/${scriptName}/dist/${scriptName}.user.js`,
-		updateURL: `https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/${scriptName}/dist/${scriptName}.user.js`,
+		downloadURL: `https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/${scriptName}/dist/${scriptName}.user.js`,
+		updateURL: `https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/${scriptName}/dist/${scriptName}.user.js`,
 	};
 }
 

@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name           AtCoder Easy Test for Java
 // @name:en        AtCoder Easy Test for Java
-// @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
+// @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
 // @version        1.6.4
 // @description    AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。
 // @description:en Automates sample testing on AtCoder, yukicoder, and Codeforces. Optimized for Java.
 // @description:ja AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。
 // @author         magurofly (original), nsubaru (modified)
 // @license        MIT
-// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderEasyTestForJava
-// @supportURL     https://github.com/nsubaru/AtCoder/issues
+// @homepageURL    https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderEasyTestForJava
+// @supportURL     https://github.com/nsubaru11/AtCoder/issues
 // @match          https://atcoder.jp/contests/*/tasks/*
 // @match          https://atcoder.jp/contests/*/submit*
 // @match          https://yukicoder.me/problems/no/*
@@ -28,8 +28,8 @@
 // @grant          GM_setValue
 // @run-at         document-end
 // @icon           https://atcoder.jp/favicon.ico
-// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
-// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
+// @updateURL      https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
 // ==/UserScript==
 
 (() => {

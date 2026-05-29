@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name           AtCoder Performance Overlay
 // @name:en        AtCoder Performance Overlay
-// @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
+// @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
 // @version        1.1.8
 // @description    レーティンググラフにパフォーマンスのグラフを重ねて表示します。
 // @description:en Overlays performance charts on the AtCoder rating graph.
 // @description:ja レーティンググラフにパフォーマンスのグラフを重ねて表示します。
 // @author         nzm_ort (original), nsubaru (modified)
 // @license        MIT
-// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderPerformanceOverlay
-// @supportURL     https://github.com/nsubaru/AtCoder/issues
+// @homepageURL    https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderPerformanceOverlay
+// @supportURL     https://github.com/nsubaru11/AtCoder/issues
 // @match          https://atcoder.jp/users/*
 // @exclude        *://atcoder.jp/users/*?graph=rank
 // @exclude        *://atcoder.jp/users/*?graph=dist
@@ -17,8 +17,8 @@
 // @grant          none
 // @run-at         document-end
 // @icon           https://atcoder.jp/favicon.ico
-// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js
-// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js
+// @updateURL      https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js
 // ==/UserScript==
 
 "use strict";

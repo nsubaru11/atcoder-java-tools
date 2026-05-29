@@ -45,14 +45,14 @@ bun --cwd userscripts ./build.ts AtCoderHighlighter
 
 提出一覧の絞り込み・並び替えのデフォルトを適用します。
 
-- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js)
+- [インストール](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js)
 
 ### AtCoder Easy Test for Java
 
 サンプル入出力のテストを簡単に行えるようにします（Java 向け拡張）。出力比較は `@atcoder-tools/shared` の
 `evaluateEasyTestOutput` と runner CLI で共通です。
 
-- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js)
+- [インストール](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js)
 - ローカル実行: [runner/README.md](../runner/README.md)
 
 ### AtCoder Highlighter
@@ -65,26 +65,26 @@ bun --cwd userscripts ./build.ts AtCoderHighlighter
 
 「問題」タブにホバーで各問題へ飛べるドロップダウンを表示します。
 
-- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js)
+- [インストール](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js)
 
 ### AtCoder Markdown Copier
 
 AtCoder の問題文を Markdown 形式でコピーする機能を追加します。個別パートのコピーと、全パートの一括コピーが可能です。
 
-- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderMarkdownCopier/dist/AtCoderMarkdownCopier.user.js)
+- [インストール](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderMarkdownCopier/dist/AtCoderMarkdownCopier.user.js)
 
 ### AtCoder Performance Overlay
 
 レーティンググラフにパフォーマンスを重ねて表示します。
 
-- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js)
+- [インストール](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js)
 
 
 ### Java Code Submitter
 
 Java 提出の補助（Main/DEBUG 自動修正、折りたたみ、ショートカット）。変換ロジックは shared の `modifyJavaCode` を使用します。
 
-- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js)
+- [インストール](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js)
 
 ## 使い方（利用者向け）
 

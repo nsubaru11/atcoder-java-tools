@@ -427,3 +427,4 @@ import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/s
 	submitter.start();
 
 })();
+export {};

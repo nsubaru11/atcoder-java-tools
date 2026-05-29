@@ -1,0 +1,19 @@
+{
+	"name": "AtCoder Markdown Copier",
+	"name:en": "AtCoder Markdown Copier",
+	"version": "1.0.0",
+	"description": "AtCoderの問題文をMarkdown形式で個別にコピー、または一括でダウンロードする機能を追加します。",
+	"description:ja": "AtCoderの問題文をMarkdown形式で個別にコピー、または一括でダウンロードする機能を追加します。",
+	"description:en": "Adds functionality to copy AtCoder problem statements in Markdown format individually or download them all at once.",
+	"author": "nsubaru",
+	"match": [
+		"https://atcoder.jp/contests/*/tasks/*"
+	],
+	"require": [
+		"https://unpkg.com/turndown/dist/turndown.js",
+		"https://unpkg.com/turndown-plugin-gfm/dist/turndown-plugin-gfm.js"
+	],
+	"grant": [
+		"GM_setClipboard"
+	]
+}

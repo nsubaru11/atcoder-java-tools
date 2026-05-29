@@ -1,25 +1,54 @@
 // ==UserScript==
-// @name        AtCoder Perf Graph
-// @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.1.6
-// @description レーティンググラフにパフォーマンスのグラフを重ねて表示します
-// @author      nzm_ort (original), nsubaru11 (modified)
-// @license     MIT
-// @homepageURL https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderRatingGraph
-// @supportURL  https://github.com/nsubaru11/AtCoder/issues
-// @match       https://atcoder.jp/users/*
-// @exclude     *://atcoder.jp/users/*?graph=rank
-// @exclude     *://atcoder.jp/users/*?graph=dist
-// @exclude     *://atcoder.jp/users/*/history*
-// @grant       none
-// @run-at      document-end
-// @downloadURL https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js
-// @updateURL   https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js
+// @name           AtCoder Perf Graph
+// @name:en        AtCoder Perf Graph
+// @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
+// @version        1.1.7
+// @description    レーティンググラフにパフォーマンスのグラフを重ねて表示します。
+// @description:en Overlays performance charts on the AtCoder rating graph.
+// @description:ja レーティンググラフにパフォーマンスのグラフを重ねて表示します。
+// @author         nzm_ort (original), nsubaru (modified)
+// @license        MIT
+// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderRatingGraph
+// @supportURL     https://github.com/nsubaru/AtCoder/issues
+// @match          https://atcoder.jp/users/*
+// @exclude        *://atcoder.jp/users/*?graph=rank
+// @exclude        *://atcoder.jp/users/*?graph=dist
+// @exclude        *://atcoder.jp/users/*/history*
+// @grant          none
+// @run-at         document-end
+// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js
 // ==/UserScript==
 
 "use strict";
 (() => {
+	var __defProp = Object.defineProperty;
+	var __getOwnPropNames = Object.getOwnPropertyNames;
+	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+	var __hasOwnProp = Object.prototype.hasOwnProperty;
+	function __accessProp(key) {
+		return this[key];
+	}
+	var __toCommonJS = (from) => {
+		var entry = (__moduleCache ??= new WeakMap()).get(from),
+			desc;
+		if (entry) return entry;
+		entry = __defProp({}, "__esModule", { value: true });
+		if ((from && typeof from === "object") || typeof from === "function") {
+			for (var key of __getOwnPropNames(from))
+				if (!__hasOwnProp.call(entry, key))
+					__defProp(entry, key, {
+						get: __accessProp.bind(from, key),
+						enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable,
+					});
+		}
+		__moduleCache.set(from, entry);
+		return entry;
+	};
+	var __moduleCache;
+
 	// AtCoderRatingGraph/src/main.ts
+	var exports_main = {};
 	var isHeuristic = new URLSearchParams(window.location.search).get("contestType") === "heuristic";
 	{
 		const element =

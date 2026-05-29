@@ -1,21 +1,51 @@
 // ==UserScript==
-// @name        AtCoder Custom Default Submissions
-// @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.6.4
-// @description AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。
-// @author      ktnyori (original), nsubaru11 (modified)
-// @license     MIT
-// @include     https://atcoder.jp/contests/*
-// @grant       GM_getValue
-// @grant       GM_setValue
-// @grant       GM_registerMenuCommand
-// @homepageURL https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderCustomDefaultSubmissions
-// @supportURL  https://github.com/nsubaru11/AtCoder/issues
-// @updateURL   https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js
-// @downloadURL https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js
+// @name           AtCoder Custom Default Submissions
+// @name:en        AtCoder Custom Default Submissions
+// @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
+// @version        1.6.5
+// @description    AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。
+// @description:en Sets default filters and sorting for AtCoder submission lists. Settings can be changed from the menu.
+// @description:ja AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。
+// @author         ktnyori (original), nsubaru (modified)
+// @license        MIT
+// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderCustomDefaultSubmissions
+// @supportURL     https://github.com/nsubaru/AtCoder/issues
+// @match          https://atcoder.jp/contests/*
+// @grant          GM_getValue
+// @grant          GM_setValue
+// @grant          GM_registerMenuCommand
+// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js
 // ==/UserScript==
 
 (() => {
+	var __defProp = Object.defineProperty;
+	var __getOwnPropNames = Object.getOwnPropertyNames;
+	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+	var __hasOwnProp = Object.prototype.hasOwnProperty;
+	function __accessProp(key) {
+		return this[key];
+	}
+	var __toCommonJS = (from) => {
+		var entry = (__moduleCache ??= new WeakMap()).get(from),
+			desc;
+		if (entry) return entry;
+		entry = __defProp({}, "__esModule", { value: true });
+		if ((from && typeof from === "object") || typeof from === "function") {
+			for (var key of __getOwnPropNames(from))
+				if (!__hasOwnProp.call(entry, key))
+					__defProp(entry, key, {
+						get: __accessProp.bind(from, key),
+						enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable,
+					});
+		}
+		__moduleCache.set(from, entry);
+		return entry;
+	};
+	var __moduleCache;
+
+	// AtCoderCustomDefaultSubmissions/src/main.ts
+	var exports_main = {};
 	// ../shared/src/query.ts
 	function buildQueryString(data) {
 		const params = new URLSearchParams();

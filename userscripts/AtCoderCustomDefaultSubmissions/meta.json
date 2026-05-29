@@ -1,60 +1,17 @@
 {
-	"pairs": [
-		{
-			"key": "name",
-			"value": "AtCoder Custom Default Submissions"
-		},
-		{
-			"key": "namespace",
-			"value": "https://github.com/nsubaru11/AtCoder/tools/userscripts"
-		},
-		{
-			"key": "version",
-			"value": "1.6.4"
-		},
-		{
-			"key": "description",
-			"value": "AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。"
-		},
-		{
-			"key": "author",
-			"value": "ktnyori (original), nsubaru11 (modified)"
-		},
-		{
-			"key": "license",
-			"value": "MIT"
-		},
-		{
-			"key": "include",
-			"value": "https://atcoder.jp/contests/*"
-		},
-		{
-			"key": "grant",
-			"value": "GM_getValue"
-		},
-		{
-			"key": "grant",
-			"value": "GM_setValue"
-		},
-		{
-			"key": "grant",
-			"value": "GM_registerMenuCommand"
-		},
-		{
-			"key": "homepageURL",
-			"value": "https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderCustomDefaultSubmissions"
-		},
-		{
-			"key": "supportURL",
-			"value": "https://github.com/nsubaru11/AtCoder/issues"
-		},
-		{
-			"key": "updateURL",
-			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js"
-		},
-		{
-			"key": "downloadURL",
-			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js"
-		}
+	"name": "AtCoder Custom Default Submissions",
+	"name:en": "AtCoder Custom Default Submissions",
+	"version": "1.6.5",
+	"description": "AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。",
+	"description:ja": "AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。",
+	"description:en": "Sets default filters and sorting for AtCoder submission lists. Settings can be changed from the menu.",
+	"author": "ktnyori (original), nsubaru (modified)",
+	"match": [
+		"https://atcoder.jp/contests/*"
+	],
+	"grant": [
+		"GM_getValue",
+		"GM_setValue",
+		"GM_registerMenuCommand"
 	]
 }

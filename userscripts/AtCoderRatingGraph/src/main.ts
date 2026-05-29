@@ -889,3 +889,4 @@ async function bootstrap() {
 }
 
 bootstrap();
+export {};

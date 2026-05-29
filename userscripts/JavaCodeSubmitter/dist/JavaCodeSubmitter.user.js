@@ -1,23 +1,53 @@
 // ==UserScript==
-// @name        Java Code Submitter
-// @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.0.7
-// @description Java submission helper (Main/DEBUG/fold/shortcuts)
-// @author      nsubaru11
-// @license     MIT
-// @homepageURL https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/JavaCodeSubmitter
-// @supportURL  https://github.com/nsubaru11/AtCoder/issues
-// @match       https://onlinejudge.u-aizu.ac.jp/*
-// @match       https://atcoder.jp/contests/*
-// @match       https://judge.yosupo.jp/problem/*
-// @match       https://paiza.jp/*
-// @grant       unsafeWindow
-// @run-at      document-end
-// @updateURL   https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
-// @downloadURL https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
+// @name           Java Code Submitter
+// @name:en        Java Code Submitter
+// @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
+// @version        1.0.8
+// @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
+// @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
+// @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
+// @author         nsubaru
+// @license        MIT
+// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/JavaCodeSubmitter
+// @supportURL     https://github.com/nsubaru/AtCoder/issues
+// @match          https://onlinejudge.u-aizu.ac.jp/*
+// @match          https://atcoder.jp/contests/*
+// @match          https://judge.yosupo.jp/problem/*
+// @match          https://paiza.jp/*
+// @grant          unsafeWindow
+// @run-at         document-end
+// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
 // ==/UserScript==
 
 (() => {
+	var __defProp = Object.defineProperty;
+	var __getOwnPropNames = Object.getOwnPropertyNames;
+	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+	var __hasOwnProp = Object.prototype.hasOwnProperty;
+	function __accessProp(key) {
+		return this[key];
+	}
+	var __toCommonJS = (from) => {
+		var entry = (__moduleCache ??= new WeakMap()).get(from),
+			desc;
+		if (entry) return entry;
+		entry = __defProp({}, "__esModule", { value: true });
+		if ((from && typeof from === "object") || typeof from === "function") {
+			for (var key of __getOwnPropNames(from))
+				if (!__hasOwnProp.call(entry, key))
+					__defProp(entry, key, {
+						get: __accessProp.bind(from, key),
+						enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable,
+					});
+		}
+		__moduleCache.set(from, entry);
+		return entry;
+	};
+	var __moduleCache;
+
+	// JavaCodeSubmitter/src/main.ts
+	var exports_main = {};
 	// ../shared/src/utils.ts
 	function normalizeNewlines(text) {
 		return text.replace(

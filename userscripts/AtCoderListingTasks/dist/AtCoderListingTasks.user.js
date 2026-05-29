@@ -1,25 +1,52 @@
 // ==UserScript==
 // @name           AtCoder Listing Tasks
 // @name:en        AtCoder Listing Tasks
-// @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.5.7
+// @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
+// @version        1.5.8
 // @description    「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。
 // @description:en Hover on the "Tasks" tab to open a drop-down list that takes you to the page for each problem in the contest.
-// @author         luuguas (original), nsubaru11 (modified)
+// @description:ja 「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。
+// @author         luuguas (original), nsubaru (modified)
 // @license        Apache-2.0
-// @homepageURL    https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderListingTasks
-// @supportURL     https://github.com/nsubaru11/AtCoder/issues
+// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderListingTasks
+// @supportURL     https://github.com/nsubaru/AtCoder/issues
 // @match          https://atcoder.jp/contests/*
 // @exclude        https://atcoder.jp/contests/
 // @exclude        https://atcoder.jp/contests/?*
 // @exclude        https://atcoder.jp/contests/archive*
 // @grant          none
-// @updateURL      https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
-// @downloadURL    https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
+// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
 // ==/UserScript==
 
 (() => {
+	var __defProp = Object.defineProperty;
+	var __getOwnPropNames = Object.getOwnPropertyNames;
+	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+	var __hasOwnProp = Object.prototype.hasOwnProperty;
+	function __accessProp(key) {
+		return this[key];
+	}
+	var __toCommonJS = (from) => {
+		var entry = (__moduleCache ??= new WeakMap()).get(from),
+			desc;
+		if (entry) return entry;
+		entry = __defProp({}, "__esModule", { value: true });
+		if ((from && typeof from === "object") || typeof from === "function") {
+			for (var key of __getOwnPropNames(from))
+				if (!__hasOwnProp.call(entry, key))
+					__defProp(entry, key, {
+						get: __accessProp.bind(from, key),
+						enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable,
+					});
+		}
+		__moduleCache.set(from, entry);
+		return entry;
+	};
+	var __moduleCache;
+
 	// AtCoderListingTasks/src/main.ts
+	var exports_main = {};
 	(function () {
 		let $ = window.jQuery;
 		const CONTEST_URL = "https://atcoder.jp/contests";

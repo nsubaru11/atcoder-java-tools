@@ -1,72 +1,21 @@
 {
-	"pairs": [
-		{
-			"key": "name",
-			"value": "AtCoder Listing Tasks"
-		},
-		{
-			"key": "name:en",
-			"value": "AtCoder Listing Tasks"
-		},
-		{
-			"key": "namespace",
-			"value": "https://github.com/nsubaru11/AtCoder/tools/userscripts"
-		},
-		{
-			"key": "version",
-			"value": "1.5.7"
-		},
-		{
-			"key": "description",
-			"value": "「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。"
-		},
-		{
-			"key": "description:en",
-			"value": "Hover on the \"Tasks\" tab to open a drop-down list that takes you to the page for each problem in the contest."
-		},
-		{
-			"key": "author",
-			"value": "luuguas (original), nsubaru11 (modified)"
-		},
-		{
-			"key": "license",
-			"value": "Apache-2.0"
-		},
-		{
-			"key": "homepageURL",
-			"value": "https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderListingTasks"
-		},
-		{
-			"key": "supportURL",
-			"value": "https://github.com/nsubaru11/AtCoder/issues"
-		},
-		{
-			"key": "match",
-			"value": "https://atcoder.jp/contests/*"
-		},
-		{
-			"key": "exclude",
-			"value": "https://atcoder.jp/contests/"
-		},
-		{
-			"key": "exclude",
-			"value": "https://atcoder.jp/contests/?*"
-		},
-		{
-			"key": "exclude",
-			"value": "https://atcoder.jp/contests/archive*"
-		},
-		{
-			"key": "grant",
-			"value": "none"
-		},
-		{
-			"key": "updateURL",
-			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js"
-		},
-		{
-			"key": "downloadURL",
-			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js"
-		}
+	"name": "AtCoder Listing Tasks",
+	"name:en": "AtCoder Listing Tasks",
+	"version": "1.5.8",
+	"description": "「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。",
+	"description:ja": "「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。",
+	"description:en": "Hover on the \"Tasks\" tab to open a drop-down list that takes you to the page for each problem in the contest.",
+	"author": "luuguas (original), nsubaru (modified)",
+	"license": "Apache-2.0",
+	"match": [
+		"https://atcoder.jp/contests/*"
+	],
+	"exclude": [
+		"https://atcoder.jp/contests/",
+		"https://atcoder.jp/contests/?*",
+		"https://atcoder.jp/contests/archive*"
+	],
+	"grant": [
+		"none"
 	]
 }

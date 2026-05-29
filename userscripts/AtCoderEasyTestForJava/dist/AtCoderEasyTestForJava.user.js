@@ -1,39 +1,65 @@
 // ==UserScript==
-// @name        AtCoder Easy Test for Java
-// @namespace   https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version     1.6.3
-// @description Make testing sample cases easy (Modified by nsubaru11)
-// @author      magurofly (original), nsubaru11 (modified)
-// @license     MIT
-// @homepageURL https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderEasyTestForJava
-// @supportURL  https://github.com/nsubaru11/AtCoder/issues
-// @match       https://atcoder.jp/contests/*/tasks/*
-// @match       https://atcoder.jp/contests/*/submit*
-// @match       https://yukicoder.me/problems/no/*
-// @match       https://yukicoder.me/problems/*
-// @match       http://codeforces.com/contest/*/problem/*
-// @match       http://codeforces.com/gym/*/problem/*
-// @match       http://codeforces.com/problemset/problem/*
-// @match       http://codeforces.com/group/*/contest/*/problem/*
-// @match       http://*.contest.codeforces.com/group/*/contest/*/problem/*
-// @match       https://codeforces.com/contest/*/problem/*
-// @match       https://codeforces.com/gym/*/problem/*
-// @match       https://codeforces.com/problemset/problem/*
-// @match       https://codeforces.com/group/*/contest/*/problem/*
-// @match       https://*.contest.codeforces.com/group/*/contest/*/problem/*
-// @match       https://m1.codeforces.com/contest/*/problem/*
-// @match       https://m2.codeforces.com/contest/*/problem/*
-// @match       https://m3.codeforces.com/contest/*/problem/*
-// @match       https://greasyfork.org/*/scripts/433152-atcoder-easy-test-v2
-// @grant       unsafeWindow
-// @grant       GM_getValue
-// @grant       GM_setValue
-// @run-at      document-end
-// @updateURL   https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
-// @downloadURL https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
+// @name           AtCoder Easy Test for Java
+// @name:en        AtCoder Easy Test for Java
+// @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
+// @version        1.6.4
+// @description    AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。
+// @description:en Automates sample testing on AtCoder, yukicoder, and Codeforces. Optimized for Java.
+// @description:ja AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。
+// @author         magurofly (original), nsubaru (modified)
+// @license        MIT
+// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderEasyTestForJava
+// @supportURL     https://github.com/nsubaru/AtCoder/issues
+// @match          https://atcoder.jp/contests/*/tasks/*
+// @match          https://atcoder.jp/contests/*/submit*
+// @match          https://yukicoder.me/problems/no/*
+// @match          https://yukicoder.me/problems/*
+// @match          https://codeforces.com/contest/*/problem/*
+// @match          https://codeforces.com/gym/*/problem/*
+// @match          https://codeforces.com/problemset/problem/*
+// @match          https://codeforces.com/group/*/contest/*/problem/*
+// @match          https://*.contest.codeforces.com/group/*/contest/*/problem/*
+// @match          https://m1.codeforces.com/contest/*/problem/*
+// @match          https://m2.codeforces.com/contest/*/problem/*
+// @match          https://m3.codeforces.com/contest/*/problem/*
+// @match          https://greasyfork.org/*/scripts/433152-atcoder-easy-test-v2
+// @grant          unsafeWindow
+// @grant          GM_getValue
+// @grant          GM_setValue
+// @run-at         document-end
+// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
 // ==/UserScript==
 
 (() => {
+	var __defProp = Object.defineProperty;
+	var __getOwnPropNames = Object.getOwnPropertyNames;
+	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+	var __hasOwnProp = Object.prototype.hasOwnProperty;
+	function __accessProp(key) {
+		return this[key];
+	}
+	var __toCommonJS = (from) => {
+		var entry = (__moduleCache ??= new WeakMap()).get(from),
+			desc;
+		if (entry) return entry;
+		entry = __defProp({}, "__esModule", { value: true });
+		if ((from && typeof from === "object") || typeof from === "function") {
+			for (var key of __getOwnPropNames(from))
+				if (!__hasOwnProp.call(entry, key))
+					__defProp(entry, key, {
+						get: __accessProp.bind(from, key),
+						enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable,
+					});
+		}
+		__moduleCache.set(from, entry);
+		return entry;
+	};
+	var __moduleCache;
+
+	// AtCoderEasyTestForJava/src/main.ts
+	var exports_main = {};
+
 	// ../shared/src/async.ts
 	function sleep(ms) {
 		return new Promise((resolve) => setTimeout(resolve, ms));

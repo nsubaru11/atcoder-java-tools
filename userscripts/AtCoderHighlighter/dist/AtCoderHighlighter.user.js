@@ -1,25 +1,52 @@
 // ==UserScript==
 // @name           AtCoder Highlighter
 // @name:en        AtCoder Highlighter
-// @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.3.5
+// @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
+// @version        1.3.6
 // @description    AtCoder の問題文中の数字と変数、実行時間/メモリ制限を自動で強調表示させます
 // @description:en Automatically highlights numbers, variables, and time/memory limits in AtCoder task statements
-// @author         nsubaru11
+// @description:ja AtCoder の問題文中の数字と変数、実行時間/メモリ制限を自動で強調表示させます
+// @author         nsubaru
 // @license        MIT
+// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderHighlighter
+// @supportURL     https://github.com/nsubaru/AtCoder/issues
 // @match          https://atcoder.jp/contests/*/tasks/*
 // @grant          GM_getValue
 // @grant          GM_setValue
 // @grant          GM_registerMenuCommand
 // @run-at         document-idle
-// @homepageURL    https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderHighlighter
-// @supportURL     https://github.com/nsubaru11/AtCoder/issues
-// @downloadURL    https://update.greasyfork.org/scripts/566471/AtCoder%20Highlighter.user.js
-// @updateURL      https://update.greasyfork.org/scripts/566471/AtCoder%20Highlighter.meta.js
+// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderHighlighter/dist/AtCoderHighlighter.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderHighlighter/dist/AtCoderHighlighter.user.js
 // ==/UserScript==
 
 (() => {
+	var __defProp = Object.defineProperty;
+	var __getOwnPropNames = Object.getOwnPropertyNames;
+	var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+	var __hasOwnProp = Object.prototype.hasOwnProperty;
+	function __accessProp(key) {
+		return this[key];
+	}
+	var __toCommonJS = (from) => {
+		var entry = (__moduleCache ??= new WeakMap()).get(from),
+			desc;
+		if (entry) return entry;
+		entry = __defProp({}, "__esModule", { value: true });
+		if ((from && typeof from === "object") || typeof from === "function") {
+			for (var key of __getOwnPropNames(from))
+				if (!__hasOwnProp.call(entry, key))
+					__defProp(entry, key, {
+						get: __accessProp.bind(from, key),
+						enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable,
+					});
+		}
+		__moduleCache.set(from, entry);
+		return entry;
+	};
+	var __moduleCache;
+
 	// AtCoderHighlighter/src/main.ts
+	var exports_main = {};
 	(function () {
 		const TARGET_KEYWORDS = ["問題文", "Problem Statement", "制約", "Constraints"];
 		const TIME_LIMIT_KEYWORDS = ["Time Limit", "実行時間制限"];

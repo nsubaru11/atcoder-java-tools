@@ -1,68 +1,21 @@
 {
-	"pairs": [
-		{
-			"key": "name",
-			"value": "AtCoder Perf Graph"
-		},
-		{
-			"key": "namespace",
-			"value": "https://github.com/nsubaru11/AtCoder/tools/userscripts"
-		},
-		{
-			"key": "version",
-			"value": "1.1.6"
-		},
-		{
-			"key": "description",
-			"value": "レーティンググラフにパフォーマンスのグラフを重ねて表示します"
-		},
-		{
-			"key": "author",
-			"value": "nzm_ort (original), nsubaru11 (modified)"
-		},
-		{
-			"key": "license",
-			"value": "MIT"
-		},
-		{
-			"key": "homepageURL",
-			"value": "https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderRatingGraph"
-		},
-		{
-			"key": "supportURL",
-			"value": "https://github.com/nsubaru11/AtCoder/issues"
-		},
-		{
-			"key": "match",
-			"value": "https://atcoder.jp/users/*"
-		},
-		{
-			"key": "exclude",
-			"value": "*://atcoder.jp/users/*?graph=rank"
-		},
-		{
-			"key": "exclude",
-			"value": "*://atcoder.jp/users/*?graph=dist"
-		},
-		{
-			"key": "exclude",
-			"value": "*://atcoder.jp/users/*/history*"
-		},
-		{
-			"key": "grant",
-			"value": "none"
-		},
-		{
-			"key": "run-at",
-			"value": "document-end"
-		},
-		{
-			"key": "downloadURL",
-			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js"
-		},
-		{
-			"key": "updateURL",
-			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js"
-		}
-	]
+	"name": "AtCoder Perf Graph",
+	"name:en": "AtCoder Perf Graph",
+	"version": "1.1.7",
+	"description": "レーティンググラフにパフォーマンスのグラフを重ねて表示します。",
+	"description:ja": "レーティンググラフにパフォーマンスのグラフを重ねて表示します。",
+	"description:en": "Overlays performance charts on the AtCoder rating graph.",
+	"author": "nzm_ort (original), nsubaru (modified)",
+	"match": [
+		"https://atcoder.jp/users/*"
+	],
+	"exclude": [
+		"*://atcoder.jp/users/*?graph=rank",
+		"*://atcoder.jp/users/*?graph=dist",
+		"*://atcoder.jp/users/*/history*"
+	],
+	"grant": [
+		"none"
+	],
+	"run-at": "document-end"
 }

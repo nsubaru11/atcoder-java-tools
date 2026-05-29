@@ -115,3 +115,4 @@ import {buildAtCoderSubmissionsQuery, mergeWithDefaults, parseAtCoderTaskUrl,} f
 		links[i].setAttribute('href', `${url.pathname}${url.search}${url.hash}`);
 	}
 })();
+export {};

@@ -1,68 +1,19 @@
 {
-	"pairs": [
-		{
-			"key": "name",
-			"value": "Java Code Submitter"
-		},
-		{
-			"key": "namespace",
-			"value": "https://github.com/nsubaru11/AtCoder/tools/userscripts"
-		},
-		{
-			"key": "version",
-			"value": "1.0.7"
-		},
-		{
-			"key": "description",
-			"value": "Java submission helper (Main/DEBUG/fold/shortcuts)"
-		},
-		{
-			"key": "author",
-			"value": "nsubaru11"
-		},
-		{
-			"key": "license",
-			"value": "MIT"
-		},
-		{
-			"key": "homepageURL",
-			"value": "https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/JavaCodeSubmitter"
-		},
-		{
-			"key": "supportURL",
-			"value": "https://github.com/nsubaru11/AtCoder/issues"
-		},
-		{
-			"key": "match",
-			"value": "https://onlinejudge.u-aizu.ac.jp/*"
-		},
-		{
-			"key": "match",
-			"value": "https://atcoder.jp/contests/*"
-		},
-		{
-			"key": "match",
-			"value": "https://judge.yosupo.jp/problem/*"
-		},
-		{
-			"key": "match",
-			"value": "https://paiza.jp/*"
-		},
-		{
-			"key": "grant",
-			"value": "unsafeWindow"
-		},
-		{
-			"key": "run-at",
-			"value": "document-end"
-		},
-		{
-			"key": "updateURL",
-			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js"
-		},
-		{
-			"key": "downloadURL",
-			"value": "https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js"
-		}
-	]
+	"name": "Java Code Submitter",
+	"name:en": "Java Code Submitter",
+	"version": "1.0.8",
+	"description": "Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。",
+	"description:ja": "Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。",
+	"description:en": "Automatically removes package declarations and renames classes to Main when submitting Java source code.",
+	"author": "nsubaru",
+	"match": [
+		"https://onlinejudge.u-aizu.ac.jp/*",
+		"https://atcoder.jp/contests/*",
+		"https://judge.yosupo.jp/problem/*",
+		"https://paiza.jp/*"
+	],
+	"grant": [
+		"unsafeWindow"
+	],
+	"run-at": "document-end"
 }

@@ -371,3 +371,4 @@
 	observeTaskStatement();
 	registerMenu();
 })();
+export {};

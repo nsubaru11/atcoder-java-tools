@@ -16,6 +16,7 @@
 // @exclude        *://atcoder.jp/users/*/history*
 // @grant          none
 // @run-at         document-end
+// @icon           https://atcoder.jp/favicon.ico
 // @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js
 // @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js
 // ==/UserScript==

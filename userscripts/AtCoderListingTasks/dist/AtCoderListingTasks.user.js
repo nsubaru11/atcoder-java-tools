@@ -15,6 +15,7 @@
 // @exclude        https://atcoder.jp/contests/?*
 // @exclude        https://atcoder.jp/contests/archive*
 // @grant          none
+// @icon           https://atcoder.jp/favicon.ico
 // @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
 // @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
 // ==/UserScript==

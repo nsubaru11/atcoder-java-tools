@@ -14,6 +14,7 @@
 // @grant          GM_setClipboard
 // @require        https://unpkg.com/turndown/dist/turndown.js
 // @require        https://unpkg.com/turndown-plugin-gfm/dist/turndown-plugin-gfm.js
+// @icon           https://atcoder.jp/favicon.ico
 // @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderMarkdownCopier/dist/AtCoderMarkdownCopier.user.js
 // @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderMarkdownCopier/dist/AtCoderMarkdownCopier.user.js
 // ==/UserScript==

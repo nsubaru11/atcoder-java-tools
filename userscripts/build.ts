@@ -51,6 +51,7 @@ const REPO_ROOT = "https://github.com/nsubaru/AtCoder";
 function buildCommonMeta(scriptName: string): Partial<ScriptMeta> {
 	return {
 		namespace: `${REPO_ROOT}/tools/userscripts`,
+		icon: "https://atcoder.jp/favicon.ico",
 		license: "MIT",
 		homepageURL: `${REPO_ROOT}/tree/main/tools/userscripts/${scriptName}`,
 		supportURL: `${REPO_ROOT}/issues`,

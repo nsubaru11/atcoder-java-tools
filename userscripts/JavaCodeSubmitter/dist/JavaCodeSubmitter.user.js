@@ -16,6 +16,7 @@
 // @match          https://paiza.jp/*
 // @grant          unsafeWindow
 // @run-at         document-end
+// @icon           https://atcoder.jp/favicon.ico
 // @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
 // @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
 // ==/UserScript==

@@ -27,6 +27,7 @@
 // @grant          GM_getValue
 // @grant          GM_setValue
 // @run-at         document-end
+// @icon           https://atcoder.jp/favicon.ico
 // @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
 // @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js
 // ==/UserScript==

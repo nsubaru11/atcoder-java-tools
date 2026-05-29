@@ -15,6 +15,7 @@
 // @grant          GM_setValue
 // @grant          GM_registerMenuCommand
 // @run-at         document-idle
+// @icon           https://atcoder.jp/favicon.ico
 // @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderHighlighter/dist/AtCoderHighlighter.user.js
 // @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderHighlighter/dist/AtCoderHighlighter.user.js
 // ==/UserScript==

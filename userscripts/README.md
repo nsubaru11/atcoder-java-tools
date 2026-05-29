@@ -71,7 +71,7 @@ bun --cwd userscripts ./build.ts AtCoderHighlighter
 
 AtCoder の問題文を Markdown 形式でコピーする機能を追加します。個別パートのコピーと、全パートの一括コピーが可能です。
 
-- [インストール](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderMarkdownCopier/dist/AtCoderMarkdownCopier.user.js)
+- [Greasy Fork](https://update.greasyfork.org/scripts/580283/AtCoder%20Markdown%20Copier.user.js)（更新 URL は meta.json を参照）
 
 ### AtCoder Performance Overlay
 

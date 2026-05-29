@@ -2,7 +2,7 @@
 // @name           AtCoder Markdown Copier
 // @name:en        AtCoder Markdown Copier
 // @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.0.2
+// @version        1.0.3
 // @description    AtCoderの問題文をMarkdown形式でコピーする機能を追加します。
 // @description:en Adds functionality to copy AtCoder problem statements in Markdown format.
 // @description:ja AtCoderの問題文をMarkdown形式でコピーする機能を追加します。

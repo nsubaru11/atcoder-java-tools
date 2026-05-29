@@ -24,6 +24,29 @@ turndownService.addRule('pre', {
 	}
 });
 
+// リストアイテムの後に半角スペース1つだけを入れるように調整（デフォルトは3つ）
+turndownService.addRule('listItem', {
+	filter: 'li',
+	replacement: function (content: string, node: any, options: any) {
+		content = content
+			.replace(/^\n+/, '') // 先頭の改行を削除
+			.replace(/\n+$/, '\n') // 末尾の改行を1つに
+			.replace(/\n/gm, '\n  '); // 2行目以降のインデント調整
+
+		let prefix = options.bulletListMarker + ' ';
+		const parent = node.parentNode;
+		if (parent && parent.nodeName === 'OL') {
+			const start = parent.getAttribute('start');
+			const index = Array.prototype.indexOf.call(parent.children, node);
+			prefix = (start ? Number(start) + index : index + 1) + '. ';
+		}
+
+		return (
+			prefix + content + (node.nextSibling && !/\n$/.test(content) ? '\n' : '')
+		);
+	}
+});
+
 /**
  * 不要な要素を削除したクローンを作成する
  */

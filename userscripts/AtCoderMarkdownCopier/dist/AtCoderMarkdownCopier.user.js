@@ -2,7 +2,7 @@
 // @name           AtCoder Markdown Copier
 // @name:en        AtCoder Markdown Copier
 // @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.0.1
+// @version        1.0.2
 // @description    AtCoderの問題文をMarkdown形式でコピーする機能を追加します。
 // @description:en Adds functionality to copy AtCoder problem statements in Markdown format.
 // @description:ja AtCoderの問題文をMarkdown形式でコピーする機能を追加します。
@@ -120,19 +120,28 @@ ${content.trim()}
 			wrap.className = "pull-right";
 			wrap.style.fontSize = "14px";
 			const getFullMarkdown = () => {
-				let fullMarkdown = `# ${taskTitle.textContent?.trim() || "Task"}
+				const cloneTitle = taskTitle.cloneNode(true);
+				cloneTitle.querySelectorAll(".btn, .pull-right").forEach((el) => el.remove());
+				let fullMarkdown = `# ${cloneTitle.textContent?.trim() || "Task"}
 
 `;
 				fullMarkdown += `URL: ${window.location.href}
 
 `;
-				parts.forEach((section) => {
+				for (const section of Array.from(parts)) {
+					const header = section.querySelector("h3");
+					if (header) {
+						const title = header.textContent || "";
+						if (SAMPLE_KEYWORDS.some((kw) => title.includes(kw))) {
+							break;
+						}
+					}
 					fullMarkdown +=
 						getMarkdownFromElement(section) +
 						`
 
 `;
-				});
+				}
 				return fullMarkdown.trim();
 			};
 			const copyAllBtn = createButton("All Copy", () => {

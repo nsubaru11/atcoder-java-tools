@@ -100,11 +100,20 @@ function main() {
 		wrap.style.fontSize = '14px';
 
 		const getFullMarkdown = () => {
-			let fullMarkdown = `# ${taskTitle.textContent?.trim() || 'Task'}\n\n`;
+			const cloneTitle = taskTitle.cloneNode(true) as HTMLElement;
+			cloneTitle.querySelectorAll('.btn, .pull-right').forEach(el => el.remove());
+			let fullMarkdown = `# ${cloneTitle.textContent?.trim() || 'Task'}\n\n`;
 			fullMarkdown += `URL: ${window.location.href}\n\n`;
-			parts.forEach((section) => {
+			for (const section of Array.from(parts)) {
+				const header = section.querySelector('h3');
+				if (header) {
+					const title = header.textContent || '';
+					if (SAMPLE_KEYWORDS.some(kw => title.includes(kw))) {
+						break;
+					}
+				}
 				fullMarkdown += getMarkdownFromElement(section) + '\n\n';
-			});
+			}
 			return fullMarkdown.trim();
 		};
 

@@ -1,7 +1,7 @@
 {
-	"name": "AtCoder Perf Graph",
-	"name:en": "AtCoder Perf Graph",
-	"version": "1.1.7",
+	"name": "AtCoder Performance Overlay",
+	"name:en": "AtCoder Performance Overlay",
+	"version": "1.1.8",
 	"description": "レーティンググラフにパフォーマンスのグラフを重ねて表示します。",
 	"description:ja": "レーティンググラフにパフォーマンスのグラフを重ねて表示します。",
 	"description:en": "Overlays performance charts on the AtCoder rating graph.",

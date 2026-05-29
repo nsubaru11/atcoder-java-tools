@@ -43,21 +43,6 @@ function getMarkdownFromElement(element: Element): string {
 }
 
 /**
- * テキストをファイルとしてダウンロードする
- */
-function downloadAsFile(filename: string, text: string) {
-	const blob = new Blob([text], {type: 'text/markdown'});
-	const url = URL.createObjectURL(blob);
-	const a = document.createElement('a');
-	a.href = url;
-	a.download = filename;
-	document.body.appendChild(a);
-	a.click();
-	document.body.removeChild(a);
-	URL.revokeObjectURL(url);
-}
-
-/**
  * コピー用ボタンのUIを作成する
  */
 function createButton(text: string, onClick: () => void): HTMLButtonElement {
@@ -90,19 +75,24 @@ function main() {
 	// 各パート（問題文、制約、入力、出力など）を取得
 	const parts = activeLangContainer.querySelectorAll('.part section');
 
+	const SAMPLE_KEYWORDS = ['入力例', '出力例', 'Sample Input', 'Sample Output'];
+
 	parts.forEach((section) => {
 		const header = section.querySelector('h3');
 		if (!header) return;
 
+		const title = header.textContent || '';
+		if (SAMPLE_KEYWORDS.some(kw => title.includes(kw))) return;
+
 		// 【機能1】個別コピー機能
-		const copyBtn = createButton('Markdownをコピー', () => {
+		const copyBtn = createButton('Copy', () => {
 			const markdown = getMarkdownFromElement(section);
 			GM_setClipboard(markdown);
 		});
 		header.appendChild(copyBtn);
 	});
 
-	// 【機能2】一括ダウンロード＆一括コピー機能
+	// 【機能2】一括コピー機能
 	const taskTitle = document.querySelector('.h2') || document.querySelector('h2');
 	if (taskTitle) {
 		const wrap = document.createElement('span');
@@ -119,18 +109,11 @@ function main() {
 		};
 
 		// 一括コピーボタン
-		const copyAllBtn = createButton('Markdownを一括コピー', () => {
+		const copyAllBtn = createButton('All Copy', () => {
 			GM_setClipboard(getFullMarkdown());
 		});
 
-		// 一括ダウンロードボタン
-		const downloadBtn = createButton('Markdownを保存', () => {
-			const taskName = taskTitle.textContent?.replace(/\s+/g, '_').replace(/_-_/g, '-').trim() || 'task';
-			downloadAsFile(`${taskName}.md`, getFullMarkdown());
-		});
-
 		wrap.appendChild(copyAllBtn);
-		wrap.appendChild(downloadBtn);
 		taskTitle.appendChild(wrap);
 	}
 }

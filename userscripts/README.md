@@ -67,11 +67,18 @@ bun --cwd userscripts ./build.ts AtCoderHighlighter
 
 - [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js)
 
-### AtCoder Rating Graph
+### AtCoder Markdown Copier
 
-レーティンググラフにパフォーマンスを重ねて表示します（旧 AtCoder Perf Graph）。
+AtCoder の問題文を Markdown 形式でコピーする機能を追加します。個別パートのコピーと、全パートの一括コピーが可能です。
 
-- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js)
+- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderMarkdownCopier/dist/AtCoderMarkdownCopier.user.js)
+
+### AtCoder Performance Overlay
+
+レーティンググラフにパフォーマンスを重ねて表示します。
+
+- [インストール](https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js)
+
 
 ### Java Code Submitter
 

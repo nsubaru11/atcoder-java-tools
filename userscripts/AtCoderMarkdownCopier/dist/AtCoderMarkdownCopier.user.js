@@ -2,10 +2,10 @@
 // @name           AtCoder Markdown Copier
 // @name:en        AtCoder Markdown Copier
 // @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
-// @version        1.0.0
-// @description    AtCoderの問題文をMarkdown形式で個別にコピー、または一括でダウンロードする機能を追加します。
-// @description:en Adds functionality to copy AtCoder problem statements in Markdown format individually or download them all at once.
-// @description:ja AtCoderの問題文をMarkdown形式で個別にコピー、または一括でダウンロードする機能を追加します。
+// @version        1.0.1
+// @description    AtCoderの問題文をMarkdown形式でコピーする機能を追加します。
+// @description:en Adds functionality to copy AtCoder problem statements in Markdown format.
+// @description:ja AtCoderの問題文をMarkdown形式でコピーする機能を追加します。
 // @author         nsubaru
 // @license        MIT
 // @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderMarkdownCopier
@@ -78,17 +78,6 @@ ${content.trim()}
 		const cleanEl = getCleanElement(element);
 		return turndownService.turndown(cleanEl.innerHTML);
 	}
-	function downloadAsFile(filename, text) {
-		const blob = new Blob([text], { type: "text/markdown" });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = filename;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
-	}
 	function createButton(text, onClick) {
 		const btn = document.createElement("button");
 		btn.textContent = text;
@@ -113,10 +102,13 @@ ${content.trim()}
 				(el) => getComputedStyle(el).display !== "none",
 			) || statementContainer;
 		const parts = activeLangContainer.querySelectorAll(".part section");
+		const SAMPLE_KEYWORDS = ["入力例", "出力例", "Sample Input", "Sample Output"];
 		parts.forEach((section) => {
 			const header = section.querySelector("h3");
 			if (!header) return;
-			const copyBtn = createButton("Markdownをコピー", () => {
+			const title = header.textContent || "";
+			if (SAMPLE_KEYWORDS.some((kw) => title.includes(kw))) return;
+			const copyBtn = createButton("Copy", () => {
 				const markdown = getMarkdownFromElement(section);
 				GM_setClipboard(markdown);
 			});
@@ -143,15 +135,10 @@ ${content.trim()}
 				});
 				return fullMarkdown.trim();
 			};
-			const copyAllBtn = createButton("Markdownを一括コピー", () => {
+			const copyAllBtn = createButton("All Copy", () => {
 				GM_setClipboard(getFullMarkdown());
 			});
-			const downloadBtn = createButton("Markdownを保存", () => {
-				const taskName = taskTitle.textContent?.replace(/\s+/g, "_").replace(/_-_/g, "-").trim() || "task";
-				downloadAsFile(`${taskName}.md`, getFullMarkdown());
-			});
 			wrap.appendChild(copyAllBtn);
-			wrap.appendChild(downloadBtn);
 			taskTitle.appendChild(wrap);
 		}
 	}

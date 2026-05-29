@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name           AtCoder Perf Graph
-// @name:en        AtCoder Perf Graph
+// @name           AtCoder Performance Overlay
+// @name:en        AtCoder Performance Overlay
 // @namespace      https://github.com/nsubaru/AtCoder/tools/userscripts
-// @version        1.1.7
+// @version        1.1.8
 // @description    レーティンググラフにパフォーマンスのグラフを重ねて表示します。
 // @description:en Overlays performance charts on the AtCoder rating graph.
 // @description:ja レーティンググラフにパフォーマンスのグラフを重ねて表示します。
 // @author         nzm_ort (original), nsubaru (modified)
 // @license        MIT
-// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderRatingGraph
+// @homepageURL    https://github.com/nsubaru/AtCoder/tree/main/tools/userscripts/AtCoderPerformanceOverlay
 // @supportURL     https://github.com/nsubaru/AtCoder/issues
 // @match          https://atcoder.jp/users/*
 // @exclude        *://atcoder.jp/users/*?graph=rank
@@ -17,8 +17,8 @@
 // @grant          none
 // @run-at         document-end
 // @icon           https://atcoder.jp/favicon.ico
-// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js
-// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderRatingGraph/dist/AtCoderRatingGraph.user.js
+// @updateURL      https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js
 // ==/UserScript==
 
 "use strict";
@@ -48,7 +48,7 @@
 	};
 	var __moduleCache;
 
-	// AtCoderRatingGraph/src/main.ts
+	// AtCoderPerformanceOverlay/src/main.ts
 	var exports_main = {};
 	var isHeuristic = new URLSearchParams(window.location.search).get("contestType") === "heuristic";
 	{

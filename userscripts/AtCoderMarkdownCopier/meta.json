@@ -1,7 +1,7 @@
 {
 	"name": "AtCoder Markdown Copier",
 	"name:en": "AtCoder Markdown Copier",
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "AtCoderの問題文をMarkdown形式でコピーする機能を追加します。",
 	"description:ja": "AtCoderの問題文をMarkdown形式でコピーする機能を追加します。",
 	"description:en": "Adds functionality to copy AtCoder problem statements in Markdown format.",

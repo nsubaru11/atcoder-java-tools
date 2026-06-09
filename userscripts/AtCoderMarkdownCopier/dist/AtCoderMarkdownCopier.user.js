@@ -2,7 +2,7 @@
 // @name           AtCoder Markdown Copier
 // @name:en        AtCoder Markdown Copier
 // @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.0.3
+// @version        1.0.4
 // @description    AtCoderの問題文をMarkdown形式でコピーする機能を追加します。
 // @description:en Adds functionality to copy AtCoder problem statements in Markdown format.
 // @description:ja AtCoderの問題文をMarkdown形式でコピーする機能を追加します。
@@ -55,8 +55,15 @@
 	turndownService.use(turndownPluginGfm.gfm);
 	turndownService.addRule("math", {
 		filter: "var",
-		replacement: function (content) {
-			return `$${content}$`;
+		replacement: function (content, node) {
+			const element = node;
+			const annotation = element.querySelector('annotation[encoding="application/x-tex"]');
+			const tex =
+				annotation?.textContent ??
+				element.getAttribute("data-tex") ??
+				element.getAttribute("aria-label") ??
+				content;
+			return `$${tex.trim()}$`;
 		},
 	});
 	turndownService.addRule("pre", {

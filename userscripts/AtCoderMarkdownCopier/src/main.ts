@@ -11,8 +11,17 @@ turndownService.use(turndownPluginGfm.gfm);
 // AtCoderの数式 (<var>) を Markdown の $...$ 形式に変換するルール
 turndownService.addRule('math', {
 	filter: 'var',
-	replacement: function (content: string) {
-		return `$${content}$`;
+	replacement: function (content: string, node: any) {
+		const element = node as Element;
+
+		const annotation = element.querySelector('annotation[encoding="application/x-tex"]');
+		const tex =
+			annotation?.textContent ??
+			element.getAttribute('data-tex') ??
+			element.getAttribute('aria-label') ??
+			content;
+
+		return `$${tex.trim()}$`;
 	}
 });
 

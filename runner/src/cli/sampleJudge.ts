@@ -7,7 +7,7 @@ import {
 } from "@atcoder-tools/shared";
 import type {SamplePair, SampleResult} from "../types";
 import {CLI_CONFIG} from "../config";
-import {colorizeStatus} from "../utils";
+import {ANSI, colorizeStatus, supportsCliColor} from "../utils";
 
 export async function postLocalRunner(sourceCode: string, stdinText: string): Promise<LocalRunnerRunResponse> {
 	const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
@@ -51,6 +51,32 @@ export async function runSampleTests(sourceCode: string, samplePairs: SamplePair
 	return results;
 }
 
+function formatWaDiff(expected: string, actual: string, maxLines = 20): string {
+	const toLines = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\s+$/, "").split("\n").map(l => l.replace(/\s+$/, ""));
+	const exp = toLines(expected);
+	const act = toLines(actual);
+	const total = Math.max(exp.length, act.length);
+	const shown = Math.min(total, maxLines);
+	const color = supportsCliColor();
+	const w = Math.min(30, Math.max(8, ...exp.slice(0, shown).map(s => s.length)));
+	const fit = (s: string) => (s.length > w ? s.slice(0, w - 1) + "~" : s.padEnd(w));
+	const numW = String(shown).length;
+	const NONE = "(none)";
+
+	const out: string[] = [`  expected vs actual  (○ = match, × = mismatch)`];
+	for (let i = 0; i < shown; i++) {
+		const hasE = i < exp.length, hasA = i < act.length;
+		const differ = (hasE ? exp[i] : null) !== (hasA ? act[i] : null);
+		const ln = String(i + 1).padStart(numW);
+		const marker = differ ? "×" : "○";
+		let row = `  ${marker} ${ln} | ${fit(hasE ? exp[i] : NONE)} | ${hasA ? act[i] : NONE}`;
+		if (color) row = `${differ ? ANSI.RED : ANSI.GREEN}${row}${ANSI.RESET}`;
+		out.push(row);
+	}
+	if (total > shown) out.push(`  ... +${total - shown} more line(s)`);
+	return out.join("\n");
+}
+
 export function printSampleResults(results: SampleResult[], originalClassName: string, originalFileName: string) {
 	let acCount = 0;
 	let totalExecTime = 0;
@@ -73,6 +99,9 @@ export function printSampleResults(results: SampleResult[], originalClassName: s
 		if (r.status === "OK" && r.actualOutput.trim().length > 0) {
 			console.log(`  [output]`);
 			console.log(r.actualOutput.replace(/\s+$/, "").split(/\r?\n/).map(line => `    ${line}`).join("\n"));
+		}
+		if (r.status === "WA") {
+			console.log(formatWaDiff(r.expectedOutput, r.actualOutput));
 		}
 		if (r.stderr && r.stderr.trim().length > 0) {
 			console.log(`  [stderr]`);

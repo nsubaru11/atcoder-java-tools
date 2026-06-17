@@ -1,6 +1,14 @@
 import {pathToFileURL} from "node:url";
-import type {CliCommand} from "../types";
-import {printUsage, runCommand} from "./commands";
+import {CLI_COMMANDS, type CliCommand} from "../types";
+import {printUsage, runCommand, runTomain} from "./commands";
+
+function isCliCommand(value: string): value is CliCommand {
+	return (CLI_COMMANDS as readonly string[]).includes(value);
+}
+
+function assertNever(command: never): never {
+	throw new Error(`Unhandled command: ${String(command)}`);
+}
 
 export async function main(rawArgs = process.argv.slice(2)) {
 	const positionalArgs: string[] = [];
@@ -19,19 +27,37 @@ export async function main(rawArgs = process.argv.slice(2)) {
 		positionalArgs.push(arg);
 	}
 
-	const [command, taskScreenName, sourceFilePath] = positionalArgs;
-	if (!["test", "submit"].includes(command) || !taskScreenName || !sourceFilePath) {
-		printUsage();
-		return 1;
-	}
-	if (force && command !== "submit") {
-		console.error("-f/--force is only supported with the submit command.");
+	const [command, ...rest] = positionalArgs;
+	if (!command || !isCliCommand(command)) {
 		printUsage();
 		return 1;
 	}
 
 	try {
-		return await runCommand(command as CliCommand, taskScreenName, sourceFilePath, {force});
+		if (command === "tomain") {
+			const [sourceFilePath, outFilePath] = rest;
+			if (!sourceFilePath) {
+				printUsage();
+				return 1;
+			}
+			return runTomain(sourceFilePath, outFilePath, {force});
+		}
+
+		if (command === "test" || command === "submit") {
+			const [taskScreenName, sourceFilePath] = rest;
+			if (!taskScreenName || !sourceFilePath) {
+				printUsage();
+				return 1;
+			}
+			if (force && command !== "submit") {
+				console.error("-f/--force is only supported with the submit and tomain commands.");
+				printUsage();
+				return 1;
+			}
+			return await runCommand(command, taskScreenName, sourceFilePath, {force});
+		}
+
+		return assertNever(command);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		console.error(`Error: ${message}`);
@@ -39,11 +65,8 @@ export async function main(rawArgs = process.argv.slice(2)) {
 	}
 }
 
-const isDirectRun = process.argv[1]
-	? import.meta.url === pathToFileURL(process.argv[1]).href
-	: false;
+const isDirectRun = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
 const isBunEntry = Boolean(import.meta.main);
 
-if (isDirectRun || isBunEntry) {
-	process.exit(await main());
-}
+if (isDirectRun || isBunEntry) process.exit(await main());
+

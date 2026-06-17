@@ -20,8 +20,30 @@ export function printUsage() {
 	console.error("Usage:");
 	console.error("  test <taskScreenName> <sourceFile>");
 	console.error("  submit [-f|--force] <taskScreenName> <sourceFile>");
+	console.error("  tomain [-f|--force] <sourceFile> [outFile]");
 	console.error("Options:");
-	console.error("  -f, --force    submit even if sample tests are not all AC");
+	console.error("  -f, --force    submit even if sample tests are not all AC / tomain: overwrite existing outFile");
+}
+
+export function runTomain(sourceFilePath: string, outFilePath: string | undefined, options: {
+	force?: boolean
+} = {}): number {
+	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
+	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
+	const converted = forceMainAndDebug(source);
+
+	const outPath = outFilePath
+		? path.resolve(outFilePath)
+		: path.join(path.dirname(resolvedSourcePath), "Main.java");
+
+	if (fs.existsSync(outPath) && !options.force) {
+		throw new Error(`Output already exists: ${outPath} (use -f/--force to overwrite)`);
+	}
+
+	fs.mkdirSync(path.dirname(outPath), {recursive: true});
+	fs.writeFileSync(outPath, converted, "utf8");
+	console.log(`Converted: ${resolvedSourcePath} -> ${outPath}`);
+	return 0;
 }
 
 export async function runCommand(command: CliCommand, taskScreenName: string, sourceFilePath: string, options: {

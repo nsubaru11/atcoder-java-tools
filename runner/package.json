@@ -14,6 +14,7 @@
 		"runner": "bun ./src/daemon/server.ts",
 		"test": "bun ./src/cli/index.ts test",
 		"submit": "bun ./src/cli/index.ts submit",
+		"tomain": "bun ./src/cli/index.ts tomain",
 		"build:cli:win": "bun build --compile ./src/cli/index.ts --outfile ./bin/atcoder-cli-runner.exe",
 		"build:cli:linux": "bun build --compile ./src/cli/index.ts --outfile ./bin/atcoder-cli-runner",
 		"build:runner:linux": "bun build --compile ./src/daemon/server.ts --outfile ./bin/atcoder-local-runner",

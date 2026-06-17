@@ -1,4 +1,5 @@
-export type CliCommand = "test" | "submit";
+export const CLI_COMMANDS = ["test", "submit", "tomain"] as const;
+export type CliCommand = (typeof CLI_COMMANDS)[number];
 
 export interface Task {
 	contestId: string;

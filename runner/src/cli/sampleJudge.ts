@@ -31,7 +31,9 @@ export async function runSampleTests(sourceCode: string, samplePairs: SamplePair
 			error: runnerRaw.stderr || "",
 			execTime: runnerRaw.time || 0,
 		};
-		const judged = evaluateEasyTestOutput(easyLikeRun, sample.expectedOutput, {trim: true, split: true});
+		const judged = sample.expectedOutput === undefined
+			? {status: easyLikeRun.status, output: easyLikeRun.output, expectedOutput: ""}
+			: evaluateEasyTestOutput(easyLikeRun, sample.expectedOutput, {trim: true, split: true});
 		results.push({
 			index: sample.index,
 			status: judged.status,
@@ -39,8 +41,8 @@ export async function runSampleTests(sourceCode: string, samplePairs: SamplePair
 			memoryKb: Number(runnerRaw.memory || 0),
 			runnerStatus: runnerRaw.status || "",
 			exitCode: Number(runnerRaw.exitCode ?? 0),
-			stdoutTruncated: !!runnerRaw.stdoutTruncated,
-			stderrTruncated: !!runnerRaw.stderrTruncated,
+			stdoutTruncated: runnerRaw.stdoutTruncated,
+			stderrTruncated: runnerRaw.stderrTruncated,
 			stderr: easyLikeRun.error || "",
 			actualOutput: judged.output,
 			expectedOutput: judged.expectedOutput,
@@ -68,6 +70,10 @@ export function printSampleResults(results: SampleResult[], originalClassName: s
 			details.push(`trunc=${flags.join(",")}`);
 		}
 		console.log(`[${r.index}] ${colorizeStatus(r.status)} ${details.join(" ")}`);
+		if (r.status === "OK" && r.actualOutput.trim().length > 0) {
+			console.log(`  [output]`);
+			console.log(r.actualOutput.replace(/\s+$/, "").split(/\r?\n/).map(line => `    ${line}`).join("\n"));
+		}
 		if (r.stderr && r.stderr.trim().length > 0) {
 			console.log(`  [stderr]`);
 			let displayStderr = r.stderr.trim();
@@ -89,5 +95,5 @@ export function printSampleResults(results: SampleResult[], originalClassName: s
 		.join(" ");
 	const avgExecTime = results.length ? (totalExecTime / results.length).toFixed(1) : "0.0";
 	console.log(`Summary: ${acCount}/${results.length} AC | ${breakdown} | total=${totalExecTime}ms avg=${avgExecTime}ms`);
-	return acCount === results.length;
+	return results.every(r => r.status === "AC" || r.status === "OK");
 }

@@ -15,14 +15,29 @@ import {extractSamples} from "./parser";
 import {parseTask} from "./task";
 import {forceMainAndDebug, resolveSourceFilePath} from "./transform";
 import {printSampleResults, runSampleTests} from "./sampleJudge";
+import {loadLocalSamples} from "./localSamples";
 
 export function printUsage() {
 	console.error("Usage:");
 	console.error("  test <taskScreenName> <sourceFile>");
 	console.error("  submit [-f|--force] <taskScreenName> <sourceFile>");
 	console.error("  tomain [-f|--force] <sourceFile> [outFile]");
+	console.error("  localtest <sourceFile> [testDir]");
 	console.error("Options:");
 	console.error("  -f, --force    submit even if sample tests are not all AC / tomain: overwrite existing outFile");
+}
+
+export async function runLocalTest(sourceFilePath: string, testDir: string | undefined): Promise<number> {
+	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
+	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
+	const transformed = forceMainAndDebug(source);
+	const originalFileName = path.basename(resolvedSourcePath);
+	const originalClassName = originalFileName.replace(/\.java$/i, "");
+
+	const samples = loadLocalSamples(resolvedSourcePath, testDir);
+	const sampleResults = await runSampleTests(transformed, samples);
+	const allAccepted = printSampleResults(sampleResults, originalClassName, originalFileName);
+	return allAccepted ? 0 : 5;
 }
 
 export function runTomain(sourceFilePath: string, outFilePath: string | undefined, options: {

@@ -1,4 +1,4 @@
-export const CLI_COMMANDS = ["test", "submit", "tomain"] as const;
+export const CLI_COMMANDS = ["test", "submit", "tomain", "localtest"] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
 export interface Task {
@@ -17,7 +17,7 @@ export interface IndexedBlock {
 export interface SamplePair {
 	index: number;
 	input: string;
-	expectedOutput: string;
+	expectedOutput?: string;
 }
 
 export interface SubmitForm {

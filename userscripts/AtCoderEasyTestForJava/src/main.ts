@@ -1652,6 +1652,16 @@ def __run():
 				return doc.querySelector("#pageContent");
 			},
 			get testCases() {
+				const readPre = (pre: Element): string => {
+					const lineDivs = pre.querySelectorAll(".test-example-line");
+					if (lineDivs.length > 0) return Array.from(lineDivs).map(l => l.textContent ?? "").join("\n");
+					let text = "";
+					for (const node of pre.childNodes) {
+						text += node.textContent ?? "";
+						if (node.nodeType === Node.ELEMENT_NODE && ((node as Element).tagName === "DIV" || (node as Element).tagName === "BR")) text += "\n";
+					}
+					return text;
+				};
 				const testcases = [];
 				let num = 1;
 				for (const eSampleTest of doc.querySelectorAll(".sample-test")) {
@@ -1660,17 +1670,10 @@ def __run():
 					const anchors = eSampleTest.querySelectorAll(".input .title .input-output-copier");
 					const count = Math.min(inputs.length, outputs.length, anchors.length);
 					for (let i = 0; i < count; i++) {
-						let inputText = "";
-						for (const node of inputs[i].childNodes) {
-							inputText += node.textContent;
-							if (node.nodeType === Node.ELEMENT_NODE && ((node as Element).tagName === "DIV" || (node as Element).tagName === "BR")) {
-								inputText += "\n";
-							}
-						}
 						testcases.push({
 							title: `Sample ${num++}`,
-							input: inputText,
-							output: outputs[i].textContent,
+							input: readPre(inputs[i]),
+							output: readPre(outputs[i]),
 							anchor: anchors[i],
 						});
 					}

@@ -2,7 +2,7 @@
 // @name           AtCoder Easy Test for Java
 // @name:en        AtCoder Easy Test for Java
 // @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.6.4
+// @version        1.7.0
 // @description    AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。
 // @description:en Automates sample testing on AtCoder, yukicoder, and Codeforces. Optimized for Java.
 // @description:ja AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。
@@ -1687,6 +1687,23 @@ def __run():
 					return doc.querySelector("#pageContent");
 				},
 				get testCases() {
+					const readPre = (pre) => {
+						const lineDivs = pre.querySelectorAll(".test-example-line");
+						if (lineDivs.length > 0)
+							return Array.from(lineDivs).map((l) => l.textContent ?? "").join(`
+`);
+						let text = "";
+						for (const node of pre.childNodes) {
+							text += node.textContent ?? "";
+							if (
+								node.nodeType === Node.ELEMENT_NODE &&
+								(node.tagName === "DIV" || node.tagName === "BR")
+							)
+								text += `
+`;
+						}
+						return text;
+					};
 					const testcases = [];
 					let num = 1;
 					for (const eSampleTest of doc.querySelectorAll(".sample-test")) {
@@ -1695,21 +1712,10 @@ def __run():
 						const anchors = eSampleTest.querySelectorAll(".input .title .input-output-copier");
 						const count = Math.min(inputs.length, outputs.length, anchors.length);
 						for (let i = 0; i < count; i++) {
-							let inputText = "";
-							for (const node of inputs[i].childNodes) {
-								inputText += node.textContent;
-								if (
-									node.nodeType === Node.ELEMENT_NODE &&
-									(node.tagName === "DIV" || node.tagName === "BR")
-								) {
-									inputText += `
-`;
-								}
-							}
 							testcases.push({
 								title: `Sample ${num++}`,
-								input: inputText,
-								output: outputs[i].textContent,
+								input: readPre(inputs[i]),
+								output: readPre(outputs[i]),
 								anchor: anchors[i],
 							});
 						}

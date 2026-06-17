@@ -1,7 +1,7 @@
 {
 	"name": "AtCoder Easy Test for Java",
 	"name:en": "AtCoder Easy Test for Java",
-	"version": "1.6.4",
+	"version": "1.7.0",
 	"description": "AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。",
 	"description:ja": "AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。",
 	"description:en": "Automates sample testing on AtCoder, yukicoder, and Codeforces. Optimized for Java.",

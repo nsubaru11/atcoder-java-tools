@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.0.8
+// @version        1.1.0
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -14,6 +14,7 @@
 // @match          https://atcoder.jp/contests/*
 // @match          https://judge.yosupo.jp/problem/*
 // @match          https://paiza.jp/*
+// @match          https://codeforces.com/*
 // @grant          unsafeWindow
 // @run-at         document-end
 // @icon           https://atcoder.jp/favicon.ico
@@ -613,6 +614,17 @@
 				"atcoder.jp",
 				(e) => e.ctrlKey && e.shiftKey && isEnterKey(e),
 				() => document.getElementById("submit"),
+				new AceEditorAdapter(g),
+			),
+		);
+		submitter.registerSite(
+			new Site(
+				"codeforces.com",
+				(e) => e.ctrlKey && e.shiftKey && isEnterKey(e),
+				() =>
+					document.querySelector(".submit-form .submit") ||
+					document.querySelector(".submitForm .submit") ||
+					document.querySelector('input[type="submit"].submit'),
 				new AceEditorAdapter(g),
 			),
 		);

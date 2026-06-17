@@ -1,7 +1,7 @@
 {
 	"name": "Java Code Submitter",
 	"name:en": "Java Code Submitter",
-	"version": "1.0.8",
+	"version": "1.1.0",
 	"description": "Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。",
 	"description:ja": "Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。",
 	"description:en": "Automatically removes package declarations and renames classes to Main when submitting Java source code.",
@@ -10,7 +10,8 @@
 		"https://onlinejudge.u-aizu.ac.jp/*",
 		"https://atcoder.jp/contests/*",
 		"https://judge.yosupo.jp/problem/*",
-		"https://paiza.jp/*"
+		"https://paiza.jp/*",
+		"https://codeforces.com/*"
 	],
 	"grant": [
 		"unsafeWindow"

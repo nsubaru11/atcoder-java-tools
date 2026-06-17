@@ -379,6 +379,16 @@ import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/s
 		new AceEditorAdapter(g)
 	));
 
+	// Codeforces
+	submitter.registerSite(new Site(
+		'codeforces.com',
+		(e) => e.ctrlKey && e.shiftKey && isEnterKey(e),
+		() => document.querySelector('.submit-form .submit')
+			|| document.querySelector('.submitForm .submit')
+			|| document.querySelector('input[type="submit"].submit'),
+		new AceEditorAdapter(g)
+	));
+
 	// Library Checker
 	submitter.registerSite(new Site(
 		'judge.yosupo.jp',

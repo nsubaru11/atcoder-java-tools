@@ -1,43 +1,43 @@
 export const CLI_COMMANDS = ["test", "submit", "tomain", "localtest"] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
-export interface Task {
+export type Task = {
 	contestId: string;
 	taskScreenName: string;
 	taskUrl: string;
 	submitUrl: string;
 	submitPostUrl: string;
-}
+};
 
-export interface IndexedBlock {
+export type IndexedBlock = {
 	idx: number;
 	text: string;
-}
+};
 
-export interface SamplePair {
+export type SamplePair = {
 	index: number;
 	input: string;
 	expectedOutput?: string;
-}
+};
 
-export interface SubmitForm {
+export type SubmitForm = {
 	actionUrl: string;
 	formValues: Map<string, string>;
-}
+};
 
-export interface SubmitResult {
+export type SubmitResult = {
 	submissionId: string;
 	submissionUrl: string;
 	trackingUnavailable?: boolean;
-}
+};
 
-export interface SubmissionFinalResult {
+export type SubmissionFinalResult = {
 	status: string;
 	execTime: string;
 	memory: string;
-}
+};
 
-export interface SampleResult {
+export type SampleResult = {
 	index: number;
 	status: string;
 	execTime: number;
@@ -49,26 +49,26 @@ export interface SampleResult {
 	stderr: string;
 	actualOutput: string;
 	expectedOutput: string;
-}
+};
 
-export interface CompileEntry {
+export type CompileEntry = {
 	rootDir: string;
 	classDir: string;
 	mainClass: string;
 	requiresIsolatedProcess: boolean;
 	status: "compiled" | "error";
 	error: string | null;
-}
+};
 
-export interface ProcessResult {
+export type ProcessResult = {
 	code: number;
 	signal: NodeJS.Signals | null;
 	stdout: string;
 	stderr: string;
 	timedOut: boolean;
-}
+};
 
-export interface DispatcherRunResult {
+export type DispatcherRunResult = {
 	exitCode?: number;
 	time?: number;
 	stdout?: string;
@@ -77,4 +77,4 @@ export interface DispatcherRunResult {
 	stderrTruncated?: boolean;
 	timedOut?: boolean;
 	error?: string;
-}
+};

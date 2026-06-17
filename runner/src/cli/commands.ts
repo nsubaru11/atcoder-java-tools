@@ -27,12 +27,17 @@ export function printUsage() {
 	console.error("  -f, --force    submit even if sample tests are not all AC / tomain: overwrite existing outFile");
 }
 
-export async function runLocalTest(sourceFilePath: string, testDir: string | undefined): Promise<number> {
+function prepareSource(sourceFilePath: string) {
 	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
 	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
 	const transformed = forceMainAndDebug(source);
 	const originalFileName = path.basename(resolvedSourcePath);
 	const originalClassName = originalFileName.replace(/\.java$/i, "");
+	return {resolvedSourcePath, transformed, originalFileName, originalClassName};
+}
+
+export async function runLocalTest(sourceFilePath: string, testDir: string | undefined): Promise<number> {
+	const {resolvedSourcePath, transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath);
 
 	const samples = loadLocalSamples(resolvedSourcePath, testDir);
 	const sampleResults = await runSampleTests(transformed, samples);
@@ -40,12 +45,8 @@ export async function runLocalTest(sourceFilePath: string, testDir: string | und
 	return allAccepted ? 0 : 5;
 }
 
-export function runTomain(sourceFilePath: string, outFilePath: string | undefined, options: {
-	force?: boolean
-} = {}): number {
-	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
-	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
-	const converted = forceMainAndDebug(source);
+export function runTomain(sourceFilePath: string, outFilePath: string | undefined, options: {force?: boolean} = {}): number {
+	const {resolvedSourcePath, transformed} = prepareSource(sourceFilePath);
 
 	const outPath = outFilePath
 		? path.resolve(outFilePath)
@@ -56,21 +57,15 @@ export function runTomain(sourceFilePath: string, outFilePath: string | undefine
 	}
 
 	fs.mkdirSync(path.dirname(outPath), {recursive: true});
-	fs.writeFileSync(outPath, converted, "utf8");
+	fs.writeFileSync(outPath, transformed, "utf8");
 	console.log(`Converted: ${resolvedSourcePath} -> ${outPath}`);
 	return 0;
 }
 
-export async function runCommand(command: CliCommand, taskScreenName: string, sourceFilePath: string, options: {
-	force?: boolean
-} = {}) {
+export async function runCommand(command: CliCommand, taskScreenName: string, sourceFilePath: string, options: {force?: boolean} = {}): Promise<number> {
 	const forceSubmit = !!options.force;
 	const task = parseTask(taskScreenName);
-	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
-	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
-	const transformed = forceMainAndDebug(source);
-	const originalFileName = path.basename(resolvedSourcePath);
-	const originalClassName = originalFileName.replace(/\.java$/i, "");
+	const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath);
 
 	const cookieHeader = toCookieHeader();
 	const taskHtml = await httpGetText(task.taskUrl, cookieHeader);

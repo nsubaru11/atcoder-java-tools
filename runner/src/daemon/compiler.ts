@@ -6,6 +6,7 @@ import type {LocalRunnerRunResponse} from "@atcoder-tools/shared";
 import type {CompileEntry, ProcessResult} from "../types";
 import {DISPATCHER_CLASS_FILE, resolveDispatcherSourceFile, RUNNER_CONFIG,} from "../config";
 import {ensureDirectory, logInfo, logWarn, removeDirectory, shortHash,} from "../utils";
+import {queueDispatcherCompile} from "./dispatcher";
 
 function isWindowsStylePath(targetPath: string) {
 	return /^[A-Za-z]:\\/.test(targetPath);
@@ -171,6 +172,19 @@ export function runProcessCommand(
 
 export async function compileDispatcher() {
 	ensureDirectory(RUNNER_CONFIG.dispatcherBuildDir);
+	// ソース未変更ならキャッシュ済み Dispatcher.class を再利用し、毎起動の javac を省く。
+	// （TLE で dispatcher が SIGKILL→再起動する際の回復も速くなる）
+	try {
+		if (fs.existsSync(DISPATCHER_CLASS_FILE)) {
+			const sourceMtime = fs.statSync(DISPATCHER_SOURCE_FILE).mtimeMs;
+			const classMtime = fs.statSync(DISPATCHER_CLASS_FILE).mtimeMs;
+			if (classMtime >= sourceMtime) {
+				return;
+			}
+		}
+	} catch {
+		// stat 失敗時は通常コンパイルにフォールバック
+	}
 	const result = await runProcessCommand(
 		JAVAC_PATH,
 		["-encoding", "UTF-8", "-g", "-d", RUNNER_CONFIG.dispatcherBuildDir, DISPATCHER_SOURCE_FILE],
@@ -212,15 +226,31 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 	ensureDirectory(classDir);
 	fs.writeFileSync(sourceFile, sourceCode, "utf8");
 
+	// 既定では常駐 Dispatcher 内の javac でコンパイルし、外部 javac の JVM 起動コストを回避する。
+	// LOCAL_RUNNER_INPROCESS_COMPILE=0 で従来の外部 javac にフォールバックできる。
+	const useInProcessCompile = process.env.LOCAL_RUNNER_INPROCESS_COMPILE !== "0";
 	const compileStart = Date.now();
-	const result = await runProcessCommand(
-		JAVAC_PATH,
-		["-encoding", "UTF-8", "-g", "-d", "classes", "Main.java"],
-		{cwd: rootDir, env: JAVA_ENV, timeoutMs: RUNNER_CONFIG.compileTimeoutMs},
-	);
+	let compiled: boolean;
+	let timedOut = false;
+	let errorText = "";
+	if (useInProcessCompile) {
+		const compileResult = await queueDispatcherCompile(sourceFile, classDir);
+		timedOut = !!compileResult.timedOut;
+		compiled = compileResult.exitCode === 0 && fs.existsSync(classFile);
+		errorText = compileResult.diagnostics;
+	} else {
+		const result = await runProcessCommand(
+			JAVAC_PATH,
+			["-encoding", "UTF-8", "-g", "-d", "classes", "Main.java"],
+			{cwd: rootDir, env: JAVA_ENV, timeoutMs: RUNNER_CONFIG.compileTimeoutMs},
+		);
+		timedOut = result.timedOut;
+		compiled = result.code === 0 && !result.timedOut && fs.existsSync(classFile);
+		errorText = result.stderr;
+	}
 	const compileTime = Date.now() - compileStart;
 
-	if (result.code === 0 && !result.timedOut) {
+	if (compiled) {
 		logInfo(`[Compile] OK ${compileTime}ms -> ${shortHash(hash)}`);
 		return {
 			rootDir,
@@ -239,9 +269,9 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 		mainClass: "Main",
 		requiresIsolatedProcess: requiresIsolatedProcess(sourceCode),
 		status: "error",
-		error: result.timedOut
-			? `Compilation timed out after ${RUNNER_CONFIG.compileTimeoutMs}ms.\n${result.stderr}`.trim()
-			: (result.stderr || "Compilation failed."),
+		error: timedOut
+			? `Compilation timed out after ${RUNNER_CONFIG.compileTimeoutMs}ms.\n${errorText}`.trim()
+			: (errorText || "Compilation failed."),
 	};
 }
 

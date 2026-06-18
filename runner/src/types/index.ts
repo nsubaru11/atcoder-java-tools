@@ -1,4 +1,4 @@
-export const CLI_COMMANDS = ["test", "submit", "tomain", "localtest"] as const;
+export const CLI_COMMANDS = ["test", "submit", "tomain", "localtest", "serve"] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
 export type Task = {

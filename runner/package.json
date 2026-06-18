@@ -15,9 +15,10 @@
 		"test": "bun ./src/cli/index.ts test",
 		"submit": "bun ./src/cli/index.ts submit",
 		"tomain": "bun ./src/cli/index.ts tomain",
-		"build:cli:win": "bun build --compile ./src/cli/index.ts --outfile ./bin/atcoder-cli-runner.exe",
-		"build:cli:linux": "bun build --compile ./src/cli/index.ts --outfile ./bin/atcoder-cli-runner",
-		"build:runner:linux": "bun build --compile ./src/daemon/server.ts --outfile ./bin/atcoder-local-runner",
+		"localtest": "bun ./src/cli/index.ts localtest",
+		"serve": "bun ./src/cli/index.ts serve",
+		"build:cli:win": "bun build --compile --target=bun-windows-x64 ./src/cli/index.ts --outfile ./bin/atcoder-cli-runner.exe",
+		"build": "bun run typecheck && bun run build:cli:win",
 		"typecheck": "tsc --noEmit"
 	},
 	"devDependencies": {

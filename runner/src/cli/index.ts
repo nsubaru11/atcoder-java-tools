@@ -1,6 +1,6 @@
 import {pathToFileURL} from "node:url";
 import {CLI_COMMANDS, type CliCommand} from "../types";
-import {printUsage, runCommand, runTomain, runLocalTest} from "./commands";
+import {printUsage, runCommand, runLocalTest, runServe, runTomain} from "./commands";
 
 function isCliCommand(value: string): value is CliCommand {
 	return (CLI_COMMANDS as readonly string[]).includes(value);
@@ -34,6 +34,8 @@ export async function main(rawArgs = process.argv.slice(2)) {
 	}
 
 	try {
+		if (command === "serve") return await runServe();
+
 		if (command === "localtest") {
 			const [sourceFilePath, testDir] = rest;
 			if (!sourceFilePath) {

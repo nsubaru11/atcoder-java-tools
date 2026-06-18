@@ -16,6 +16,7 @@ import {parseTask} from "./task";
 import {forceMainAndDebug, resolveSourceFilePath} from "./transform";
 import {printSampleResults, runSampleTests} from "./sampleJudge";
 import {loadLocalSamples} from "./localSamples";
+import {ensureLocalRunnerReady} from "./ensureServer";
 
 export function printUsage() {
 	console.error("Usage:");
@@ -23,8 +24,16 @@ export function printUsage() {
 	console.error("  submit [-f|--force] <taskScreenName> <sourceFile>");
 	console.error("  tomain [-f|--force] <sourceFile> [outFile]");
 	console.error("  localtest <sourceFile> [testDir]");
+	console.error("  serve                                  (Local Runner サーバーだけ先に起動して待機)");
 	console.error("Options:");
 	console.error("  -f, --force    submit even if sample tests are not all AC / tomain: overwrite existing outFile");
+}
+
+/** Local Runner サーバーだけを先に起動して ready まで待つ（先回り起動）。 */
+export async function runServe(): Promise<number> {
+	await ensureLocalRunnerReady();
+	console.log("Local Runner is up. これ以降の test / submit / localtest は即実行されます。");
+	return 0;
 }
 
 function prepareSource(sourceFilePath: string) {
@@ -38,14 +47,16 @@ function prepareSource(sourceFilePath: string) {
 
 export async function runLocalTest(sourceFilePath: string, testDir: string | undefined): Promise<number> {
 	const {resolvedSourcePath, transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath);
-
+	await ensureLocalRunnerReady();
 	const samples = loadLocalSamples(resolvedSourcePath, testDir);
 	const sampleResults = await runSampleTests(transformed, samples);
 	const allAccepted = printSampleResults(sampleResults, originalClassName, originalFileName);
 	return allAccepted ? 0 : 5;
 }
 
-export function runTomain(sourceFilePath: string, outFilePath: string | undefined, options: {force?: boolean} = {}): number {
+export function runTomain(sourceFilePath: string, outFilePath: string | undefined, options: {
+	force?: boolean
+} = {}): number {
 	const {resolvedSourcePath, transformed} = prepareSource(sourceFilePath);
 
 	const outPath = outFilePath
@@ -62,7 +73,9 @@ export function runTomain(sourceFilePath: string, outFilePath: string | undefine
 	return 0;
 }
 
-export async function runCommand(command: CliCommand, taskScreenName: string, sourceFilePath: string, options: {force?: boolean} = {}): Promise<number> {
+export async function runCommand(command: CliCommand, taskScreenName: string, sourceFilePath: string, options: {
+	force?: boolean
+} = {}): Promise<number> {
 	const forceSubmit = !!options.force;
 	const task = parseTask(taskScreenName);
 	const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath);
@@ -70,6 +83,7 @@ export async function runCommand(command: CliCommand, taskScreenName: string, so
 	const cookieHeader = toCookieHeader();
 	const taskHtml = await httpGetText(task.taskUrl, cookieHeader);
 	const samples = extractSamples(taskHtml);
+	await ensureLocalRunnerReady();
 	const sampleResults = await runSampleTests(transformed, samples);
 	const allAccepted = printSampleResults(sampleResults, originalClassName, originalFileName);
 

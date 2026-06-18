@@ -7,10 +7,14 @@ const importMetaRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url))
 
 function resolveProjectRoot() {
 	const envRoot = process.env.LOCAL_RUNNER_PROJECT_ROOT;
-	const argvRoot = process.argv[0]
-		? path.resolve(path.dirname(process.argv[0]), "..")
-		: "";
-	const candidates = [envRoot, importMetaRoot, argvRoot].filter(Boolean) as string[];
+	// コンパイル済みバイナリでは import.meta.url / argv[0] が bunfs(例: B:\~BUN\...) を指すため、
+	// 実ファイル位置は process.execPath を使う。bin/ 配置なら execPath の 2つ上が tools。
+	const execDir = process.execPath ? path.dirname(process.execPath) : "";
+	const argvDir = process.argv[0] ? path.dirname(process.argv[0]) : "";
+	const roots = [execDir, argvDir]
+		.filter(Boolean)
+		.flatMap((d) => [path.resolve(d, ".."), path.resolve(d, "../..")]);
+	const candidates = [envRoot, importMetaRoot, ...roots].filter(Boolean) as string[];
 	for (const candidate of candidates) {
 		if (fs.existsSync(path.join(candidate, "runner", "java", "src", "Dispatcher.java"))) {
 			return candidate;

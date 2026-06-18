@@ -6,9 +6,15 @@ import {firstLine, logInfo, logWarn, trimForLog,} from "../utils";
 import {compileDispatcher, getCompiledEntry, JAVA_ENV, JAVA_PATH,} from "./compiler";
 import fs from "node:fs";
 
+export interface DispatcherCompileResult {
+	exitCode: number;
+	diagnostics: string;
+	timedOut?: boolean;
+}
+
 interface PendingRequest {
 	id: string;
-	resolve: (value: DispatcherRunResult) => void;
+	resolve: (value: any) => void;
 	reject: (error: Error) => void;
 }
 
@@ -17,7 +23,7 @@ const dispatcherState: {
 	readline: readline.Interface | null;
 	startupPromise: Promise<void> | null;
 	currentRequest: PendingRequest | null;
-	requestQueue: Promise<DispatcherRunResult | null>;
+	requestQueue: Promise<unknown>;
 	nextRequestId: number;
 } = {
 	proc: null,
@@ -100,6 +106,14 @@ function handleDispatcherResponse(line: string) {
 			stderr: decodeField(parts[5] || ""),
 			stdoutTruncated,
 			stderrTruncated,
+		});
+		dispatcherState.currentRequest = null;
+		return;
+	}
+	if (responseType === "COMPILED") {
+		pendingRequest.resolve({
+			exitCode: Number(parts[2]),
+			diagnostics: decodeField(parts[3] || ""),
 		});
 		dispatcherState.currentRequest = null;
 		return;
@@ -311,4 +325,70 @@ export function queueDispatcherRun(
 			});
 		});
 	return dispatcherState.requestQueue as Promise<DispatcherRunResult>;
+}
+
+export function queueDispatcherCompile(
+	sourceFile: string,
+	classDir: string,
+	timeoutMs = RUNNER_CONFIG.compileTimeoutMs,
+): Promise<DispatcherCompileResult> {
+	dispatcherState.requestQueue = dispatcherState.requestQueue
+		.catch(() => null)
+		.then(async () => {
+			await ensureDispatcherReady();
+			return new Promise<DispatcherCompileResult>((resolve, reject) => {
+				const requestId = String(++dispatcherState.nextRequestId);
+				let settled = false;
+				let timeoutHandle: NodeJS.Timeout | null = null;
+				const finishResolve = (value: DispatcherCompileResult) => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (timeoutHandle) {
+						clearTimeout(timeoutHandle);
+					}
+					resolve(value);
+				};
+				const finishReject = (error: Error) => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (timeoutHandle) {
+						clearTimeout(timeoutHandle);
+					}
+					reject(error);
+				};
+
+				dispatcherState.currentRequest = {
+					id: requestId,
+					resolve: finishResolve,
+					reject: finishReject,
+				};
+
+				timeoutHandle = setTimeout(() => {
+					if (dispatcherState.currentRequest && dispatcherState.currentRequest.id === requestId) {
+						dispatcherState.currentRequest = null;
+					}
+					stopDispatcher();
+					finishResolve({
+						exitCode: 1,
+						diagnostics: `Compilation timed out after ${timeoutMs}ms.`,
+						timedOut: true
+					});
+				}, timeoutMs);
+
+				const command = ["COMPILE", requestId, encodeField(sourceFile), encodeField(classDir)].join("\t");
+				dispatcherState.proc!.stdin.write(`${command}\n`, "utf8", (error) => {
+					if (error) {
+						if (dispatcherState.currentRequest && dispatcherState.currentRequest.id === requestId) {
+							dispatcherState.currentRequest = null;
+						}
+						finishReject(error);
+					}
+				});
+			});
+		});
+	return dispatcherState.requestQueue as Promise<DispatcherCompileResult>;
 }

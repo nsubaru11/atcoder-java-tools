@@ -44,13 +44,6 @@ JAVA_VER="${1:-24}"
 JAVA_HOME_VAR="JAVA_HOME_${JAVA_VER}"
 JAVA_PATH="${!JAVA_HOME_VAR:-${JAVA_HOME:-}}"
 
-RUNNER_BIN="$SCRIPT_DIR/atcoder-local-runner"
-USE_RUNNER_BIN=0
-
-if [[ -x "$RUNNER_BIN" ]]; then
-	USE_RUNNER_BIN=1
-fi
-
 is_windows_path() {
 	[[ "$1" =~ ^[A-Za-z]:\\ ]]
 }
@@ -66,19 +59,14 @@ if [[ -n "$JAVA_PATH" ]]; then
 	export PATH="$JAVA_HOME/bin:$PATH"
 fi
 
-if [[ "$USE_RUNNER_BIN" -eq 0 ]]; then
-	require_command "bun" "Install Bun inside WSL first."
-fi
+require_command "bun" "Install Bun inside WSL first."
 require_command "java" "Install a Linux JDK or set $JAVA_HOME_VAR / JAVA_HOME inside WSL."
 require_command "javac" "Install a Linux JDK or set $JAVA_HOME_VAR / JAVA_HOME inside WSL."
 
 export LOCAL_RUNNER_BASE_DIR="${LOCAL_RUNNER_BASE_DIR:-/dev/shm/atcoder-local-runner}"
 LOG_FILE_PATH="$LOCAL_RUNNER_BASE_DIR/local-runner.log"
 
-RUNNER_INFO="$RUNNER_BIN"
-if [[ "$USE_RUNNER_BIN" -eq 0 ]]; then
-	RUNNER_INFO="$(command -v bun)"
-fi
+RUNNER_INFO="$(command -v bun)"
 
 mkdir -p "$LOCAL_RUNNER_BASE_DIR"
 
@@ -100,8 +88,6 @@ echo -e "${GREEN}Starting WSL local runner server...${NC}"
 
 shift 2>/dev/null || true # Consume $1 (JavaVer), ignore if no args
 
-if [[ "$USE_RUNNER_BIN" -eq 1 ]]; then
-	exec "$RUNNER_BIN" daemon "$@"
-fi
-
+# serve は新しいコンソール窓(ConPTY)に直結して起動するため stdout は tty。
+# ログはバッファされずリアルタイムに流れるので、特別なラッパーは不要。
 exec bun "$SERVER_PATH" "$@"

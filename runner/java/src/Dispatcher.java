@@ -6,6 +6,7 @@ import java.nio.charset.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.*;
+import javax.tools.*;
 
 /**
  * ローカルランナー用の常駐ディスパッチャです。
@@ -59,6 +60,11 @@ public final class Dispatcher {
 	 * @throws IOException 応答の書き込みに失敗した場合
 	 */
 	private static void handleCommand(final String line, final ProtocolWriter protocolWriter) throws IOException {
+		final String[] parts = line.split(SEPARATOR, -1);
+		if (Command.fromString(parts[0]) == Command.COMPILE) {
+			handleCompileCommand(parts, protocolWriter);
+			return;
+		}
 		final ParsedCommand parsedCommand = ProtocolParser.parse(line);
 		switch (parsedCommand.command()) {
 			case PING -> protocolWriter.writePong();
@@ -90,6 +96,64 @@ public final class Dispatcher {
 			protocolWriter.writeResult(runRequest.requestId(), result);
 		} catch (final Throwable throwable) {
 			protocolWriter.writeError(runRequest.requestId(), throwable.toString());
+		}
+	}
+
+	/**
+	 * COMPILE コマンドを処理します。常駐 JVM 内の Java コンパイラ(JDK)でコンパイルします。
+	 *
+	 * @param parts          タブ区切りトークン（COMPILE, requestId, base64(sourceFile), base64(outDir)）
+	 * @param protocolWriter 応答ライター
+	 * @throws IOException 応答の書き込みに失敗した場合
+	 */
+	private static void handleCompileCommand(final String[] parts, final ProtocolWriter protocolWriter) throws IOException {
+		if (parts.length < 4) {
+			protocolWriter.writeError(PROTOCOL_ERROR_REQUEST_ID, "Malformed COMPILE command.");
+			return;
+		}
+		final String requestId = parts[1];
+		try {
+			final Path sourceFile = Paths.get(new String(BASE64_DECODER.decode(parts[2]), UTF_8));
+			final Path outputDirectory = Paths.get(new String(BASE64_DECODER.decode(parts[3]), UTF_8));
+			protocolWriter.writeCompiled(requestId, compile(sourceFile, outputDirectory));
+		} catch (final Throwable throwable) {
+			protocolWriter.writeError(requestId, throwable.toString());
+		}
+	}
+
+	/**
+	 * 常駐 JVM 内で javac を呼び出してコンパイルします（外部 javac の JVM 起動コストを無くします）。
+	 *
+	 * @param sourceFile      コンパイル対象の .java
+	 * @param outputDirectory .class 出力先
+	 * @return コンパイル結果（exitCode と診断メッセージ）
+	 */
+	private static CompileResult compile(final Path sourceFile, final Path outputDirectory) {
+		final JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+		if (compiler == null) {
+			return new CompileResult(1, "No system Java compiler is available (JDK required).");
+		}
+		final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+		final StringWriter additionalOutput = new StringWriter();
+		try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, UTF_8)) {
+			Files.createDirectories(outputDirectory);
+			final Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjects(sourceFile.toFile());
+			final List<String> options = List.of(
+					"-encoding", "UTF-8", "-g:lines,source", "-proc:none", "-implicit:none",
+					"-d", outputDirectory.toString()
+			);
+			final boolean ok = compiler.getTask(additionalOutput, fileManager, diagnostics, options, null, units).call();
+			final StringBuilder message = new StringBuilder();
+			for (final Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
+				message.append(diagnostic).append("\n");
+			}
+			final String extra = additionalOutput.toString();
+			if (!extra.isBlank()) {
+				message.append(extra);
+			}
+			return new CompileResult(ok ? 0 : 1, message.toString());
+		} catch (final Exception exception) {
+			return new CompileResult(1, exception.toString());
 		}
 	}
 
@@ -239,7 +303,7 @@ public final class Dispatcher {
 	}
 
 	private enum Command {
-		READY, RUN, PING, PONG, RESULT, ERROR;
+		READY, RUN, PING, PONG, RESULT, ERROR, COMPILE, COMPILED;
 
 		public static Command fromString(final String command) {
 			try {
@@ -356,6 +420,17 @@ public final class Dispatcher {
 		 */
 		private void writeError(final String requestId, final String errorMessage) throws IOException {
 			writeLine(writer, Command.ERROR.name() + SEPARATOR + requestId + SEPARATOR + BASE64_ENCODER.encodeToString(errorMessage.getBytes(UTF_8)));
+		}
+
+		/**
+		 * COMPILED を出力します。
+		 *
+		 * @param requestId 要求ID
+		 * @param result    コンパイル結果
+		 * @throws IOException 書き込みに失敗した場合
+		 */
+		private void writeCompiled(final String requestId, final CompileResult result) throws IOException {
+			writeLine(writer, Command.COMPILED.name() + SEPARATOR + requestId + SEPARATOR + result.exitCode() + SEPARATOR + BASE64_ENCODER.encodeToString(result.diagnostics().getBytes(UTF_8)));
 		}
 	}
 
@@ -507,6 +582,15 @@ public final class Dispatcher {
 	 */
 	private record ExecutionResult(int exitCode, long timeMillis, byte[] stdout, byte[] stderr, boolean stdoutTruncated,
 	                               boolean stderrTruncated) {
+	}
+
+	/**
+	 * コンパイル結果を保持する値オブジェクトです。
+	 *
+	 * @param exitCode    0 で成功、それ以外は失敗
+	 * @param diagnostics 診断メッセージ
+	 */
+	private record CompileResult(int exitCode, String diagnostics) {
 	}
 
 	/**

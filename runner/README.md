@@ -41,8 +41,8 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 cd tools/runner
 bun install
 
-# Local Runner 起動 (Windows)
-powershell -File .\bin\start-local-runner.ps1 24
+# Local Runner 起動 (Windows / PowerShell 7)
+pwsh -File .\bin\start-local-runner.ps1 24
 
 # テスト
 .\bin\test.cmd abc448_d D.java
@@ -77,15 +77,17 @@ New-Item -ItemType Directory -Force "$HOME\.atcoder" | Out-Null
 Set-Content -Path "$HOME\.atcoder\session.txt" -Value "<REVEL_SESSIONの値>" -Encoding UTF8
 ```
 
-## 単一バイナリ化
+## 単一バイナリ化（CLI のみ）
+
+CLI だけ高速起動用に単一 exe 化します（任意）。`bin/_runner.cmd` はこの exe があれば使い、無ければ `bun src` にフォールバックします。
 
 ```powershell
 # CLI (Windows)
 bun run build:cli:win
-
-# Local Runner (WSL / Linux)
-bun run build:runner:linux
 ```
+
+Local Runner（サーバー）は単一バイナリ化しません。`bin/start-local-runner.sh` 経由で WSL 上の `bun ./src/daemon/server.ts`
+を実行します（`serve` コマンドや `test` 等の auto-start から自動起動）。
 
 ## PATH に登録（任意）
 

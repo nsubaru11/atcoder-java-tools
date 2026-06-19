@@ -4,6 +4,7 @@ export type TransformOptions = {
 	removePackage?: boolean;
 	renameClass?: boolean;
 	fixDebug?: boolean;
+	enableDebug?: boolean;
 };
 
 export type TransformResult = {
@@ -183,6 +184,23 @@ function disableDebugStatements(maskedCode: string, currentCode: string): Modify
 	return {code, modified: true};
 }
 
+function enableDebugStatements(maskedCode: string, currentCode: string): ModifyResult {
+	const debugRegex = /\bDEBUG\b\s*=\s*false\b/g;
+	const replacements: Array<{ start: number; end: number }> = [];
+	let dm: RegExpExecArray | null;
+	while ((dm = debugRegex.exec(maskedCode)) !== null) {
+		const falseIdx = dm.index + dm[0].lastIndexOf("false");
+		replacements.push({start: falseIdx, end: falseIdx + 5});
+	}
+	if (!replacements.length) return {code: currentCode, modified: false};
+	replacements.sort((a, b) => b.start - a.start);
+	let code = currentCode;
+	for (const {start, end} of replacements) {
+		code = code.slice(0, start) + "true" + code.slice(end);
+	}
+	return {code, modified: true};
+}
+
 /**
  * Java ソースコードに対して指定された変換を順に適用する。
  */
@@ -206,6 +224,12 @@ export function modifyJavaCode(originalCode: string, options: TransformOptions):
 
 	if (options.fixDebug) {
 		const result = disableDebugStatements(createMaskedCode(currentCode), currentCode);
+		currentCode = result.code;
+		debugReplaced = result.modified;
+	}
+
+	if (options.enableDebug) {
+		const result = enableDebugStatements(createMaskedCode(currentCode), currentCode);
 		currentCode = result.code;
 		debugReplaced = result.modified;
 	}

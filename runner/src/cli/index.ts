@@ -1,6 +1,6 @@
 import {pathToFileURL} from "node:url";
 import {CLI_COMMANDS, type CliCommand} from "../types";
-import {printUsage, runCommand, runLocalTest, runServe, runTomain} from "./commands";
+import {printUsage, runCommand, runLocalTest, runRun, runServe, runStop, runTomain} from "./commands";
 
 function isCliCommand(value: string): value is CliCommand {
 	return (CLI_COMMANDS as readonly string[]).includes(value);
@@ -35,6 +35,16 @@ export async function main(rawArgs = process.argv.slice(2)) {
 
 	try {
 		if (command === "serve") return await runServe();
+		if (command === "stop") return await runStop();
+
+		if (command === "run") {
+			const [sourceFilePath, inputFile] = rest;
+			if (!sourceFilePath) {
+				printUsage();
+				return 1;
+			}
+			return await runRun(sourceFilePath, inputFile);
+		}
 
 		if (command === "localtest") {
 			const [sourceFilePath, testDir] = rest;
@@ -80,4 +90,3 @@ const isDirectRun = process.argv[1] ? import.meta.url === pathToFileURL(process.
 const isBunEntry = Boolean(import.meta.main);
 
 if (isDirectRun || isBunEntry) process.exit(await main());
-

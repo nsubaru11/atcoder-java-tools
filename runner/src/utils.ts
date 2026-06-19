@@ -33,6 +33,16 @@ export function colorizeStatus(status: string, mode: "cli" | "runner" = "cli") {
 	return status;
 }
 
+export const SLOW_EXEC_THRESHOLD_MS = 500;
+
+/** 実行時間を整形。閾値(500ms)超なら黄色で警告表示する。 */
+export function formatExecTime(timeMs: number) {
+	const text = `${timeMs}ms`;
+	if (timeMs <= SLOW_EXEC_THRESHOLD_MS) return text;
+	const warned = `${text} (>${SLOW_EXEC_THRESHOLD_MS}ms!)`;
+	return supportsCliColor() ? `${ANSI.YELLOW}${warned}${ANSI.RESET}` : warned;
+}
+
 export function stripAnsi(text: string) {
 	return String(text || "").replace(/\x1B\[[0-9;]*m/g, "");
 }

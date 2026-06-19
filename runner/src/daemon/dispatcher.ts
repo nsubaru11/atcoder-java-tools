@@ -7,14 +7,17 @@ import {compileDispatcher, getCompiledEntry, JAVA_ENV, JAVA_PATH,} from "./compi
 import fs from "node:fs";
 
 export interface DispatcherCompileResult {
+	kind: "compile";
 	exitCode: number;
 	diagnostics: string;
 	timedOut?: boolean;
 }
 
+type DispatcherResponse = DispatcherRunResult | DispatcherCompileResult;
+
 interface PendingRequest {
 	id: string;
-	resolve: (value: any) => void;
+	resolve: (value: DispatcherResponse) => void;
 	reject: (error: Error) => void;
 }
 
@@ -100,6 +103,7 @@ function handleDispatcherResponse(line: string) {
 		const stdoutTruncated = Number(parts[6] || "0") !== 0;
 		const stderrTruncated = Number(parts[7] || "0") !== 0;
 		pendingRequest.resolve({
+			kind: "run",
 			exitCode: Number(parts[2]),
 			time: Number(parts[3]),
 			stdout: decodeField(parts[4] || ""),
@@ -112,6 +116,7 @@ function handleDispatcherResponse(line: string) {
 	}
 	if (responseType === "COMPILED") {
 		pendingRequest.resolve({
+			kind: "compile",
 			exitCode: Number(parts[2]),
 			diagnostics: decodeField(parts[3] || ""),
 		});
@@ -271,7 +276,7 @@ export function queueDispatcherRun(
 				const requestId = String(++dispatcherState.nextRequestId);
 				let settled = false;
 				let timeoutHandle: NodeJS.Timeout | null = null;
-				const finishResolve = (value: DispatcherRunResult) => {
+				const finishResolve = (value: DispatcherResponse) => {
 					if (settled) {
 						return;
 					}
@@ -279,7 +284,9 @@ export function queueDispatcherRun(
 					if (timeoutHandle) {
 						clearTimeout(timeoutHandle);
 					}
-					resolve(value);
+					if (value.kind === "run") {
+						resolve(value);
+					}
 				};
 				const finishReject = (error: Error) => {
 					if (settled) {
@@ -304,7 +311,7 @@ export function queueDispatcherRun(
 						dispatcherState.currentRequest = null;
 					}
 					stopDispatcher();
-					finishResolve({timedOut: true, error: timeoutError.message});
+					finishResolve({kind: "run", timedOut: true, error: timeoutError.message});
 				}, timeoutMs);
 
 				const command = [
@@ -340,7 +347,7 @@ export function queueDispatcherCompile(
 				const requestId = String(++dispatcherState.nextRequestId);
 				let settled = false;
 				let timeoutHandle: NodeJS.Timeout | null = null;
-				const finishResolve = (value: DispatcherCompileResult) => {
+				const finishResolve = (value: DispatcherResponse) => {
 					if (settled) {
 						return;
 					}
@@ -348,7 +355,9 @@ export function queueDispatcherCompile(
 					if (timeoutHandle) {
 						clearTimeout(timeoutHandle);
 					}
-					resolve(value);
+					if (value.kind === "compile") {
+						resolve(value);
+					}
 				};
 				const finishReject = (error: Error) => {
 					if (settled) {
@@ -373,6 +382,7 @@ export function queueDispatcherCompile(
 					}
 					stopDispatcher();
 					finishResolve({
+						kind: "compile",
 						exitCode: 1,
 						diagnostics: `Compilation timed out after ${timeoutMs}ms.`,
 						timedOut: true

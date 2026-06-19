@@ -1,6 +1,6 @@
 import http from "node:http";
 import {pathToFileURL} from "node:url";
-import type {LocalRunnerCompilerInfo, LocalRunnerRequest, LocalRunnerRunResponse} from "@atcoder-tools/shared";
+import type {LocalRunnerCompilerInfo, LocalRunnerRunResponse} from "@atcoder-tools/shared";
 import {LOG_FILE_PATH, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../config";
 import {ensureDirectory, formatRunSummary, logError, logInfo, logWarn,} from "../utils";
 import {getCompiledEntry, JAVA_VERSION, runCodeInIsolatedJvm, RUNNER_LABEL, warmUpJavaTools,} from "./compiler";
@@ -123,9 +123,9 @@ const server = http.createServer(async (req, res) => {
 		body += buffer.toString("utf8");
 	}
 
-	let request: Partial<LocalRunnerRequest> & { mode?: string };
+	let request: { mode?: string; sourceCode?: string; stdin?: string };
 	try {
-		request = JSON.parse(body) as Partial<LocalRunnerRequest> & { mode?: string };
+		request = JSON.parse(body) as { mode?: string; sourceCode?: string; stdin?: string };
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		res.writeHead(400, {"Content-Type": "application/json"});
@@ -157,6 +157,12 @@ const server = http.createServer(async (req, res) => {
 				sourceCode: request.sourceCode,
 				stdin: request.stdin,
 			});
+		} else if (request.mode === "shutdown") {
+			res.writeHead(200, {"Content-Type": "application/json", "Connection": "close"});
+			res.end(JSON.stringify({status: "accepted"}));
+			logInfo("Shutdown requested via API.");
+			setTimeout(() => shutdown("api"), 50);
+			return;
 		} else {
 			res.writeHead(400, {"Content-Type": "application/json"});
 			res.end(JSON.stringify({status: "badRequest", stderr: `Unknown mode: ${String(request.mode)}`}));
@@ -200,6 +206,8 @@ function shutdown(signal: string) {
 	server.close(() => {
 		process.exit(0);
 	});
+	// 接続が残っていても確実にプロセスを終了させる保険。
+	setTimeout(() => process.exit(0), 1500).unref();
 }
 
 server.on("error", (error) => {

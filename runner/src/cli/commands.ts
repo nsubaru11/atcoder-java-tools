@@ -2,7 +2,8 @@ import {buildAtCoderSubmissionUrl} from "@atcoder-tools/shared";
 import fs from "node:fs";
 import path from "node:path";
 import type {CliCommand} from "../types";
-import {colorizeStatus, normalizeNewlines} from "../utils";
+import {CLI_CONFIG} from "../config";
+import {colorizeStatus, formatExecTime, normalizeNewlines} from "../utils";
 import {
 	fetchLatestSubmissionId,
 	formatMetricValue,
@@ -14,7 +15,7 @@ import {
 import {extractSamples} from "./parser";
 import {parseTask} from "./task";
 import {forceMainAndDebug, resolveSourceFilePath} from "./transform";
-import {printSampleResults, runSampleTests} from "./sampleJudge";
+import {postLocalRunner, printSampleResults, runSampleTests} from "./sampleJudge";
 import {loadLocalSamples} from "./localSamples";
 import {ensureLocalRunnerReady} from "./ensureServer";
 
@@ -23,8 +24,10 @@ export function printUsage() {
 	console.error("  test <taskScreenName> <sourceFile>");
 	console.error("  submit [-f|--force] <taskScreenName> <sourceFile>");
 	console.error("  tomain [-f|--force] <sourceFile> [outFile]");
-	console.error("  localtest <sourceFile> [testDir]");
-	console.error("  serve                                  (Local Runner サーバーだけ先に起動して待機)");
+	console.error("  localtest <sourceFile> [testDir]        (.in/.out をローカル実行。DEBUG有効)");
+	console.error("  run <sourceFile> [inputFile]            (1回実行して出力表示。inputFile省略可。DEBUG有効)");
+	console.error("  serve                                   (Local Runner サーバーだけ先に起動)");
+	console.error("  stop                                    (Local Runner サーバーを停止)");
 	console.error("Options:");
 	console.error("  -f, --force    submit even if sample tests are not all AC / tomain: overwrite existing outFile");
 }
@@ -36,17 +39,62 @@ export async function runServe(): Promise<number> {
 	return 0;
 }
 
-function prepareSource(sourceFilePath: string) {
+/** Local Runner サーバーを停止する（mode:shutdown を投げて graceful 終了させる）。 */
+export async function runStop(): Promise<number> {
+	try {
+		const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
+			method: "POST",
+			headers: {"Content-Type": "application/json"},
+			body: JSON.stringify({mode: "shutdown"}),
+			signal: AbortSignal.timeout(3000),
+		});
+		if (res.ok) {
+			console.log("Local Runner を停止しました。");
+			return 0;
+		}
+		console.error(`Local Runner の停止要求が失敗しました (status=${res.status})。`);
+		return 1;
+	} catch {
+		console.log("Local Runner は起動していません（既に停止済み）。");
+		return 0;
+	}
+}
+
+/** ソースを1回だけ実行して出力を表示する（期待出力なし・DEBUG有効・入力ファイル省略可）。 */
+export async function runRun(sourceFilePath: string, inputFile: string | undefined): Promise<number> {
+	const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath, true);
+	await ensureLocalRunnerReady();
+	const stdin = inputFile
+		? normalizeNewlines(fs.readFileSync(path.resolve(inputFile), "utf8"))
+		: "";
+	const result = await postLocalRunner(transformed, stdin);
+
+	console.log(`[run] status=${result.status} exit=${result.exitCode} time=${formatExecTime(result.time || 0)}`);
+	const stdout = (result.stdout || "").replace(/\s+$/, "");
+	console.log("[output]");
+	console.log(stdout.length > 0 ? stdout.split(/\r?\n/).map((line) => `  ${line}`).join("\n") : "  (empty)");
+	const stderr = (result.stderr || "").trim();
+	if (stderr.length > 0) {
+		console.log("[stderr]");
+		const display = originalClassName
+			? stderr.replace(/Main\.java/g, originalFileName).replace(/\bMain\b/g, originalClassName)
+			: stderr;
+		console.log(display.split(/\r?\n/).map((line) => `  ${line}`).join("\n"));
+	}
+	return result.exitCode === 0 ? 0 : 1;
+}
+
+function prepareSource(sourceFilePath: string, debug = false) {
 	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
 	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
-	const transformed = forceMainAndDebug(source);
+	const transformed = forceMainAndDebug(source, debug);
 	const originalFileName = path.basename(resolvedSourcePath);
 	const originalClassName = originalFileName.replace(/\.java$/i, "");
 	return {resolvedSourcePath, transformed, originalFileName, originalClassName};
 }
 
 export async function runLocalTest(sourceFilePath: string, testDir: string | undefined): Promise<number> {
-	const {resolvedSourcePath, transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath);
+	const {resolvedSourcePath, transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath, true);
 	await ensureLocalRunnerReady();
 	const samples = loadLocalSamples(resolvedSourcePath, testDir);
 	const sampleResults = await runSampleTests(transformed, samples);
@@ -78,7 +126,7 @@ export async function runCommand(command: CliCommand, taskScreenName: string, so
 } = {}): Promise<number> {
 	const forceSubmit = !!options.force;
 	const task = parseTask(taskScreenName);
-	const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath);
+	const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath, command === "test");
 
 	const cookieHeader = toCookieHeader();
 	const taskHtml = await httpGetText(task.taskUrl, cookieHeader);

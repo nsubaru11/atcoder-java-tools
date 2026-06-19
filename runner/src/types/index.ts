@@ -1,4 +1,4 @@
-export const CLI_COMMANDS = ["test", "submit", "tomain", "localtest", "serve"] as const;
+export const CLI_COMMANDS = ["test", "submit", "tomain", "localtest", "serve", "run", "stop"] as const;
 export type CliCommand = (typeof CLI_COMMANDS)[number];
 
 export type Task = {
@@ -69,6 +69,7 @@ export type ProcessResult = {
 };
 
 export type DispatcherRunResult = {
+	kind: "run";
 	exitCode?: number;
 	time?: number;
 	stdout?: string;

@@ -7,7 +7,7 @@ import {
 } from "@atcoder-tools/shared";
 import type {SamplePair, SampleResult} from "../types";
 import {CLI_CONFIG} from "../config";
-import {ANSI, colorizeStatus, supportsCliColor} from "../utils";
+import {ANSI, colorizeStatus, formatExecTime, supportsCliColor} from "../utils";
 
 export async function postLocalRunner(sourceCode: string, stdinText: string): Promise<LocalRunnerRunResponse> {
 	const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
@@ -85,7 +85,7 @@ export function printSampleResults(results: SampleResult[], originalClassName: s
 		if (r.status === "AC") acCount++;
 		totalExecTime += Number(r.execTime || 0);
 		statusCounts.set(r.status, (statusCounts.get(r.status) || 0) + 1);
-		const details = [`exec=${r.execTime}ms`];
+		const details = [`exec=${formatExecTime(r.execTime)}`];
 		if (r.memoryKb > 0) details.push(`mem=${r.memoryKb}KB`);
 		if (r.runnerStatus && r.runnerStatus !== "success") details.push(`runner=${r.runnerStatus}`);
 		if (r.exitCode !== 0) details.push(`exit=${r.exitCode}`);

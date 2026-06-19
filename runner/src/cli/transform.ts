@@ -8,7 +8,12 @@ export function resolveSourceFilePath(sourceFilePath: string) {
 	throw new Error(`Source file not found from current directory: ${sourceFilePath}`);
 }
 
-export function forceMainAndDebug(sourceCode: string) {
-	const result = modifyJavaCode(sourceCode, {removePackage: true, renameClass: true, fixDebug: true});
+export function forceMainAndDebug(sourceCode: string, debug = false) {
+	const result = modifyJavaCode(sourceCode, {
+		removePackage: true,
+		renameClass: true,
+		fixDebug: !debug,
+		enableDebug: debug,
+	});
 	return result.modified;
 }

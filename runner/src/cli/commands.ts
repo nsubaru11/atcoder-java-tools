@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type {CliCommand} from "../types";
 import {CLI_CONFIG} from "../config";
-import {colorizeStatus, formatExecTime, normalizeNewlines} from "../utils";
+import {ANSI, colorizeStatus, formatExecTime, normalizeNewlines, supportsCliColor} from "../utils";
 import {
 	fetchLatestSubmissionId,
 	formatMetricValue,
@@ -60,6 +60,24 @@ export async function runStop(): Promise<number> {
 	}
 }
 
+/** Local Runner の実行ステータスを短いラベルに変換する。 */
+function runStatusLabel(status: string): string {
+	switch (status) {
+		case "success":
+			return "OK";
+		case "runtimeError":
+			return "RE";
+		case "compileError":
+			return "CE";
+		case "timeLimitExceeded":
+			return "TLE";
+		case "internalError":
+			return "IE";
+		default:
+			return status;
+	}
+}
+
 /** ソースを1回だけ実行して出力を表示する（期待出力なし・DEBUG有効・入力ファイル省略可）。 */
 export async function runRun(sourceFilePath: string, inputFile: string | undefined): Promise<number> {
 	const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath, true);
@@ -69,17 +87,25 @@ export async function runRun(sourceFilePath: string, inputFile: string | undefin
 		: "";
 	const result = await postLocalRunner(transformed, stdin);
 
-	console.log(`[run] status=${result.status} exit=${result.exitCode} time=${formatExecTime(result.time || 0)}`);
+	// ステータスは「OK / RE / CE / TLE / IE」に集約。OK=緑、エラー=色付き。遅い実行は time が黄色。
+	const label = runStatusLabel(result.status);
+	const coloredLabel = label === "OK" && supportsCliColor() ? `${ANSI.GREEN}OK${ANSI.RESET}` : colorizeStatus(label);
+	console.log(`[run] ${coloredLabel}  time=${formatExecTime(result.time || 0)}`);
+
+	// 標準出力は既定色（白）。
 	const stdout = (result.stdout || "").replace(/\s+$/, "");
 	console.log("[output]");
 	console.log(stdout.length > 0 ? stdout.split(/\r?\n/).map((line) => `  ${line}`).join("\n") : "  (empty)");
+
+	// 標準エラー出力は赤。
 	const stderr = (result.stderr || "").trim();
 	if (stderr.length > 0) {
 		console.log("[stderr]");
 		const display = originalClassName
 			? stderr.replace(/Main\.java/g, originalFileName).replace(/\bMain\b/g, originalClassName)
 			: stderr;
-		console.log(display.split(/\r?\n/).map((line) => `  ${line}`).join("\n"));
+		const body = display.split(/\r?\n/).map((line) => `  ${line}`).join("\n");
+		console.log(supportsCliColor() ? `${ANSI.RED}${body}${ANSI.RESET}` : body);
 	}
 	return result.exitCode === 0 ? 0 : 1;
 }

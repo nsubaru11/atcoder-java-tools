@@ -103,7 +103,7 @@ export function printSampleResults(results: SampleResult[], originalClassName: s
 		if (r.status === "WA") {
 			console.log(formatWaDiff(r.expectedOutput, r.actualOutput));
 		}
-		if (r.stderr && r.stderr.trim().length > 0) {
+		if (r.status !== "AC" && r.stderr && r.stderr.trim().length > 0) {
 			console.log(`  [stderr]`);
 			let displayStderr = r.stderr.trim();
 			if (originalClassName) {
@@ -111,7 +111,8 @@ export function printSampleResults(results: SampleResult[], originalClassName: s
 					.replace(/Main\.java/g, originalFileName)
 					.replace(/\bMain\b/g, originalClassName);
 			}
-			console.log(displayStderr.split(/\r?\n/).map(line => `    ${line}`).join("\n"));
+			const body = displayStderr.split(/\r?\n/).map(line => `    ${line}`).join("\n");
+			console.log(supportsCliColor() ? `${ANSI.RED}${body}${ANSI.RESET}` : body);
 		}
 	}
 	const breakdown = Array.from(statusCounts.entries())

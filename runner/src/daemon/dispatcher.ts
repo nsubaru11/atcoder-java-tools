@@ -10,6 +10,7 @@ export interface DispatcherCompileResult {
 	kind: "compile";
 	exitCode: number;
 	diagnostics: string;
+	requiresIsolation?: boolean;
 	timedOut?: boolean;
 }
 
@@ -110,6 +111,7 @@ function handleDispatcherResponse(line: string) {
 			stderr: decodeField(parts[5] || ""),
 			stdoutTruncated,
 			stderrTruncated,
+			memory: Number(parts[8] || "-1"),
 		});
 		dispatcherState.currentRequest = null;
 		return;
@@ -118,7 +120,8 @@ function handleDispatcherResponse(line: string) {
 		pendingRequest.resolve({
 			kind: "compile",
 			exitCode: Number(parts[2]),
-			diagnostics: decodeField(parts[3] || ""),
+			requiresIsolation: Number(parts[3] || "0") !== 0,
+			diagnostics: decodeField(parts[4] || ""),
 		});
 		dispatcherState.currentRequest = null;
 		return;
@@ -385,6 +388,7 @@ export function queueDispatcherCompile(
 						kind: "compile",
 						exitCode: 1,
 						diagnostics: `Compilation timed out after ${timeoutMs}ms.`,
+						requiresIsolation: false,
 						timedOut: true
 					});
 				}, timeoutMs);

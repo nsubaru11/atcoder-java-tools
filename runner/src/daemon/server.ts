@@ -70,7 +70,8 @@ async function runCode({sourceCode, stdin}: { sourceCode: string; stdin?: string
 			time: result.time || 0,
 			stdoutTruncated: !!result.stdoutTruncated,
 			stderrTruncated: !!result.stderrTruncated,
-			memory: 0,
+			// Java は累積アロケーション量をバイトで返す（-1=計測不可）。表示系は KB 想定なので KB に変換。
+			memory: result.memory && result.memory > 0 ? Math.round(result.memory / 1024) : 0,
 		};
 		const logger = response.status === "success" ? logInfo : logWarn;
 		logger(formatRunSummary(response, waitTime, totalTime, "daemon"));

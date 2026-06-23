@@ -9,12 +9,13 @@ Bun + TypeScript で実装し、Java 側は常駐 `Dispatcher`（インプロセ
 tools/runner/
 ├── package.json
 ├── src/
-│   ├── cli/           # test / submit、AtCoder HTTP、サンプルジャッジ
-│   ├── daemon/        # Local Runner HTTP API (server.ts)
-│   ├── compiler/      # javac キャッシュ・実行
-│   └── shared/        # runner 専用の設定・ログ（@atcoder-tools/shared とは別）
+│   ├── cli/           # test / submit / 短縮表記、AtCoder HTTP、サンプルジャッジ
+│   ├── daemon/        # server.ts(HTTP API) / dispatcher.ts(常駐JVM連携) / compiler.ts(javac キャッシュ)
+│   ├── config.ts      # 設定
+│   ├── utils.ts       # ログ・整形
+│   └── types/         # 型定義
 ├── bin/               # test.cmd / submit.cmd、起動スクリプト
-└── java/src/          # Dispatcher.java, WarmUp.java
+└── java/              # README + src/（Dispatcher ほか常駐 JVM のクラス群・PROTOCOL.md・WarmUp.java）
 ```
 
 `@atcoder-tools/shared` から URL 生成・Local Runner リクエスト・Easy Test ジャッジを利用しています。CLI のサンプル判定は
@@ -28,17 +29,28 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 ## コマンド
 
-| コマンド                                        | 説明                                                   |
-|---------------------------------------------|------------------------------------------------------|
-| `test <taskScreenName> <sourceFile>`        | AtCoder のサンプルをローカル実行し AC/WA 判定（**DEBUG=true**）       |
-| `submit [-f] <taskScreenName> <sourceFile>` | 全サンプル AC 後に提出（`-f` で強制提出。提出は **DEBUG=false**）        |
-| `localtest <sourceFile> [testDir]`          | `.in`/`.out` を自動検出しオフライン実行・判定（**DEBUG=true**）        |
-| `run <sourceFile> [inputFile]`              | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG=true**） |
-| `tomain <sourceFile> [outFile]`             | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き） |
-| `serve`                                     | Local Runner サーバーだけ先に起動して ready まで待つ                 |
-| `stop`                                      | Local Runner サーバーを停止（graceful shutdown）              |
+| コマンド                                        | 説明                                                       |
+|---------------------------------------------|----------------------------------------------------------|
+| `test <taskScreenName> <sourceFile>`        | AtCoder のサンプルをローカル実行し AC/WA 判定（**DEBUG=true**）           |
+| `test <task>` / `submit [-f] <task>`        | **短縮表記**。フォルダからコンテストを推定（例: `test d` → `abc463_d D.java`） |
+| `submit [-f] <taskScreenName> <sourceFile>` | 全サンプル AC 後に提出（`-f` で強制提出。提出は **DEBUG=false**）            |
+| `localtest <sourceFile> [testDir]`          | `.in`/`.out` を自動検出しオフライン実行・判定（**DEBUG=true**）            |
+| `run <sourceFile> [inputFile]`              | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG=true**）     |
+| `tomain <sourceFile> [outFile]`             | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き）     |
+| `serve`                                     | Local Runner サーバーだけ先に起動して ready まで待つ                     |
+| `stop`                                      | Local Runner サーバーを停止（graceful shutdown）                  |
 
 `taskScreenName` は URL の `/tasks/` 以降そのまま（例: `abc448_d`）。`contestId` は最後の `_` より前から自動解決します。
+
+#### 短縮表記（フォルダからコンテスト推定）
+
+`test` / `submit` に**引数を 1 つだけ**渡すと短縮表記になります。
+`test d` は、カレントの上位階層にある `ABC463` のようなフォルダ名からコンテスト（小文字化して `abc463`）を、引数の記号からタスク（`abc463_d`）とソース（`D.java`）を解決し、`test abc463_d D.java` と同等に動きます。
+
+- 記号は**大小無視**（`d` = `D`）。コンテスト名は URL に合わせ**小文字化**。
+- 末尾の数字は**ファイル変種**扱い: `test d1` → `D1.java` を、問題 `d`（`abc463_d`）のサンプルでテスト（AtCoder のタスク記号は A〜H と Ex のみで数字付きは無いため）。
+- コンテストフォルダは `ABC463` / `typical90` のような「英字＋数字」を採用。範囲フォルダ `ABC451~475` や `src` は無視。当てはまらない場合はフル指定（2 引数）で。
+- ソースは**カレントディレクトリ**から探します（例の構成では `ABC463/src` で実行）。
 
 `test` / `submit` / `localtest` / `run` は、Local Runner サーバーが未起動なら自動起動します（新しい「Local Runner」コンソール窓が開き、サーバーログがリアルタイム表示）。`serve` で事前に温めておくと初回が速くなります。
 
@@ -128,7 +140,13 @@ Java のコンパイルは外部 `javac` を都度起動せず **常駐Dispatche
 powershell -File ".\bin\install-submit-test-path.ps1"
 ```
 
-以後、任意ディレクトリから `test` / `submit` を実行できます。
+以後、任意ディレクトリから `test` / `submit` を実行できます。短縮表記は**問題フォルダ**で実行します（コンテストをフォルダから推定するため）。
+
+```powershell
+cd "C:\...\AtCoder\ABC\ABC451~475\ABC463\src"
+test d            # = test abc463_d D.java
+submit d          # = submit abc463_d D.java
+```
 
 ## 注意
 

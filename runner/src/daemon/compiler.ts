@@ -43,6 +43,24 @@ export const JAVA_ENV = getJavaEnv();
 export const JAVA_PATH = RESOLVED_JAVA_HOME ? path.join(RESOLVED_JAVA_HOME, "bin", "java") : "java";
 export const JAVAC_PATH = RESOLVED_JAVA_HOME ? path.join(RESOLVED_JAVA_HOME, "bin", "javac") : "javac";
 const DISPATCHER_SOURCE_FILE = resolveDispatcherSourceFile();
+const DISPATCHER_SOURCE_DIR = path.dirname(DISPATCHER_SOURCE_FILE);
+
+/**
+ * Dispatcher ソースディレクトリ配下の *.java をすべて列挙する。
+ * Dispatcher は複数ファイル（Request/Response/ProtocolCodec/MessageChannel/Executor 等）で構成されるため、
+ * 単一ファイルではなくディレクトリ全体をコンパイル対象・鮮度判定対象とする。
+ */
+function listDispatcherSources(): string[] {
+	return fs
+		.readdirSync(DISPATCHER_SOURCE_DIR)
+		.filter((name) => name.endsWith(".java"))
+		.map((name) => path.join(DISPATCHER_SOURCE_DIR, name));
+}
+
+/** 与えたソース群の最新 mtime（ミリ秒）を返す。 */
+function newestSourceMtime(sources: string[]): number {
+	return sources.reduce((max, file) => Math.max(max, fs.statSync(file).mtimeMs), 0);
+}
 
 const compileCache = new Map<string, Promise<CompileEntry>>();
 
@@ -172,11 +190,13 @@ export function runProcessCommand(
 
 export async function compileDispatcher() {
 	ensureDirectory(RUNNER_CONFIG.dispatcherBuildDir);
+	const sources = listDispatcherSources();
 	// ソース未変更ならキャッシュ済み Dispatcher.class を再利用し、毎起動の javac を省く。
-	// （TLE で dispatcher が SIGKILL→再起動する際の回復も速くなる）
+	// （複数ファイル構成なので src 配下 *.java の最新 mtime で判定する。
+	//   TLE で dispatcher が SIGKILL→再起動する際の回復も速くなる）
 	try {
 		if (fs.existsSync(DISPATCHER_CLASS_FILE)) {
-			const sourceMtime = fs.statSync(DISPATCHER_SOURCE_FILE).mtimeMs;
+			const sourceMtime = newestSourceMtime(sources);
 			const classMtime = fs.statSync(DISPATCHER_CLASS_FILE).mtimeMs;
 			if (classMtime >= sourceMtime) {
 				return;
@@ -187,7 +207,7 @@ export async function compileDispatcher() {
 	}
 	const result = await runProcessCommand(
 		JAVAC_PATH,
-		["-encoding", "UTF-8", "-g", "-d", RUNNER_CONFIG.dispatcherBuildDir, DISPATCHER_SOURCE_FILE],
+		["-encoding", "UTF-8", "-g", "-d", RUNNER_CONFIG.dispatcherBuildDir, ...sources],
 		{env: JAVA_ENV, timeoutMs: RUNNER_CONFIG.compileTimeoutMs},
 	);
 	if (result.code !== 0 || result.timedOut || !fs.existsSync(DISPATCHER_CLASS_FILE)) {
@@ -195,10 +215,34 @@ export async function compileDispatcher() {
 	}
 }
 
+// 外部 javac 経路・マーカー欠落時のフォールバック検出（ソース正規表現）。
+// 既定の常駐内コンパイル経路では Java 側のバイトコード検査（COMPILED.requiresIsolation）を使う。
 function requiresIsolatedProcess(sourceCode: string) {
 	return /FileDescriptor\.(?:in|out|err)\b/.test(sourceCode)
 		|| /Runtime\.getRuntime\(\)\.halt\s*\(/.test(sourceCode)
 		|| /System\.exit\s*\(/.test(sourceCode);
+}
+
+function isolationMarkerPath(rootDir: string) {
+	return path.join(rootDir, ".isolation");
+}
+
+// バイトコード検査の結果をディスクに残し、再起動後のキャッシュヒットでも一貫して使えるようにする。
+function writeIsolationMarker(rootDir: string, requiresIsolation: boolean) {
+	try {
+		fs.writeFileSync(isolationMarkerPath(rootDir), requiresIsolation ? "1" : "0", "utf8");
+	} catch {
+	}
+}
+
+function readIsolationMarker(rootDir: string, sourceCode: string): boolean {
+	try {
+		const raw = fs.readFileSync(isolationMarkerPath(rootDir), "utf8").trim();
+		if (raw === "1") return true;
+		if (raw === "0") return false;
+	} catch {
+	}
+	return requiresIsolatedProcess(sourceCode);
 }
 
 async function compileSource(sourceCode: string, hash: string): Promise<CompileEntry> {
@@ -215,7 +259,7 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 				rootDir,
 				classDir,
 				mainClass: "Main",
-				requiresIsolatedProcess: requiresIsolatedProcess(sourceCode),
+				requiresIsolatedProcess: readIsolationMarker(rootDir, sourceCode),
 				status: "compiled",
 				error: null,
 			};
@@ -231,13 +275,15 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 	const useInProcessCompile = process.env.LOCAL_RUNNER_INPROCESS_COMPILE !== "0";
 	const compileStart = Date.now();
 	let compiled: boolean;
-	let timedOut = false;
-	let errorText = "";
+	let timedOut;
+	let errorText;
+	let requiresIsolation: boolean;
 	if (useInProcessCompile) {
 		const compileResult = await queueDispatcherCompile(sourceFile, classDir);
 		timedOut = !!compileResult.timedOut;
 		compiled = compileResult.exitCode === 0 && fs.existsSync(classFile);
 		errorText = compileResult.diagnostics;
+		requiresIsolation = !!compileResult.requiresIsolation;
 	} else {
 		const result = await runProcessCommand(
 			JAVAC_PATH,
@@ -247,16 +293,18 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 		timedOut = result.timedOut;
 		compiled = result.code === 0 && !result.timedOut && fs.existsSync(classFile);
 		errorText = result.stderr;
+		requiresIsolation = requiresIsolatedProcess(sourceCode);
 	}
 	const compileTime = Date.now() - compileStart;
 
 	if (compiled) {
 		logInfo(`[Compile] OK ${compileTime}ms -> ${shortHash(hash)}`);
+		writeIsolationMarker(rootDir, requiresIsolation);
 		return {
 			rootDir,
 			classDir,
 			mainClass: "Main",
-			requiresIsolatedProcess: requiresIsolatedProcess(sourceCode),
+			requiresIsolatedProcess: requiresIsolation,
 			status: "compiled",
 			error: null,
 		};

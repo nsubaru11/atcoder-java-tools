@@ -1,6 +1,15 @@
 import {pathToFileURL} from "node:url";
 import {CLI_COMMANDS, type CliCommand} from "../types";
-import {printUsage, runCommand, runLocalTest, runRun, runServe, runStop, runTomain} from "./commands";
+import {
+	expandShortTaskArg,
+	printUsage,
+	runCommand,
+	runLocalTest,
+	runRun,
+	runServe,
+	runStop,
+	runTomain
+} from "./commands";
 
 function isCliCommand(value: string): value is CliCommand {
 	return (CLI_COMMANDS as readonly string[]).includes(value);
@@ -65,7 +74,14 @@ export async function main(rawArgs = process.argv.slice(2)) {
 		}
 
 		if (command === "test" || command === "submit") {
-			const [taskScreenName, sourceFilePath] = rest;
+			let taskScreenName: string | undefined;
+			let sourceFilePath: string | undefined;
+			if (rest.length === 1) {
+				// 短縮表記: test d → フォルダからコンテストを推定し test abc463_d D.java 相当へ展開
+				({taskScreenName, sourceFilePath} = expandShortTaskArg(rest[0]));
+			} else {
+				[taskScreenName, sourceFilePath] = rest;
+			}
 			if (!taskScreenName || !sourceFilePath) {
 				printUsage();
 				return 1;

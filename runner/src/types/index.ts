@@ -78,4 +78,5 @@ export type DispatcherRunResult = {
 	stderrTruncated?: boolean;
 	timedOut?: boolean;
 	error?: string;
+	memory?: number;
 };

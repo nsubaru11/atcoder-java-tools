@@ -22,7 +22,9 @@ import {ensureLocalRunnerReady} from "./ensureServer";
 export function printUsage() {
 	console.error("Usage:");
 	console.error("  test <taskScreenName> <sourceFile>");
+	console.error("  test <task>                             (短縮: フォルダからコンテスト推定。例: test d → abc463_d D.java)");
 	console.error("  submit [-f|--force] <taskScreenName> <sourceFile>");
+	console.error("  submit [-f|--force] <task>              (短縮: 同上。例: submit d)");
 	console.error("  tomain [-f|--force] <sourceFile> [outFile]");
 	console.error("  localtest <sourceFile> [testDir]        (.in/.out をローカル実行。DEBUG有効)");
 	console.error("  run <sourceFile> [inputFile]            (1回実行して出力表示。inputFile省略可。DEBUG有効)");
@@ -30,6 +32,57 @@ export function printUsage() {
 	console.error("  stop                                    (Local Runner サーバーを停止)");
 	console.error("Options:");
 	console.error("  -f, --force    submit even if sample tests are not all AC / tomain: overwrite existing outFile");
+}
+
+// 短縮タスク指定（例: d, e, ex, d1）。AtCoder の問題記号は A〜H と Ex のみ。末尾の数字はファイル変種（D1.java 等）。
+const SHORT_TASK_PATTERN = /^(ex|[a-h])\d*$/i;
+// コンテストフォルダに見える名前（例: ABC463, typical90）。範囲フォルダ ABC451~475 や "src" は弾く。
+const CONTEST_DIR_PATTERN = /^[A-Za-z]+\d+$/;
+
+/** cwd から上方向に辿り、コンテストID（abcNNN 等）に見えるフォルダ名を小文字で返す。 */
+function detectContestId(startDir: string): string {
+	let dir = startDir;
+	for (; ;) {
+		if (CONTEST_DIR_PATTERN.test(path.basename(dir))) return path.basename(dir).toLowerCase();
+		const parent = path.dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+	throw new Error(
+		`短縮表記のコンテスト名をフォルダ階層から特定できませんでした（abc463 のようなフォルダが見つからない）。\n` +
+		`  フル指定してください: test <contestId>_<task> <File.java>`,
+	);
+}
+
+/** cwd 内で <token>.java を大小無視で探し、実ファイル名（絶対パス）を返す。無ければ大文字版（相対）を返す。 */
+function resolveShortSourceFile(token: string, cwd: string): string {
+	const wanted = `${token}.java`.toLowerCase();
+	try {
+		const hit = fs.readdirSync(cwd).find((name) => name.toLowerCase() === wanted);
+		if (hit) return path.join(cwd, hit);
+	} catch {
+		// ディレクトリ読み取り失敗時はフォールバックへ
+	}
+	return `${token.toUpperCase()}.java`;
+}
+
+/**
+ * 短縮タスク指定（例: "d", "ex", "d1"）を {taskScreenName, sourceFilePath} に展開する。
+ * - コンテストID: cwd から上の階層にある ABC463 等のフォルダ名を小文字化（URL はほぼ小文字なので統一）。
+ * - タスク記号: 末尾の数字を除いた英字部分（"d1" → "d"）。サンプル取得・提出はこの記号で行う。
+ * - ソースファイル: 入力どおりのトークン（数字込み）で cwd 内を大小無視検索（"d" → D.java, "d1" → D1.java）。
+ */
+export function expandShortTaskArg(token: string): { taskScreenName: string; sourceFilePath: string } {
+	if (!SHORT_TASK_PATTERN.test(token)) {
+		throw new Error(`短縮タスク指定が不正です: "${token}"（例: d, e, ex, d1）。フル指定なら2引数で。`);
+	}
+	const cwd = process.cwd();
+	const contestId = detectContestId(cwd);
+	const taskLetter = token.replace(/\d+$/, "").toLowerCase(); // 問題記号（末尾の数字は落とす）
+	return {
+		taskScreenName: `${contestId}_${taskLetter}`,
+		sourceFilePath: resolveShortSourceFile(token, cwd),
+	};
 }
 
 /** Local Runner サーバーだけを先に起動して ready まで待つ（先回り起動）。 */

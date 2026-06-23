@@ -1,11 +1,11 @@
-# tools
+# atcoder-java-tools
 
 AtCoder 向けの補助ツールを Bun ワークスペースで管理しています。
 
 ## ワークスペース構成
 
 ```text
-tools/
+atcoder-java-tools/
 ├── package.json          # workspaces: shared, runner, userscripts
 ├── bun.lock
 ├── tsconfig.base.json
@@ -36,7 +36,7 @@ TypeScript で開発し、Bun で Tampermonkey 用の単一 `.user.js`
 にバンドルします。詳細は [userscripts/README.md](./userscripts/README.md) を参照してください。
 
 ```powershell
-cd tools
+cd atcoder-java-tools
 bun --cwd userscripts run typecheck
 bun --cwd userscripts run build
 bun --cwd userscripts run watch
@@ -48,14 +48,14 @@ bun --cwd userscripts run watch
 サーバーです。詳細は [runner/README.md](./runner/README.md) を参照してください。
 
 ```powershell
-cd tools
+cd atcoder-java-tools
 bun --cwd runner run typecheck
 bun --cwd runner run test abc001_a A.java
 ```
 
 ## TypeScript の方針
 
-- パッケージマネージャは **Bun**（`tools/bun.lock`）
+- パッケージマネージャは **Bun**（`atcoder-java-tools/bun.lock`）
 - `@ts-nocheck` / `@ts-ignore` は使わない
 - 共通設定は `tsconfig.base.json`
 - `userscripts/dist/*.user.js` は生成物。`src/main.ts` を編集して再ビルドする
@@ -63,7 +63,7 @@ bun --cwd runner run test abc001_a A.java
 ## 変更後の確認
 
 ```powershell
-cd tools
+cd atcoder-java-tools
 bun install
 bun --cwd userscripts run typecheck
 bun --cwd userscripts run build

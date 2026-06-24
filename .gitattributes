@@ -1,0 +1,17 @@
+# 既定はテキスト自動判定＋チェックアウト時 LF（リポジトリ内も LF に正規化）
+* text=auto eol=lf
+
+# WSL/Linux で実行するシェルスクリプトは必ず LF（CRLF だと bash が壊れる）
+*.sh text eol=lf
+
+# Windows 用スクリプトは CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# バイナリは変換しない
+*.exe binary
+*.jar binary
+*.class binary
+*.png binary
+*.ico binary

@@ -237,6 +237,22 @@
 		}
 		return { code, modified: true };
 	}
+	function enableDebugStatements(maskedCode, currentCode) {
+		const debugRegex = /\bDEBUG\b\s*=\s*false\b/g;
+		const replacements = [];
+		let dm;
+		while ((dm = debugRegex.exec(maskedCode)) !== null) {
+			const falseIdx = dm.index + dm[0].lastIndexOf("false");
+			replacements.push({ start: falseIdx, end: falseIdx + 5 });
+		}
+		if (!replacements.length) return { code: currentCode, modified: false };
+		replacements.sort((a, b) => b.start - a.start);
+		let code = currentCode;
+		for (const { start, end } of replacements) {
+			code = code.slice(0, start) + "true" + code.slice(end);
+		}
+		return { code, modified: true };
+	}
 	function modifyJavaCode(originalCode, options) {
 		let currentCode = normalizeNewlines(originalCode);
 		let packageRemoved = false;
@@ -254,6 +270,11 @@
 		}
 		if (options.fixDebug) {
 			const result = disableDebugStatements(createMaskedCode(currentCode), currentCode);
+			currentCode = result.code;
+			debugReplaced = result.modified;
+		}
+		if (options.enableDebug) {
+			const result = enableDebugStatements(createMaskedCode(currentCode), currentCode);
 			currentCode = result.code;
 			debugReplaced = result.modified;
 		}

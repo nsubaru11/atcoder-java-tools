@@ -1,0 +1,13 @@
+# 依存パッケージ（各ワークスペースの node_modules を全階層で無視）
+node_modules/
+
+# ビルド成果物（CLI 実行ファイル。bin/ 内の *.sh は追跡するので exe だけ個別指定）
+/runner/bin/atcoder-cli-runner.exe
+
+# ログ・一時ファイル（万一リポジトリ内に出力された場合の保険）
+*.log
+*.tmp
+
+# OS / エディタの雑多ファイル
+.DS_Store
+Thumbs.db

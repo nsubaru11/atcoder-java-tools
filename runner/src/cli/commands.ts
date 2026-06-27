@@ -1,7 +1,7 @@
 import {buildAtCoderSubmissionUrl} from "@atcoder-tools/shared";
 import fs from "node:fs";
 import path from "node:path";
-import type {CliCommand} from "../types";
+import type {CliCommand, SamplePair, Task} from "../types";
 import {CLI_CONFIG} from "../config";
 import {ANSI, colorizeStatus, formatExecTime, normalizeNewlines, supportsCliColor} from "../utils";
 import {
@@ -18,6 +18,7 @@ import {forceMainAndDebug, resolveSourceFilePath} from "./transform";
 import {postLocalRunner, printSampleResults, runSampleTests} from "./sampleJudge";
 import {loadLocalSamples} from "./localSamples";
 import {ensureLocalRunnerReady} from "./ensureServer";
+import {clearSampleCache, clearSampleCacheForTask, readCachedSamples, writeCachedSamples} from "./sampleCache";
 
 export function printUsage() {
 	console.error("Usage:");
@@ -30,6 +31,8 @@ export function printUsage() {
 	console.error("  run <sourceFile> [inputFile]            (1回実行して出力表示。inputFile省略可。DEBUG有効)");
 	console.error("  serve                                   (Local Runner サーバーだけ先に起動)");
 	console.error("  stop                                    (Local Runner サーバーを停止)");
+	console.error("  cacheclear -a                           (サンプルキャッシュを全削除)");
+	console.error("  cacheclear -t <taskScreenName>          (指定タスクのキャッシュのみ削除。例: cacheclear -t abc456_a)");
 	console.error("Options:");
 	console.error("  -f, --force    submit even if sample tests are not all AC / tomain: overwrite existing outFile");
 }
@@ -90,6 +93,36 @@ export async function runServe(): Promise<number> {
 	await ensureLocalRunnerReady();
 	console.log("Local Runner is up. これ以降の test / submit / localtest は即実行されます。");
 	return 0;
+}
+
+/**
+ * サンプルキャッシュを削除する。
+ *   cacheclear -a                 … 全削除
+ *   cacheclear -t <taskScreenName> … 指定タスクのみ削除
+ */
+export function runCacheClear(args: string[]): number {
+	const flag = args[0];
+	if (flag === "-a") {
+		const removed = clearSampleCache();
+		console.log(`サンプルキャッシュを全削除しました（${removed} 件）。`);
+		return 0;
+	}
+	if (flag === "-t") {
+		const taskScreenName = args[1];
+		if (!taskScreenName) {
+			console.error("Usage: cacheclear -t <taskScreenName>");
+			return 1;
+		}
+		const removed = clearSampleCacheForTask(taskScreenName);
+		console.log(removed
+			? `サンプルキャッシュを削除しました: ${taskScreenName}`
+			: `対象のサンプルキャッシュは見つかりませんでした: ${taskScreenName}`);
+		return 0;
+	}
+	console.error("Usage:");
+	console.error("  cacheclear -a                  (全削除)");
+	console.error("  cacheclear -t <taskScreenName> (指定タスクのみ削除)");
+	return 1;
 }
 
 /** Local Runner サーバーを停止する（mode:shutdown を投げて graceful 終了させる）。 */
@@ -200,6 +233,19 @@ export function runTomain(sourceFilePath: string, outFilePath: string | undefine
 	return 0;
 }
 
+/**
+ * サンプルケースを取得する。キャッシュにあればそれを使い、無ければ問題ページを
+ * フェッチして抽出・保存する。サンプルは不変なので test → submit の二重取得を避けられる。
+ */
+async function getSamplesWithCache(task: Task, cookieHeader: string): Promise<SamplePair[]> {
+	const cached = readCachedSamples(task);
+	if (cached) return cached;
+	const taskHtml = await httpGetText(task.taskUrl, cookieHeader);
+	const samples = extractSamples(taskHtml);
+	writeCachedSamples(task, samples);
+	return samples;
+}
+
 export async function runCommand(command: CliCommand, taskScreenName: string, sourceFilePath: string, options: {
 	force?: boolean
 } = {}): Promise<number> {
@@ -208,8 +254,7 @@ export async function runCommand(command: CliCommand, taskScreenName: string, so
 	const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath, command === "test");
 
 	const cookieHeader = toCookieHeader();
-	const taskHtml = await httpGetText(task.taskUrl, cookieHeader);
-	const samples = extractSamples(taskHtml);
+	const samples = await getSamplesWithCache(task, cookieHeader);
 	await ensureLocalRunnerReady();
 	const sampleResults = await runSampleTests(transformed, samples);
 	const allAccepted = printSampleResults(sampleResults, originalClassName, originalFileName);

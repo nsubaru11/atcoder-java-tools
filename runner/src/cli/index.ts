@@ -3,6 +3,7 @@ import {CLI_COMMANDS, type CliCommand} from "../types";
 import {
 	expandShortTaskArg,
 	printUsage,
+	runCacheClear,
 	runCommand,
 	runLocalTest,
 	runRun,
@@ -20,6 +21,11 @@ function assertNever(command: never): never {
 }
 
 export async function main(rawArgs = process.argv.slice(2)) {
+	// cacheclear は独自フラグ(-a / -t)を取るため、汎用オプション解析より先に処理する。
+	if (rawArgs[0] === "cacheclear") {
+		return runCacheClear(rawArgs.slice(1));
+	}
+
 	const positionalArgs: string[] = [];
 	let force = false;
 

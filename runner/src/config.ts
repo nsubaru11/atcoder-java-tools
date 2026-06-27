@@ -41,6 +41,11 @@ export const CLI_CONFIG = {
 	defaultSessionFileRelative: path.join(".atcoder", "session.txt"),
 	defaultLanguageId: "6056",
 	userAgent: "AtCoder-JavaCodeSubmitter-CLI/1.0",
+	// サンプルキャッシュ: パース済みサンプルを ~/.atcoder/cache/samples/<task>.json に保存する。
+	// サンプルは確定後不変なので TTL なし。ATCODER_NO_CACHE=1 で無効化。
+	sampleCacheDirRelative: path.join(".atcoder", "cache", "samples"),
+	// 上限超過時は古いものから削除（1件あたり概ね数KB なので既定 2000 件 ≒ 最大十数MB 程度）。
+	sampleCacheMaxEntries: Number(process.env.ATCODER_SAMPLE_CACHE_MAX || 2000),
 };
 
 const defaultRunnerBaseDir = process.platform === "linux"

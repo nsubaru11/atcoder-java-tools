@@ -51,20 +51,49 @@ export async function runSampleTests(sourceCode: string, samplePairs: SamplePair
 	return results;
 }
 
-function formatWaDiff(expected: string, actual: string, maxLines = 20): string {
+/** test / localtest の表示制御オプション。 */
+export type SampleDisplayOptions = {
+	/** WA 差分を既定行数で折りたたまず全行表示する。 */
+	full?: boolean;
+	/** WA 差分のうち不一致行だけを抽出して表示する（行番号は元のまま保持）。 */
+	waOnly?: boolean;
+};
+
+/** WA 差分表示の既定の折りたたみ行数（--full でこの上限を解除）。 */
+const WA_DIFF_DEFAULT_MAX_LINES = 20;
+
+function formatWaDiff(expected: string, actual: string, options: SampleDisplayOptions = {}): string {
+	const {full = false, waOnly = false} = options;
 	const toLines = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\s+$/, "").split("\n").map(l => l.replace(/\s+$/, ""));
 	const exp = toLines(expected);
 	const act = toLines(actual);
 	const total = Math.max(exp.length, act.length);
-	const shown = Math.min(total, maxLines);
 	const color = supportsCliColor();
-	const w = Math.min(30, Math.max(8, ...exp.slice(0, shown).map(s => s.length)));
+
+	// 表示対象の行インデックス。waOnly のときは不一致行のみ（行番号 i は元のまま保持する）。
+	const indices: number[] = [];
+	for (let i = 0; i < total; i++) {
+		const differ = (i < exp.length ? exp[i] : null) !== (i < act.length ? act[i] : null);
+		if (!waOnly || differ) indices.push(i);
+	}
+
+	// --full なら全件、そうでなければ既定の上限で折りたたむ。
+	const limit = full ? indices.length : Math.min(indices.length, WA_DIFF_DEFAULT_MAX_LINES);
+	const shownIdx = indices.slice(0, limit);
+
+	const numW = String(total).length;
+	const w = Math.min(30, Math.max(8, ...shownIdx.map(i => (i < exp.length ? exp[i].length : 0))));
 	const fit = (s: string) => (s.length > w ? s.slice(0, w - 1) + "~" : s.padEnd(w));
-	const numW = String(shown).length;
 	const NONE = "(none)";
 
-	const out: string[] = [`  expected vs actual  (○ = match, × = mismatch)`];
-	for (let i = 0; i < shown; i++) {
+	const header = waOnly
+		? `  expected vs actual  (× = mismatch のみ抽出 / 行番号は保持)`
+		: `  expected vs actual  (○ = match, × = mismatch)`;
+	const out: string[] = [header];
+	if (shownIdx.length === 0) {
+		out.push(`  (行単位の不一致なし — 空白や出力形式の差を確認してください)`);
+	}
+	for (const i of shownIdx) {
 		const hasE = i < exp.length, hasA = i < act.length;
 		const differ = (hasE ? exp[i] : null) !== (hasA ? act[i] : null);
 		const ln = String(i + 1).padStart(numW);
@@ -73,11 +102,17 @@ function formatWaDiff(expected: string, actual: string, maxLines = 20): string {
 		if (color) row = `${differ ? ANSI.RED : ANSI.GREEN}${row}${ANSI.RESET}`;
 		out.push(row);
 	}
-	if (total > shown) out.push(`  ... +${total - shown} more line(s)`);
+	const hidden = indices.length - shownIdx.length;
+	if (hidden > 0) out.push(`  ... +${hidden} more line(s)  (--full で全行表示)`);
 	return out.join("\n");
 }
 
-export function printSampleResults(results: SampleResult[], originalClassName: string, originalFileName: string) {
+export function printSampleResults(
+	results: SampleResult[],
+	originalClassName: string,
+	originalFileName: string,
+	display: SampleDisplayOptions = {},
+) {
 	let acCount = 0;
 	let totalExecTime = 0;
 	const statusCounts = new Map<string, number>();
@@ -101,7 +136,7 @@ export function printSampleResults(results: SampleResult[], originalClassName: s
 			console.log(r.actualOutput.replace(/\s+$/, "").split(/\r?\n/).map(line => `    ${line}`).join("\n"));
 		}
 		if (r.status === "WA") {
-			console.log(formatWaDiff(r.expectedOutput, r.actualOutput));
+			console.log(formatWaDiff(r.expectedOutput, r.actualOutput, display));
 		}
 		if (r.status !== "AC" && r.stderr && r.stderr.trim().length > 0) {
 			console.log(`  [stderr]`);

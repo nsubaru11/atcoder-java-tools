@@ -1,107 +1,28 @@
 import {pathToFileURL} from "node:url";
-import {CLI_COMMANDS, type CliCommand} from "../types";
-import {
-	expandShortTaskArg,
-	printUsage,
-	runCacheClear,
-	runCommand,
-	runLocalTest,
-	runRun,
-	runServe,
-	runStop,
-	runTomain
-} from "./commands";
+import {CliUsageError} from "./commands/Command";
+import {getCommand, printUsage} from "./commands/registry";
 
-function isCliCommand(value: string): value is CliCommand {
-	return (CLI_COMMANDS as readonly string[]).includes(value);
-}
-
-function assertNever(command: never): never {
-	throw new Error(`Unhandled command: ${String(command)}`);
-}
-
-export async function main(rawArgs = process.argv.slice(2)) {
-	// cacheclear は独自フラグ(-a / -t)を取るため、汎用オプション解析より先に処理する。
-	if (rawArgs[0] === "cacheclear") {
-		return runCacheClear(rawArgs.slice(1));
-	}
-
-	const positionalArgs: string[] = [];
-	let force = false;
-
-	for (const arg of rawArgs) {
-		if (arg === "-f" || arg === "--force") {
-			force = true;
-			continue;
-		}
-		if (arg.startsWith("-")) {
-			console.error(`Unknown option: ${arg}`);
-			printUsage();
-			return 1;
-		}
-		positionalArgs.push(arg);
-	}
-
-	const [command, ...rest] = positionalArgs;
-	if (!command || !isCliCommand(command)) {
+/**
+ * エントリポイント。
+ * コマンド名でレジストリを引き、見つかったコマンドの execute() に残り引数を渡すだけ。
+ * 引数の検証・実行は各コマンドクラスの内部に閉じている。
+ */
+export async function main(rawArgs = process.argv.slice(2)): Promise<number> {
+	const [name, ...rest] = rawArgs;
+	const command = name ? getCommand(name) : undefined;
+	if (!command) {
 		printUsage();
 		return 1;
 	}
 
 	try {
-		if (command === "serve") return await runServe();
-		if (command === "stop") return await runStop();
-
-		if (command === "run") {
-			const [sourceFilePath, inputFile] = rest;
-			if (!sourceFilePath) {
-				printUsage();
-				return 1;
-			}
-			return await runRun(sourceFilePath, inputFile);
-		}
-
-		if (command === "localtest") {
-			const [sourceFilePath, testDir] = rest;
-			if (!sourceFilePath) {
-				printUsage();
-				return 1;
-			}
-			return await runLocalTest(sourceFilePath, testDir);
-		}
-
-		if (command === "tomain") {
-			const [sourceFilePath, outFilePath] = rest;
-			if (!sourceFilePath) {
-				printUsage();
-				return 1;
-			}
-			return runTomain(sourceFilePath, outFilePath, {force});
-		}
-
-		if (command === "test" || command === "submit") {
-			let taskScreenName: string | undefined;
-			let sourceFilePath: string | undefined;
-			if (rest.length === 1) {
-				// 短縮表記: test d → フォルダからコンテストを推定し test abc463_d D.java 相当へ展開
-				({taskScreenName, sourceFilePath} = expandShortTaskArg(rest[0]));
-			} else {
-				[taskScreenName, sourceFilePath] = rest;
-			}
-			if (!taskScreenName || !sourceFilePath) {
-				printUsage();
-				return 1;
-			}
-			if (force && command !== "submit") {
-				console.error("-f/--force is only supported with the submit and tomain commands.");
-				printUsage();
-				return 1;
-			}
-			return await runCommand(command, taskScreenName, sourceFilePath, {force});
-		}
-
-		return assertNever(command);
+		return await command.execute(rest);
 	} catch (error) {
+		if (error instanceof CliUsageError) {
+			if (error.message) console.error(error.message);
+			printUsage();
+			return 1;
+		}
 		const message = error instanceof Error ? error.message : String(error);
 		console.error(`Error: ${message}`);
 		return 1;

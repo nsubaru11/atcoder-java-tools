@@ -107,6 +107,20 @@ function formatWaDiff(expected: string, actual: string, options: SampleDisplayOp
 	return out.join("\n");
 }
 
+/** WA の不一致行数と全行数を返す。formatWaDiff と同じ行整形ルールで判定する。 */
+function getWaMismatchStats(expected: string, actual: string): {mismatch: number; total: number} {
+	const toLines = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\s+$/, "").split("\n").map(l => l.replace(/\s+$/, ""));
+	const exp = toLines(expected);
+	const act = toLines(actual);
+	const total = Math.max(exp.length, act.length);
+	let mismatch = 0;
+	for (let i = 0; i < total; i++) {
+		const differ = (i < exp.length ? exp[i] : null) !== (i < act.length ? act[i] : null);
+		if (differ) mismatch++;
+	}
+	return {mismatch, total};
+}
+
 /** サンプル1件分の結果（ステータス・出力・差分・stderr）を表示する。 */
 function printSampleResult(
 	r: SampleResult,
@@ -123,6 +137,10 @@ function printSampleResult(
 		if (r.stdoutTruncated) flags.push("stdout");
 		if (r.stderrTruncated) flags.push("stderr");
 		details.push(`trunc=${flags.join(",")}`);
+	}
+	if (r.status === "WA") {
+		const {mismatch, total} = getWaMismatchStats(r.expectedOutput, r.actualOutput);
+		if (total > 0) details.push(`NG/TOTAL=${mismatch}/${total}`);
 	}
 	console.log(`[${r.index}] ${colorizeStatus(r.status)} ${details.join(" ")}`);
 	if (r.status === "OK" && r.actualOutput.trim().length > 0) {

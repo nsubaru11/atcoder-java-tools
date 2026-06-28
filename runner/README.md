@@ -31,11 +31,11 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 | コマンド                                        | 説明                                                       |
 |---------------------------------------------|----------------------------------------------------------|
-| `test <taskScreenName> <sourceFile>`        | AtCoder のサンプルをローカル実行し AC/WA 判定（**DEBUG=true**）           |
+| `test <taskScreenName> <sourceFile>`        | AtCoder のサンプルをローカル実行し AC/WA 判定（**DEBUG 既定 true**）        |
 | `test <task>` / `submit [-f] <task>`        | **短縮表記**。フォルダからコンテストを推定（例: `test d` → `abc463_d D.java`） |
 | `submit [-f] <taskScreenName> <sourceFile>` | 全サンプル AC 後に提出（`-f` で強制提出。提出は **DEBUG=false**）            |
-| `localtest <sourceFile> [testDir]`          | `.in`/`.out` を自動検出しオフライン実行・判定（**DEBUG=true**）            |
-| `run <sourceFile> [inputFile]`              | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG=true**）     |
+| `localtest <sourceFile> [testDir]`          | `.in`/`.out` を自動検出しオフライン実行・判定（**DEBUG 既定 true**）         |
+| `run <sourceFile> [inputFile]`              | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG 既定 true**）  |
 | `tomain <sourceFile> [outFile]`             | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き）     |
 | `serve`                                     | Local Runner サーバーだけ先に起動して ready まで待つ                     |
 | `stop`                                      | Local Runner サーバーを停止（graceful shutdown）                  |
@@ -54,9 +54,36 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 `test` / `submit` / `localtest` / `run` は、Local Runner サーバーが未起動なら自動起動します（新しい「Local Runner」コンソール窓が開き、サーバーログがリアルタイム表示）。`serve` で事前に温めておくと初回が速くなります。
 
+### オプション
+
+オプションは位置引数の前後どちらに置いても構いません（各コマンドが自前で解釈します）。
+
+| オプション                         | 対象コマンド                          | 説明                                                               |
+|-------------------------------|---------------------------------|------------------------------------------------------------------|
+| `-f`, `--force`               | `submit` / `tomain`             | submit: サンプルが非 AC でも提出する / tomain: 既存の出力ファイルを上書きする               |
+| `-d`, `--debug[=true\|false]` | `test` / `localtest` / `run`    | ソースの DEBUG ブロックの有効/無効を上書き（既定は有効）。`-d` だけなら有効、`--debug=false` で無効 |
+| `--full`                      | `test` / `localtest` / `submit` | WA 差分を行数で折りたたまず**全行表示**する（`--max-lines` より優先）                    |
+| `--wa-only`                   | `test` / `localtest` / `submit` | WA 差分のうち**不一致行（×）だけ**を抽出して表示する（行番号は元のまま保持）                       |
+| `--max-lines=N`               | `test` / `localtest` / `submit` | WA 差分の折りたたみ行数を `N` に変更する（既定 20）                                  |
+
+```powershell
+# DEBUG を切って（提出と同じ条件で）ローカル実行
+.\bin\test.cmd --debug=false abc448_d D.java
+.\bin\run.cmd -d=false D.java
+
+# WA 差分を全行表示 / 不一致行だけ抽出 / 行数指定
+.\bin\localtest.cmd --full D.java
+.\bin\test.cmd --wa-only abc448_d D.java
+.\bin\test.cmd --max-lines=50 abc448_d D.java
+```
+
+各サンプルは**実行が終わるたびに逐次表示**され、最後に集計（`Summary:`）を出します。
+
 ### DEBUG の扱い
 
-ソース中の `DEBUG = true` は、`submit` / `tomain`（提出物）では `false` に固定し、`test` / `localtest` / `run`（ローカル実行）では `true` のまま実行します。デバッグ出力を `System.err` に出しておけば、判定（stdout 比較）に影響せず確認できます。
+ソース中の `DEBUG = true` は、`submit` / `tomain`（提出物）では `false` に固定し、`test` / `localtest` / `run`（ローカル実行）では既定で `true` のまま実行します。デバッグ出力を `System.err` に出しておけば、判定（stdout 比較）に影響せず確認できます。
+
+`test` / `localtest` / `run` は `-d/--debug=false` で DEBUG を切って実行でき、提出と同じ条件での確認に使えます。`submit` / `tomain` は提出物のため常に `false`（上書き不可）。
 
 ### 実行時間の警告
 
@@ -137,7 +164,7 @@ Java のコンパイルは外部 `javac` を都度起動せず **常駐Dispatche
 ## PATH に登録（任意）
 
 ```powershell
-powershell -File ".\bin\install-submit-test-path.ps1"
+powershell -File ".\bin\install-path.ps1"
 ```
 
 以後、任意ディレクトリから `test` / `submit` を実行できます。短縮表記は**問題フォルダ**で実行します（コンテストをフォルダから推定するため）。

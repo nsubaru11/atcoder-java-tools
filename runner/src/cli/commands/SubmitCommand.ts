@@ -13,11 +13,13 @@ import {TaskCommand, type TaskRunContext} from "./TaskCommand";
 export class SubmitCommand extends TaskCommand {
 	readonly name = "submit";
 	readonly usageLines = [
-		"  submit [-f|--force] <taskScreenName> <sourceFile>",
-		"  submit [-f|--force] <task>              (短縮: 同上。例: submit d)",
+		"  submit [-f|--force] [--full] [--wa-only] [--max-lines=N] <taskScreenName> <sourceFile>",
+		"  submit [...options] <task>              (短縮: 同上。例: submit d)",
 	];
 	protected readonly allowForce = true;
 	protected readonly debug = false;
+	// 提出前のサンプル表示は test と同じ表示オプションを使える（DEBUG は本番固定なので -d は不可）。
+	protected readonly supportsDisplayOptions = true;
 
 	protected async onSamplesComplete({task, transformed, allAccepted, force}: TaskRunContext): Promise<number> {
 		if (!allAccepted) {

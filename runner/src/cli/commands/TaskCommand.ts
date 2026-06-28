@@ -5,10 +5,10 @@ import {httpGetText, toCookieHeader} from "../atcoder";
 import {extractSamples} from "../parser";
 import {parseTask} from "../task";
 import {ensureLocalRunnerReady} from "../ensureServer";
-import {printSampleResults, runSampleTests, type SampleDisplayOptions} from "../sampleJudge";
+import {runAndReportSamples, type SampleDisplayOptions} from "../sampleJudge";
 import {readCachedSamples, writeCachedSamples} from "../sampleCache";
 import {CliUsageError, type Command} from "./Command";
-import {parseBoolFlag} from "./options";
+import {parseBoolFlag, parseIntFlag} from "./options";
 import {prepareSource} from "./source";
 
 // 短縮タスク指定（例: d, e, ex, d1）。AtCoder の問題記号は A〜H と Ex のみ。末尾の数字はファイル変種（D1.java 等）。
@@ -142,6 +142,11 @@ export abstract class TaskCommand implements Command {
 					display.waOnly = waOnly;
 					continue;
 				}
+				const maxLines = parseIntFlag(arg, "--max-lines");
+				if (maxLines !== undefined) {
+					display.maxLines = maxLines;
+					continue;
+				}
 			}
 			if (arg.startsWith("-")) throw new CliUsageError(`Unknown option: ${arg}`);
 			positionals.push(arg);
@@ -168,8 +173,7 @@ export abstract class TaskCommand implements Command {
 		const cookieHeader = toCookieHeader();
 		const samples = await getSamplesWithCache(task, cookieHeader);
 		await ensureLocalRunnerReady();
-		const sampleResults = await runSampleTests(transformed, samples);
-		const allAccepted = printSampleResults(sampleResults, originalClassName, originalFileName, display);
+		const allAccepted = await runAndReportSamples(transformed, samples, originalClassName, originalFileName, display);
 
 		return this.onSamplesComplete({task, transformed, allAccepted, force});
 	}

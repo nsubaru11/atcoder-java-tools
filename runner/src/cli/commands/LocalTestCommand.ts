@@ -1,15 +1,15 @@
 import {ensureLocalRunnerReady} from "../ensureServer";
 import {loadLocalSamples} from "../localSamples";
-import {printSampleResults, runSampleTests, type SampleDisplayOptions} from "../sampleJudge";
+import {runAndReportSamples, type SampleDisplayOptions} from "../sampleJudge";
 import {CliUsageError, type Command} from "./Command";
-import {parseBoolFlag} from "./options";
+import {parseBoolFlag, parseIntFlag} from "./options";
 import {prepareSource} from "./source";
 
 /** ローカルの .in/.out をサンプルとして実行・判定する（AtCoder へはアクセスしない）。DEBUG は既定で有効。 */
 export class LocalTestCommand implements Command {
 	readonly name = "localtest";
 	readonly usageLines = [
-		"  localtest [-d|--debug[=true|false]] [--full] [--wa-only] <sourceFile> [testDir]",
+		"  localtest [-d|--debug[=true|false]] [--full] [--wa-only] [--max-lines=N] <sourceFile> [testDir]",
 		"                                          (.in/.out をローカル実行。DEBUG は既定で有効)",
 	];
 
@@ -33,6 +33,11 @@ export class LocalTestCommand implements Command {
 				display.waOnly = waOnly;
 				continue;
 			}
+			const maxLines = parseIntFlag(arg, "--max-lines");
+			if (maxLines !== undefined) {
+				display.maxLines = maxLines;
+				continue;
+			}
 			if (arg.startsWith("-")) throw new CliUsageError(`Unknown option: ${arg}`);
 			positionals.push(arg);
 		}
@@ -47,8 +52,7 @@ export class LocalTestCommand implements Command {
 		} = prepareSource(sourceFilePath, debug);
 		await ensureLocalRunnerReady();
 		const samples = loadLocalSamples(resolvedSourcePath, testDir);
-		const sampleResults = await runSampleTests(transformed, samples);
-		const allAccepted = printSampleResults(sampleResults, originalClassName, originalFileName, display);
+		const allAccepted = await runAndReportSamples(transformed, samples, originalClassName, originalFileName, display);
 		return allAccepted ? 0 : 5;
 	}
 }

@@ -24,3 +24,19 @@ export function parseBoolFlag(arg: string, longName: string, shortName?: string)
 	if (["false", "0", "no", "off"].includes(value)) return false;
 	throw new CliUsageError(`Invalid boolean value for ${key}: "${arg.slice(eq + 1)}" (use true/false)`);
 }
+
+/**
+ * 非負整数オプションを解釈する汎用ヘルパー。形式は `--name=N`（値必須）。
+ * arg がこのフラグでなければ undefined。値が非負整数でなければ {@link CliUsageError} を投げる。
+ */
+export function parseIntFlag(arg: string, longName: string, shortName?: string): number | undefined {
+	const eq = arg.indexOf("=");
+	const key = eq === -1 ? arg : arg.slice(0, eq);
+	if (key !== longName && (shortName === undefined || key !== shortName)) return undefined;
+	const raw = eq === -1 ? "" : arg.slice(eq + 1);
+	const n = Number(raw);
+	if (raw === "" || !Number.isInteger(n) || n < 0) {
+		throw new CliUsageError(`Invalid integer value for ${key}: "${raw}" (use a non-negative integer, e.g. ${key}=50)`);
+	}
+	return n;
+}

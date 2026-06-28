@@ -4,7 +4,7 @@ import {TaskCommand, type TaskRunContext} from "./TaskCommand";
 export class TestCommand extends TaskCommand {
 	readonly name = "test";
 	readonly usageLines = [
-		"  test [-d|--debug[=true|false]] [--full] [--wa-only] <taskScreenName> <sourceFile>",
+		"  test [-d|--debug[=true|false]] [--full] [--wa-only] [--max-lines=N] <taskScreenName> <sourceFile>",
 		"  test [...options] <task>                (短縮: フォルダからコンテスト推定。例: test d → abc463_d D.java)",
 	];
 	protected readonly allowForce = false;

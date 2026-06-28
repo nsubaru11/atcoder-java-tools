@@ -41,6 +41,7 @@ export function printUsage(): void {
 	console.error("Options:");
 	console.error("  -f, --force                submit: 非 AC でも提出 / tomain: 既存 outFile を上書き");
 	console.error("  -d, --debug[=true|false]   test/localtest/run: DEBUG ブロックの有効/無効を上書き（既定: 有効）");
-	console.error("  --full                     test/localtest: WA 差分を折りたたまず全行表示");
-	console.error("  --wa-only                  test/localtest: WA 差分のうち不一致行だけ抽出（行番号は保持）");
+	console.error("  --full                     test/localtest/submit: WA 差分を折りたたまず全行表示");
+	console.error("  --wa-only                  test/localtest/submit: WA 差分のうち不一致行だけ抽出（行番号は保持）");
+	console.error("  --max-lines=N              test/localtest/submit: WA 差分の折りたたみ行数を変更（既定: 20）");
 }

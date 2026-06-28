@@ -191,7 +191,8 @@ async function startDispatcher() {
 
 		proc.on("error", (error) => {
 			settleReject(error);
-			if (dispatcherState.currentRequest) {
+			// このハンドラが現役スロットの proc のものでなければ、グローバル状態には触れない。
+			if (dispatcherState.proc === proc && dispatcherState.currentRequest) {
 				dispatcherState.currentRequest.reject(error);
 				dispatcherState.currentRequest = null;
 			}
@@ -201,6 +202,11 @@ async function startDispatcher() {
 			if (!settled) {
 				settleReject(new Error(`Dispatcher exited before READY (code=${code}, signal=${signal}).`));
 			}
+			// この exit が「現役スロットに入っている proc」のものでなければ後始末しない。
+			// TLE 等で kill→再起動した直後、古い proc の遅延 exit イベントが
+			// 新しい proc 参照を null で上書きしてしまう競合を防ぐ（次回実行で
+			// dispatcherState.proc.stdin が null になり internalError が連鎖していた）。
+			if (dispatcherState.proc !== proc) return;
 			if (dispatcherState.currentRequest) {
 				dispatcherState.currentRequest.reject(
 					new Error(`Dispatcher exited during execution (code=${code}, signal=${signal}).`),

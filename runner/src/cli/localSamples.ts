@@ -54,14 +54,28 @@ function collectPairs(dir: string): SamplePair[] {
 
 	const read = (name: string) => normalizeNewlines(fs.readFileSync(path.join(dir, name), "utf8"));
 	const pairs: SamplePair[] = [];
+	let outputOnlyCount = 0;
 	for (const key of keys) {
 		const inName = inputs.get(key);
 		const outName = outputs.get(key);
+		const input = inName ? read(inName) : "";                    // 入力なし → 空標準入力
+		const expectedOutput = outName ? read(outName) : undefined;  // 出力なし → 判定せず実行のみ
+
+		// 入力・出力どちらも空なら無効なサンプルとして除外
+		if (input === "" && (expectedOutput === undefined || expectedOutput === "")) continue;
+
+		if (!inName && outName) outputOnlyCount++;
+
 		pairs.push({
 			index: pairs.length + 1,
-			input: inName ? read(inName) : "",                    // 入力なし → 空標準入力
-			expectedOutput: outName ? read(outName) : undefined,  // 出力なし → 判定せず実行のみ
+			input,
+			expectedOutput,
 		});
 	}
+
+	if (outputOnlyCount > 1) {
+		throw new Error(`Multiple output-only samples found in ${dir} (ambiguous which input they belong to).`);
+	}
+
 	return pairs;
 }

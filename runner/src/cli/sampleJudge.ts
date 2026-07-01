@@ -24,7 +24,7 @@ export async function postLocalRunner(sourceCode: string, stdinText: string): Pr
 /**
  * ソースコードを1回実行し、（expectedOutput を渡せば）判定まで行って SampleResult を返す。
  * 「1件実行して判定する」という最小単位で、test/localtest/submit のサンプル判定（evaluateSample）と
- * codecompare の2コード比較（一方の出力をもう一方の expectedOutput として渡す）の両方がこれを共有する。
+ * crosscheck の2コード比較（一方の出力をもう一方の expectedOutput として渡す）の両方がこれを共有する。
  * expectedOutput 省略時は判定せず、実行結果（ステータス・出力）だけを返す。
  */
 export async function evaluateRun(
@@ -136,7 +136,7 @@ function getWaMismatchStats(expected: string, actual: string): { mismatch: numbe
 	return {mismatch, total};
 }
 
-/** サンプル1件分の結果（ステータス・出力・差分・stderr）を表示する。codecompare からも直接呼ばれる。 */
+/** サンプル1件分の結果（ステータス・出力・差分・stderr）を表示する。crosscheck からも直接呼ばれる。 */
 export function printSampleResult(
 	r: SampleResult,
 	originalClassName: string,
@@ -178,7 +178,7 @@ export function printSampleResult(
 	}
 }
 
-/** 全サンプルの集計（AC 数・内訳・実行時間）を1行で表示し、全 AC/OK かどうかを返す。codecompare からも直接呼ばれる。 */
+/** 全サンプルの集計（AC 数・内訳・実行時間）を1行で表示し、全 AC/OK かどうかを返す。crosscheck からも直接呼ばれる。 */
 export function printSampleSummary(results: SampleResult[]): boolean {
 	const acCount = results.filter(r => r.status === "AC").length;
 	const totalExecTime = results.reduce((sum, r) => sum + Number(r.execTime || 0), 0);

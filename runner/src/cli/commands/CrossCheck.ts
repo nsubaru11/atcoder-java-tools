@@ -7,18 +7,23 @@ import {loadLocalSamples} from "../localSamples";
 import type {SampleResult} from "../../types";
 
 /**
- * 2つのソースを同じ入力（.in）で実行し、標準出力を比較します。
+ * テスト対象（actual）と参照実装（expected）を同じ入力（.in）で実行し、標準出力を比較します。
  * expected 側の出力を「正解」扱いにして、既存の test/localtest と同じ判定・表示ロジック
  * （evaluateRun / printSampleResult / printSampleSummary）をそのまま再利用します。
+ *
+ * 引数順は sourceFile を先頭に置く他コマンド（test/localtest/run）に合わせ、
+ * テスト対象である actualSourceFile を先頭にします。testDir の自動探索も actual 側の
+ * ソース位置を基準に行います（サンプルは actual と同じ場所に置かれているのが通常のため）。
+ * 一方、比較結果の表示（expected vs actual）は既存の WA 差分表示と同じ並びのまま変えません。
  */
-export class CodeCompare implements Command {
-	readonly name = "codecompare";
+export class CrossCheck implements Command {
+	readonly name = "crosscheck";
 	readonly usageLines = [
-		"  codecompare  [--full] [--wa-only] [--max-lines=N] <expectedSourceFile> <actualSourceFile> [testDir]",
-		"                                          (2つのコードの実行結果を比較します。expected側が異常終了したケースは比較せずそのまま報告)",
+		"  crosscheck  [--full] [--wa-only] [--max-lines=N] <actualSourceFile> <expectedSourceFile> [testDir]",
+		"                                          (actual と expected を同じ入力で実行し出力を突き合わせます。expected側が異常終了したケースは比較せずそのまま報告)",
 	];
 
-	/** ローカルの .in を入力として与え、2つのコードの実行結果を比較します。 **/
+	/** ローカルの .in を入力として与え、2つのコードの実行結果を突き合わせます。 **/
 	async execute(args: readonly string[]): Promise<number> {
 		const positionals: string[] = [];
 		const display: SampleDisplayOptions = {};
@@ -41,17 +46,17 @@ export class CodeCompare implements Command {
 			if (arg.startsWith("-")) throw new CliUsageError(`Unknown option: ${arg}`);
 			positionals.push(arg);
 		}
-		const [expectedSourceFile, actualSourceFile, testDir] = positionals;
-		if (!expectedSourceFile || !actualSourceFile) throw new CliUsageError();
+		const [actualSourceFile, expectedSourceFile, testDir] = positionals;
+		if (!actualSourceFile || !expectedSourceFile) throw new CliUsageError();
 
-		const expected = prepareSource(expectedSourceFile);
 		const actual = prepareSource(actualSourceFile);
+		const expected = prepareSource(expectedSourceFile);
 		await ensureLocalRunnerReady();
-		// テストケース（.in）は expected 側のソースの近傍/指定 testDir から探す。
+		// テストケース（.in）はテスト対象である actual 側のソースの近傍/指定 testDir から探す。
 		// .out は無視する（あっても比較対象は「もう一方の実行結果」であって .out ではない）。
-		const samples = loadLocalSamples(expected.resolvedSourcePath, testDir);
+		const samples = loadLocalSamples(actual.resolvedSourcePath, testDir);
 
-		console.log(`[codecompare] expected=${expected.originalFileName}  actual=${actual.originalFileName}  cases=${samples.length}`);
+		console.log(`[crosscheck] actual=${actual.originalFileName}  expected=${expected.originalFileName}  cases=${samples.length}`);
 
 		const results: SampleResult[] = [];
 		for (const sample of samples) {

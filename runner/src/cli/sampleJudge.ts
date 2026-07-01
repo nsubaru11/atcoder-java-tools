@@ -21,20 +21,30 @@ export async function postLocalRunner(sourceCode: string, stdinText: string): Pr
 	return await res.json() as LocalRunnerRunResponse;
 }
 
-/** サンプル1件をローカル実行してジャッジし、1件分の結果を返す。 */
-async function evaluateSample(sourceCode: string, sample: SamplePair): Promise<SampleResult> {
-	const runnerRaw = await postLocalRunner(sourceCode, sample.input);
+/**
+ * ソースコードを1回実行し、（expectedOutput を渡せば）判定まで行って SampleResult を返す。
+ * 「1件実行して判定する」という最小単位で、test/localtest/submit のサンプル判定（evaluateSample）と
+ * codecompare の2コード比較（一方の出力をもう一方の expectedOutput として渡す）の両方がこれを共有する。
+ * expectedOutput 省略時は判定せず、実行結果（ステータス・出力）だけを返す。
+ */
+export async function evaluateRun(
+	sourceCode: string,
+	index: number,
+	input: string,
+	expectedOutput?: string,
+): Promise<SampleResult> {
+	const runnerRaw = await postLocalRunner(sourceCode, input);
 	const easyLikeRun: EasyTestRunResult = {
 		status: toEasyTestStatus(runnerRaw.status, runnerRaw.exitCode),
 		output: runnerRaw.stdout || "",
 		error: runnerRaw.stderr || "",
 		execTime: runnerRaw.time || 0,
 	};
-	const judged = sample.expectedOutput === undefined
+	const judged = expectedOutput === undefined
 		? {status: easyLikeRun.status, output: easyLikeRun.output, expectedOutput: ""}
-		: evaluateEasyTestOutput(easyLikeRun, sample.expectedOutput, {trim: true, split: true});
+		: evaluateEasyTestOutput(easyLikeRun, expectedOutput, {trim: true, split: true});
 	return {
-		index: sample.index,
+		index,
 		status: judged.status,
 		execTime: easyLikeRun.execTime || 0,
 		memoryKb: Number(runnerRaw.memory || 0),
@@ -46,6 +56,11 @@ async function evaluateSample(sourceCode: string, sample: SamplePair): Promise<S
 		actualOutput: judged.output,
 		expectedOutput: judged.expectedOutput,
 	};
+}
+
+/** サンプル1件をローカル実行してジャッジし、1件分の結果を返す（test/localtest/submit 用の薄いラッパー）。 */
+async function evaluateSample(sourceCode: string, sample: SamplePair): Promise<SampleResult> {
+	return evaluateRun(sourceCode, sample.index, sample.input, sample.expectedOutput);
 }
 
 /** test / localtest / submit の表示制御オプション。 */
@@ -108,7 +123,7 @@ function formatWaDiff(expected: string, actual: string, options: SampleDisplayOp
 }
 
 /** WA の不一致行数と全行数を返す。formatWaDiff と同じ行整形ルールで判定する。 */
-function getWaMismatchStats(expected: string, actual: string): {mismatch: number; total: number} {
+function getWaMismatchStats(expected: string, actual: string): { mismatch: number; total: number } {
 	const toLines = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\s+$/, "").split("\n").map(l => l.replace(/\s+$/, ""));
 	const exp = toLines(expected);
 	const act = toLines(actual);
@@ -121,8 +136,8 @@ function getWaMismatchStats(expected: string, actual: string): {mismatch: number
 	return {mismatch, total};
 }
 
-/** サンプル1件分の結果（ステータス・出力・差分・stderr）を表示する。 */
-function printSampleResult(
+/** サンプル1件分の結果（ステータス・出力・差分・stderr）を表示する。codecompare からも直接呼ばれる。 */
+export function printSampleResult(
 	r: SampleResult,
 	originalClassName: string,
 	originalFileName: string,
@@ -163,8 +178,8 @@ function printSampleResult(
 	}
 }
 
-/** 全サンプルの集計（AC 数・内訳・実行時間）を1行で表示し、全 AC/OK かどうかを返す。 */
-function printSampleSummary(results: SampleResult[]): boolean {
+/** 全サンプルの集計（AC 数・内訳・実行時間）を1行で表示し、全 AC/OK かどうかを返す。codecompare からも直接呼ばれる。 */
+export function printSampleSummary(results: SampleResult[]): boolean {
 	const acCount = results.filter(r => r.status === "AC").length;
 	const totalExecTime = results.reduce((sum, r) => sum + Number(r.execTime || 0), 0);
 	const statusCounts = new Map<string, number>();

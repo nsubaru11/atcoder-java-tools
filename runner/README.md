@@ -29,16 +29,17 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 ## コマンド
 
-| コマンド                                        | 説明                                                       |
-|---------------------------------------------|----------------------------------------------------------|
-| `test <taskScreenName> <sourceFile>`        | AtCoder のサンプルをローカル実行し AC/WA 判定（**DEBUG 既定 true**）        |
-| `test <task>` / `submit [-f] <task>`        | **短縮表記**。フォルダからコンテストを推定（例: `test d` → `abc463_d D.java`） |
-| `submit [-f] <taskScreenName> <sourceFile>` | 全サンプル AC 後に提出（`-f` で強制提出。提出は **DEBUG=false**）            |
-| `localtest <sourceFile> [testDir]`          | `.in`/`.out` を自動検出しオフライン実行・判定（**DEBUG 既定 true**）         |
-| `run <sourceFile> [inputFile]`              | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG 既定 true**）  |
-| `tomain <sourceFile> [outFile]`             | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き）     |
-| `serve`                                     | Local Runner サーバーだけ先に起動して ready まで待つ                     |
-| `stop`                                      | Local Runner サーバーを停止（graceful shutdown）                  |
+| コマンド                                                            | 説明                                                                      |
+|-----------------------------------------------------------------|-------------------------------------------------------------------------|
+| `test <taskScreenName> <sourceFile>`                            | AtCoder のサンプルをローカル実行し AC/WA 判定（**DEBUG 既定 true**）                       |
+| `test <task>` / `submit [-f] <task>`                            | **短縮表記**。フォルダからコンテストを推定（例: `test d` → `abc463_d D.java`）                |
+| `submit [-f] <taskScreenName> <sourceFile>`                     | 全サンプル AC 後に提出（`-f` で強制提出。提出は **DEBUG=false**）                           |
+| `localtest <sourceFile> [testDir]`                              | `.in`/`.out` を自動検出しオフライン実行・判定（**DEBUG 既定 true**）                        |
+| `run <sourceFile> [inputFile]`                                  | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG 既定 true**）                 |
+| `codecompare <expectedSourceFile> <actualSourceFile> [testDir]` | `.in` を入力に2つのコードを実行し標準出力を比較（`.out` は不要。expected 側が異常終了したケースは比較せずそのまま報告） |
+| `tomain <sourceFile> [outFile]`                                 | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き）                    |
+| `serve`                                                         | Local Runner サーバーだけ先に起動して ready まで待つ                                    |
+| `stop`                                                          | Local Runner サーバーを停止（graceful shutdown）                                 |
 
 `taskScreenName` は URL の `/tasks/` 以降そのまま（例: `abc448_d`）。`contestId` は最後の `_` より前から自動解決します。
 
@@ -58,13 +59,13 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 オプションは位置引数の前後どちらに置いても構いません（各コマンドが自前で解釈します）。
 
-| オプション                         | 対象コマンド                          | 説明                                                               |
-|-------------------------------|---------------------------------|------------------------------------------------------------------|
-| `-f`, `--force`               | `submit` / `tomain`             | submit: サンプルが非 AC でも提出する / tomain: 既存の出力ファイルを上書きする               |
-| `-d`, `--debug[=true\|false]` | `test` / `localtest` / `run`    | ソースの DEBUG ブロックの有効/無効を上書き（既定は有効）。`-d` だけなら有効、`--debug=false` で無効 |
-| `--full`                      | `test` / `localtest` / `submit` | WA 差分を行数で折りたたまず**全行表示**する（`--max-lines` より優先）                    |
-| `--wa-only`                   | `test` / `localtest` / `submit` | WA 差分のうち**不一致行（×）だけ**を抽出して表示する（行番号は元のまま保持）                       |
-| `--max-lines=N`               | `test` / `localtest` / `submit` | WA 差分の折りたたみ行数を `N` に変更する（既定 20）                                  |
+| オプション                         | 対象コマンド                                          | 説明                                                               |
+|-------------------------------|-------------------------------------------------|------------------------------------------------------------------|
+| `-f`, `--force`               | `submit` / `tomain`                             | submit: サンプルが非 AC でも提出する / tomain: 既存の出力ファイルを上書きする               |
+| `-d`, `--debug[=true\|false]` | `test` / `localtest` / `run`                    | ソースの DEBUG ブロックの有効/無効を上書き（既定は有効）。`-d` だけなら有効、`--debug=false` で無効 |
+| `--full`                      | `test` / `localtest` / `submit` / `codecompare` | WA 差分を行数で折りたたまず**全行表示**する（`--max-lines` より優先）                    |
+| `--wa-only`                   | `test` / `localtest` / `submit` / `codecompare` | WA 差分のうち**不一致行（×）だけ**を抽出して表示する（行番号は元のまま保持）                       |
+| `--max-lines=N`               | `test` / `localtest` / `submit` / `codecompare` | WA 差分の折りたたみ行数を `N` に変更する（既定 20）                                  |
 
 ```powershell
 # DEBUG を切って（提出と同じ条件で）ローカル実行

@@ -1,13 +1,36 @@
 import {
 	buildLocalRunnerRunRequest,
 	type EasyTestRunResult,
-	evaluateEasyTestOutput,
 	type LocalRunnerRunResponse,
 	toEasyTestStatus,
 } from "@atcoder-tools/shared";
 import type {SamplePair, SampleResult} from "../types";
 import {CLI_CONFIG} from "../config";
 import {ANSI, colorizeStatus, formatExecTime, supportsCliColor} from "../utils";
+
+/**
+ * 比較用に出力を行の配列へ正規化する。AtCoder の既定ジャッジに合わせ、
+ * 改行(CRLF/CR→LF)を揃え、各行の行末空白と末尾の空行を無視する（行構造自体は保持する）。
+ * ジャッジ(AC/WA)・差分表示・不一致集計で必ず同じ規則を使うため 1 か所へ集約する。
+ */
+export function toComparableLines(text: string): string[] {
+	const normalized = (text || "")
+		.replace(/\r\n?/g, "\n")
+		.replace(/[ \t]+$/gm, "")
+		.replace(/\n+$/, "");
+	return normalized.length === 0 ? [] : normalized.split("\n");
+}
+
+/** 行単位・行末空白許容の完全一致判定。トークン分割ではないので改行の違いも WA として検出する。 */
+export function judgeByLines(expected: string, actual: string): boolean {
+	const exp = toComparableLines(expected);
+	const act = toComparableLines(actual);
+	if (exp.length !== act.length) return false;
+	for (let i = 0; i < exp.length; i++) {
+		if (exp[i] !== act[i]) return false;
+	}
+	return true;
+}
 
 export async function postLocalRunner(sourceCode: string, stdinText: string): Promise<LocalRunnerRunResponse> {
 	const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
@@ -40,12 +63,20 @@ export async function evaluateRun(
 		error: runnerRaw.stderr || "",
 		execTime: runnerRaw.time || 0,
 	};
-	const judged = expectedOutput === undefined
-		? {status: easyLikeRun.status, output: easyLikeRun.output, expectedOutput: ""}
-		: evaluateEasyTestOutput(easyLikeRun, expectedOutput, {trim: true, split: true});
+	// 実行が正常終了(OK)し、期待出力がある場合のみ AC/WA を行単位で判定する。
+	// 実行時エラー(RE/TLE/CE 等)や期待出力なし（crosscheck の基準実行・出力ファイル無しのサンプル）は
+	// 実行ステータスをそのまま採用し、出力は生のまま渡す（差分表示側で同じ規則に正規化される）。
+	let status: string;
+	if (easyLikeRun.status !== "OK") {
+		status = easyLikeRun.status;
+	} else if (expectedOutput === undefined) {
+		status = "OK";
+	} else {
+		status = judgeByLines(expectedOutput, easyLikeRun.output) ? "AC" : "WA";
+	}
 	return {
 		index,
-		status: judged.status,
+		status,
 		execTime: easyLikeRun.execTime || 0,
 		memoryKb: Number(runnerRaw.memory || 0),
 		runnerStatus: runnerRaw.status || "",
@@ -53,8 +84,8 @@ export async function evaluateRun(
 		stdoutTruncated: runnerRaw.stdoutTruncated,
 		stderrTruncated: runnerRaw.stderrTruncated,
 		stderr: easyLikeRun.error || "",
-		actualOutput: judged.output,
-		expectedOutput: judged.expectedOutput,
+		actualOutput: easyLikeRun.output,
+		expectedOutput: expectedOutput ?? "",
 	};
 }
 
@@ -78,9 +109,8 @@ const WA_DIFF_DEFAULT_MAX_LINES = 20;
 
 function formatWaDiff(expected: string, actual: string, options: SampleDisplayOptions = {}): string {
 	const {full = false, waOnly = false, maxLines} = options;
-	const toLines = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\s+$/, "").split("\n").map(l => l.replace(/\s+$/, ""));
-	const exp = toLines(expected);
-	const act = toLines(actual);
+	const exp = toComparableLines(expected);
+	const act = toComparableLines(actual);
 	const total = Math.max(exp.length, act.length);
 	const color = supportsCliColor();
 
@@ -124,9 +154,8 @@ function formatWaDiff(expected: string, actual: string, options: SampleDisplayOp
 
 /** WA の不一致行数と全行数を返す。formatWaDiff と同じ行整形ルールで判定する。 */
 function getWaMismatchStats(expected: string, actual: string): { mismatch: number; total: number } {
-	const toLines = (s: string) => s.replace(/\r\n?/g, "\n").replace(/\s+$/, "").split("\n").map(l => l.replace(/\s+$/, ""));
-	const exp = toLines(expected);
-	const act = toLines(actual);
+	const exp = toComparableLines(expected);
+	const act = toComparableLines(actual);
 	const total = Math.max(exp.length, act.length);
 	let mismatch = 0;
 	for (let i = 0; i < total; i++) {
@@ -144,7 +173,8 @@ export function printSampleResult(
 	display: SampleDisplayOptions,
 ): void {
 	const details = [`exec=${formatExecTime(r.execTime)}`];
-	if (r.memoryKb > 0) details.push(`mem=${r.memoryKb}KB`);
+	// memory は使用ピーク(RSS)ではなく実行スレッドの累積アロケーション量なので alloc と明示する。
+	if (r.memoryKb > 0) details.push(`alloc=${r.memoryKb}KB`);
 	if (r.runnerStatus && r.runnerStatus !== "success") details.push(`runner=${r.runnerStatus}`);
 	if (r.exitCode !== 0) details.push(`exit=${r.exitCode}`);
 	if (r.stdoutTruncated || r.stderrTruncated) {

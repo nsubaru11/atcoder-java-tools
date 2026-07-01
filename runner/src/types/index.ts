@@ -63,6 +63,8 @@ export type ProcessResult = {
 	stdout: string;
 	stderr: string;
 	timedOut: boolean;
+	stdoutTruncated: boolean;
+	stderrTruncated: boolean;
 };
 
 export type DispatcherRunResult = {

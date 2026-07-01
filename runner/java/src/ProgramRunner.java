@@ -6,6 +6,7 @@ import java.lang.reflect.*;
 import java.net.*;
 import java.nio.charset.*;
 import java.nio.file.*;
+import java.util.*;
 import java.util.concurrent.atomic.*;
 
 /**
@@ -44,6 +45,48 @@ final class ProgramRunner {
 
 	private static long currentThreadAllocatedBytes() {
 		return THREAD_MX != null ? THREAD_MX.getCurrentThreadAllocatedBytes() : -1L;
+	}
+
+	/**
+	 * 提出コードを実行する専用スレッドのスタックサイズ（バイト）。既定 256 MiB。
+	 * 競プロで多い深い再帰が、ユーザーが大スタックスレッドのイディオムを書かなくても通るようにする。
+	 * {@code LOCAL_RUNNER_RUN_STACK_BYTES} で上書き可能。
+	 */
+	private static final long RUN_THREAD_STACK_BYTES = resolveRunThreadStackBytes();
+
+	private static long resolveRunThreadStackBytes() {
+		final long defaultBytes = 256L * 1024 * 1024;
+		final String raw = System.getenv("LOCAL_RUNNER_RUN_STACK_BYTES");
+		if (raw == null || raw.isBlank()) return defaultBytes;
+		try {
+			final long parsed = Long.parseLong(raw.trim());
+			return parsed > 0 ? parsed : defaultBytes;
+		} catch (final NumberFormatException ignored) {
+			return defaultBytes;
+		}
+	}
+
+	/**
+	 * 直近の実行で「join されずに残った非デーモンスレッド」が常駐 JVM に生き残ったか。
+	 * {@link Dispatcher} がこれを見て JVM の再生成（halt→再起動）を判断する。
+	 */
+	private static volatile boolean lastRunLeftoverThreads = false;
+
+	/** 直近実行の残存スレッド有無を読み取り、フラグをクリアする（Dispatcher から実行後に一度だけ呼ぶ）。 */
+	static boolean consumeLeftoverThreadFlag() {
+		final boolean value = lastRunLeftoverThreads;
+		lastRunLeftoverThreads = false;
+		return value;
+	}
+
+	/** 実行前スナップショットに無い、生存中の非デーモンスレッドがあれば true（＝残存スレッド）。 */
+	private static boolean hasLeftoverNonDaemonThreads(final Set<Thread> baseline) {
+		for (final Thread thread : Thread.getAllStackTraces().keySet()) {
+			if (thread.isAlive() && !thread.isDaemon() && !baseline.contains(thread)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -115,23 +158,49 @@ final class ProgramRunner {
 		final PrintStream redirectedOut = new PrintStream(stdoutBuffer, true, StandardCharsets.UTF_8);
 		final PrintStream redirectedErr = new PrintStream(stderrBuffer, true, StandardCharsets.UTF_8);
 
+		// 実行前に生存していたスレッド集合。実行後にここに無い非デーモンスレッドが残っていれば
+		// 「join されなかった残存スレッド」とみなし、汚染防止に JVM を再生成する（Dispatcher が halt）。
+		final Set<Thread> baselineThreads = Thread.getAllStackTraces().keySet();
+		// アロケーション量は実行スレッド自身の上で測る（従来は main スレッドで測っていたため
+		// プロトコル処理分が混ざっていた）。[0]=開始前 / [1]=終了後、計測不可なら -1。
+		final long[] allocSnapshot = {-1L, -1L};
+
 		final long startTime = System.nanoTime();
-		final long allocBefore = currentThreadAllocatedBytes();
-		int exitCode = 0;
 		try (StandardStreamsGuard guard = new StandardStreamsGuard(standardInput, redirectedOut, redirectedErr, uncaughtError);
 		     URLClassLoader classLoader = new URLClassLoader(
 				     new URL[]{classDirectory.toUri().toURL()},
 				     ClassLoader.getSystemClassLoader()
 		     )) {
 			guard.setContextClassLoader(classLoader);
-			invokeMain(classLoader, mainClassName);
+			final Runnable body = () -> {
+				allocSnapshot[0] = currentThreadAllocatedBytes();
+				try {
+					invokeMain(classLoader, mainClassName);
+				} catch (final Throwable throwable) {
+					uncaughtError.compareAndSet(null, throwable);
+				} finally {
+					allocSnapshot[1] = currentThreadAllocatedBytes();
+				}
+			};
+			// 大きめのスタックを持つ専用スレッドで実行する。これにより
+			// (1) 競プロで多い深い再帰が StackOverflow になりにくく（大スタックスレッドのイディオム不要）、
+			// (2) StackOverflow がディスパッチャ本体スレッドではなく実行スレッド側に閉じる。
+			final Thread runThread = new Thread(null, body, "atcoder-run", RUN_THREAD_STACK_BYTES);
+			runThread.setDaemon(true);
+			runThread.setContextClassLoader(classLoader);
+			runThread.start();
+			runThread.join();
 		} catch (final Throwable throwable) {
 			uncaughtError.compareAndSet(null, throwable);
 		}
 		final long timeMillis = (System.nanoTime() - startTime) / NANOS_PER_MILLI;
-		final long allocAfter = currentThreadAllocatedBytes();
+		final long allocBefore = allocSnapshot[0];
+		final long allocAfter = allocSnapshot[1];
 		final long memoryBytes = (allocBefore >= 0 && allocAfter >= 0) ? Math.max(0L, allocAfter - allocBefore) : -1L;
 
+		lastRunLeftoverThreads = hasLeftoverNonDaemonThreads(baselineThreads);
+
+		int exitCode = 0;
 		final Throwable error = uncaughtError.get();
 		if (error != null) {
 			exitCode = 1;

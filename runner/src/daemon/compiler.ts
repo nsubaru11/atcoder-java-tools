@@ -133,8 +133,27 @@ export function runProcessCommand(
 			env: options.env,
 			stdio: ["pipe", "pipe", "pipe"],
 		});
-		let stdout = "";
-		let stderr = "";
+		// 出力はチャンクごとに toString せず Buffer のまま蓄積し、最後に一括デコードする。
+		// これによりマルチバイト文字がチャンク境界で分断されて文字化けするのを防ぐ。
+		// さらに上限（常駐経路と同じ CAPTURE_LIMIT）で切り詰め、隔離実行や巨大診断で
+		// daemon 側メモリが際限なく膨らむのを防ぐ。
+		const captureLimit = Math.max(1, RUNNER_CONFIG.dispatcherCaptureLimitBytes);
+		type OutputSink = { chunks: Buffer[]; length: number; truncated: boolean };
+		const createSink = (): OutputSink => ({chunks: [], length: 0, truncated: false});
+		const stdoutSink = createSink();
+		const stderrSink = createSink();
+		const appendChunk = (sink: OutputSink, data: unknown) => {
+			const buffer = Buffer.isBuffer(data) ? data : Buffer.from(String(data), "utf8");
+			if (sink.length >= captureLimit) {
+				sink.truncated = true;
+				return;
+			}
+			const writable = Math.min(buffer.length, captureLimit - sink.length);
+			sink.chunks.push(writable === buffer.length ? buffer : buffer.subarray(0, writable));
+			sink.length += writable;
+			if (writable < buffer.length) sink.truncated = true;
+		};
+		const decodeSink = (sink: OutputSink) => Buffer.concat(sink.chunks).toString("utf8");
 		let timedOut = false;
 		let settled = false;
 		let killTimer: NodeJS.Timeout | null = null;
@@ -150,14 +169,10 @@ export function runProcessCommand(
 		};
 
 		if (proc.stdout) {
-			proc.stdout.on("data", (data) => {
-				stdout += data.toString();
-			});
+			proc.stdout.on("data", (data) => appendChunk(stdoutSink, data));
 		}
 		if (proc.stderr) {
-			proc.stderr.on("data", (data) => {
-				stderr += data.toString();
-			});
+			proc.stderr.on("data", (data) => appendChunk(stderrSink, data));
 		}
 		if (options.input !== undefined && proc.stdin) {
 			proc.stdin.end(options.input, "utf8");
@@ -166,16 +181,27 @@ export function runProcessCommand(
 		}
 
 		proc.on("close", (code, signal) => {
-			finish({code: code ?? -1, signal, stdout, stderr, timedOut});
+			finish({
+				code: code ?? -1,
+				signal,
+				stdout: decodeSink(stdoutSink),
+				stderr: decodeSink(stderrSink),
+				timedOut,
+				stdoutTruncated: stdoutSink.truncated,
+				stderrTruncated: stderrSink.truncated,
+			});
 		});
 
 		proc.on("error", (error) => {
+			const stderrText = decodeSink(stderrSink);
 			finish({
 				code: -1,
 				signal: null,
-				stdout,
-				stderr: stderr ? `${stderr}\n${error.message}` : error.message,
+				stdout: decodeSink(stdoutSink),
+				stderr: stderrText ? `${stderrText}\n${error.message}` : error.message,
 				timedOut,
+				stdoutTruncated: stdoutSink.truncated,
+				stderrTruncated: stderrSink.truncated,
 			});
 		});
 
@@ -217,10 +243,23 @@ export async function compileDispatcher() {
 
 // 外部 javac 経路・マーカー欠落時のフォールバック検出（ソース正規表現）。
 // 既定の常駐内コンパイル経路では Java 側のバイトコード検査（COMPILED.requiresIsolation）を使う。
+// バイトコード検査(IsolationAnalyzer.DANGEROUS_MEMBERS)と検出範囲を揃えるため、
+// System.setOut/setErr/setIn・setProperty 系・Locale/TimeZone.setDefault・
+// addShutdownHook/removeShutdownHook・Runtime.exec・ProcessBuilder も対象に含める。
+// 正規表現なのでコメント/文字列に一致して過検出しうるが、その場合は隔離（安全側）へ倒れるだけで問題ない。
+const ISOLATION_SOURCE_PATTERNS: readonly RegExp[] = [
+	/\bSystem\s*\.\s*exit\s*\(/,
+	/\bSystem\s*\.\s*(?:setOut|setErr|setIn)\s*\(/,
+	/\bSystem\s*\.\s*(?:setProperty|setProperties|clearProperty|setSecurityManager)\s*\(/,
+	/\bRuntime\s*\.\s*getRuntime\s*\(\s*\)\s*\.\s*(?:exit|halt|addShutdownHook|removeShutdownHook|exec)\s*\(/,
+	/\bnew\s+ProcessBuilder\b/,
+	/\bFileDescriptor\s*\.\s*(?:in|out|err)\b/,
+	/\bLocale\s*\.\s*setDefault\s*\(/,
+	/\bTimeZone\s*\.\s*setDefault\s*\(/,
+];
+
 function requiresIsolatedProcess(sourceCode: string) {
-	return /FileDescriptor\.(?:in|out|err)\b/.test(sourceCode)
-		|| /Runtime\.getRuntime\(\)\.halt\s*\(/.test(sourceCode)
-		|| /System\.exit\s*\(/.test(sourceCode);
+	return ISOLATION_SOURCE_PATTERNS.some((pattern) => pattern.test(sourceCode));
 }
 
 function isolationMarkerPath(rootDir: string) {
@@ -358,8 +397,8 @@ export async function runCodeInIsolatedJvm(entry: CompileEntry, standardInput: s
 		stdout: result.stdout,
 		stderr: result.timedOut ? (`Execution timed out after ${RUNNER_CONFIG.runTimeoutMs}ms.\n${result.stderr}`).trim() : result.stderr,
 		time: result.timedOut ? RUNNER_CONFIG.runTimeoutMs : (Date.now() - execStart),
-		stdoutTruncated: false,
-		stderrTruncated: false,
+		stdoutTruncated: result.stdoutTruncated,
+		stderrTruncated: result.stderrTruncated,
 		memory: 0,
 	};
 }

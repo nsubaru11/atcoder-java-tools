@@ -12,6 +12,29 @@ import {
 	warmUpDispatcher,
 } from "./dispatcher";
 
+// ローカルランナーを利用するユーザースクリプトが動作するジャッジサイト（EasyTest の @match と一致）。
+// これらのホスト（およびサブドメイン）からのブラウザ要求のみ許可する。
+const DEFAULT_ALLOWED_ORIGIN_HOSTS = ["atcoder.jp", "yukicoder.me", "codeforces.com"];
+
+// LOCAL_RUNNER_ALLOWED_ORIGINS で完全一致のオリジン許可リストに差し替え可能（カンマ区切り）。
+const ALLOWED_ORIGINS_OVERRIDE = (process.env.LOCAL_RUNNER_ALLOWED_ORIGINS || "")
+	.split(",")
+	.map((s) => s.trim())
+	.filter(Boolean);
+
+/** ブラウザ Origin を検査する。Origin 無し（非ブラウザ＝CLI 等）は許可。 */
+function isAllowedOrigin(origin: string | undefined): boolean {
+	if (!origin) return true;
+	if (ALLOWED_ORIGINS_OVERRIDE.length > 0) return ALLOWED_ORIGINS_OVERRIDE.includes(origin);
+	let host: string;
+	try {
+		host = new URL(origin).hostname;
+	} catch {
+		return false;
+	}
+	return DEFAULT_ALLOWED_ORIGIN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+}
+
 async function runCode({sourceCode, stdin}: { sourceCode: string; stdin?: string }): Promise<LocalRunnerRunResponse> {
 	const overallStart = Date.now();
 	const entry = await getCompiledEntry(sourceCode);
@@ -95,12 +118,29 @@ async function runCode({sourceCode, stdin}: { sourceCode: string; stdin?: string
 }
 
 const server = http.createServer(async (req, res) => {
-	res.setHeader("Access-Control-Allow-Origin", "*");
+	// CORS/Origin ゲート。ブラウザからの要求は Origin ヘッダを必ず伴うため、
+	// 許可した競プロジャッジのサイト以外からの実行を「実処理の前に」拒否する。
+	// （悪意あるサイトの単純 POST は応答を読めないだけで副作用＝任意コード実行は起きてしまうため、
+	//   CORS 応答ヘッダだけでなくサーバ側で 403 を返して実行そのものを止める必要がある。）
+	// Origin ヘッダの無い要求（CLI/bun の fetch 等、非ブラウザ）は従来どおり許可する。
+	const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
+	const originAllowed = isAllowedOrigin(origin);
+	if (origin && originAllowed) {
+		res.setHeader("Access-Control-Allow-Origin", origin);
+		res.setHeader("Vary", "Origin");
+	}
 	res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 	res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
+	if (!originAllowed) {
+		logWarn(`[Server] Rejected request from disallowed origin: ${origin}`);
+		res.writeHead(403, {"Content-Type": "text/plain"});
+		res.end("Forbidden origin");
+		return;
+	}
+
 	if (req.method === "OPTIONS") {
-		res.writeHead(200);
+		res.writeHead(204);
 		res.end();
 		return;
 	}
@@ -195,8 +235,12 @@ async function bootstrap() {
 	ensureDirectory(RUNNER_CONFIG.dispatcherBuildDir);
 	await ensureDispatcherReady();
 	await warmUpDispatcher();
-	server.listen(RUNNER_CONFIG.port, () => {
-		logInfo(`LocalRunner server listening on http://localhost:${RUNNER_CONFIG.port}`);
+	// 既定でループバック(127.0.0.1)にのみバインドし、LAN/リモートからの無認証アクセスを遮断する。
+	// どうしても外部公開が必要な場合のみ LOCAL_RUNNER_HOST で上書き可能（非推奨）。
+	const host = process.env.LOCAL_RUNNER_HOST || "127.0.0.1";
+	server.listen(RUNNER_CONFIG.port, host, () => {
+		logInfo(`LocalRunner server listening on http://${host}:${RUNNER_CONFIG.port}`);
+		logInfo(`Allowed browser origins: ${ALLOWED_ORIGINS_OVERRIDE.length > 0 ? ALLOWED_ORIGINS_OVERRIDE.join(", ") : DEFAULT_ALLOWED_ORIGIN_HOSTS.map((h) => `*.${h}`).join(", ")}`);
 		logInfo(`Runner label: ${RUNNER_LABEL}`);
 	});
 }

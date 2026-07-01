@@ -160,7 +160,8 @@ export function formatRunSummary(result: {
 		`Exit=${result.exitCode}`,
 	];
 	if ((result.memory || 0) > 0) {
-		parts.push(`Memory=${result.memory}KB`);
+		// 累積アロケーション量（ピーク RSS ではない）であることを示すため Alloc と表記する。
+		parts.push(`Alloc=${result.memory}KB`);
 	}
 	if (result.stdoutTruncated || result.stderrTruncated) {
 		const flags = [];

@@ -15,7 +15,7 @@ AtCoder の問題ページから直接、ローカル環境でのテスト実行
 
 ## インストール
 
-[Tampermonkey に追加する](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js)
+[Tampermonkey に追加する](https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderEasyTestForJava/dist/AtCoderEasyTestForJava.user.js)
 
 ## 必要な環境
 

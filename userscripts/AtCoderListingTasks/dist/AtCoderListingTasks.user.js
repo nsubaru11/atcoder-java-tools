@@ -1,23 +1,23 @@
 // ==UserScript==
 // @name           AtCoder Listing Tasks
 // @name:en        AtCoder Listing Tasks
-// @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.5.8
+// @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
+// @version        1.5.9
 // @description    「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。
 // @description:en Hover on the "Tasks" tab to open a drop-down list that takes you to the page for each problem in the contest.
 // @description:ja 「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。
 // @author         luuguas (original), nsubaru (modified)
 // @license        Apache-2.0
-// @homepageURL    https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderListingTasks
-// @supportURL     https://github.com/nsubaru11/AtCoder/issues
+// @homepageURL    https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts/AtCoderListingTasks
+// @supportURL     https://github.com/nsubaru11/atcoder-java-tools/issues
 // @match          https://atcoder.jp/contests/*
 // @exclude        https://atcoder.jp/contests/
 // @exclude        https://atcoder.jp/contests/?*
 // @exclude        https://atcoder.jp/contests/archive*
 // @grant          none
 // @icon           https://atcoder.jp/favicon.ico
-// @updateURL      https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
-// @downloadURL    https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
+// @updateURL      https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js
 // ==/UserScript==
 
 (() => {

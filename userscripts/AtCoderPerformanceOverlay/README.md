@@ -17,4 +17,4 @@ AtCoder
 
 ## インストール
 
-[Tampermonkey に追加する](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js)
+[Tampermonkey に追加する](https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js)

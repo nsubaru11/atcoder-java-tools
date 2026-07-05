@@ -1,7 +1,7 @@
 {
 	"name": "AtCoder Listing Tasks",
 	"name:en": "AtCoder Listing Tasks",
-	"version": "1.5.8",
+	"version": "1.5.9",
 	"description": "「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。",
 	"description:ja": "「問題」タブにマウスカーソルを置くと、コンテスト内の各問題のページに移動できるドロップダウンリストを表示します。",
 	"description:en": "Hover on the \"Tasks\" tab to open a drop-down list that takes you to the page for each problem in the contest.",

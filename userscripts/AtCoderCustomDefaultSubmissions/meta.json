@@ -1,7 +1,7 @@
 {
 	"name": "AtCoder Custom Default Submissions",
 	"name:en": "AtCoder Custom Default Submissions",
-	"version": "1.6.5",
+	"version": "1.6.6",
 	"description": "AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。",
 	"description:ja": "AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。",
 	"description:en": "Sets default filters and sorting for AtCoder submission lists. Settings can be changed from the menu.",

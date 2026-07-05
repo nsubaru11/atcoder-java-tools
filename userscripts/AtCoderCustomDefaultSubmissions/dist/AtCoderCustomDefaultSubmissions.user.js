@@ -1,22 +1,22 @@
 // ==UserScript==
 // @name           AtCoder Custom Default Submissions
 // @name:en        AtCoder Custom Default Submissions
-// @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.6.5
+// @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
+// @version        1.6.6
 // @description    AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。
 // @description:en Sets default filters and sorting for AtCoder submission lists. Settings can be changed from the menu.
 // @description:ja AtCoderのすべての提出・自分の提出の絞り込み、並び替え設定のデフォルトを設定します。メニューから設定を変更できます。
 // @author         ktnyori (original), nsubaru (modified)
 // @license        MIT
-// @homepageURL    https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/AtCoderCustomDefaultSubmissions
-// @supportURL     https://github.com/nsubaru11/AtCoder/issues
+// @homepageURL    https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts/AtCoderCustomDefaultSubmissions
+// @supportURL     https://github.com/nsubaru11/atcoder-java-tools/issues
 // @match          https://atcoder.jp/contests/*
 // @grant          GM_getValue
 // @grant          GM_setValue
 // @grant          GM_registerMenuCommand
 // @icon           https://atcoder.jp/favicon.ico
-// @updateURL      https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js
-// @downloadURL    https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js
+// @updateURL      https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderCustomDefaultSubmissions/dist/AtCoderCustomDefaultSubmissions.user.js
 // ==/UserScript==
 
 (() => {

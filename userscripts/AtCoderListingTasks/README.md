@@ -14,4 +14,4 @@ AtCoder のコンテストページにおいて、「問題」タブから各問
 
 ## インストール
 
-[Tampermonkey に追加する](https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js)
+[Tampermonkey に追加する](https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderListingTasks/dist/AtCoderListingTasks.user.js)

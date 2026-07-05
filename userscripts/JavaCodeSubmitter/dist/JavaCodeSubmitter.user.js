@@ -1,15 +1,15 @@
 // ==UserScript==
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
-// @namespace      https://github.com/nsubaru11/AtCoder/tools/userscripts
-// @version        1.1.0
+// @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
+// @version        1.1.1
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @author         nsubaru
 // @license        MIT
-// @homepageURL    https://github.com/nsubaru11/AtCoder/tree/main/tools/userscripts/JavaCodeSubmitter
-// @supportURL     https://github.com/nsubaru11/AtCoder/issues
+// @homepageURL    https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts/JavaCodeSubmitter
+// @supportURL     https://github.com/nsubaru11/atcoder-java-tools/issues
 // @match          https://onlinejudge.u-aizu.ac.jp/*
 // @match          https://atcoder.jp/contests/*
 // @match          https://judge.yosupo.jp/problem/*
@@ -18,8 +18,8 @@
 // @grant          unsafeWindow
 // @run-at         document-end
 // @icon           https://atcoder.jp/favicon.ico
-// @updateURL      https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
-// @downloadURL    https://raw.githubusercontent.com/nsubaru11/AtCoder/main/tools/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
+// @updateURL      https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
+// @downloadURL    https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
 // ==/UserScript==
 
 (() => {

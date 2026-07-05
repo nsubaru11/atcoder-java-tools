@@ -11,3 +11,5 @@ node_modules/
 # OS / エディタの雑多ファイル
 .DS_Store
 Thumbs.db
+
+/.idea

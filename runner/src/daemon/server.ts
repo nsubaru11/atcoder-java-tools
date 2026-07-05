@@ -1,16 +1,27 @@
 import http from "node:http";
 import {pathToFileURL} from "node:url";
 import type {LocalRunnerCompilerInfo, LocalRunnerRunResponse} from "@atcoder-tools/shared";
+import type {RunnerStatusInfo} from "../types";
 import {LOG_FILE_PATH, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../config";
 import {ensureDirectory, formatRunSummary, logError, logInfo, logWarn,} from "../utils";
-import {getCompiledEntry, JAVA_VERSION, runCodeInIsolatedJvm, RUNNER_LABEL, warmUpJavaTools,} from "./compiler";
+import {
+	getCompileCacheSize,
+	getCompiledEntry,
+	JAVA_VERSION,
+	runCodeInIsolatedJvm,
+	RUNNER_LABEL,
+	warmUpJavaTools,
+} from "./compiler";
 import {
 	ensureDispatcherReady,
+	isDispatcherRunning,
 	logCaptureAndBodySizeBalance,
 	queueDispatcherRun,
 	stopDispatcher,
 	warmUpDispatcher,
 } from "./dispatcher";
+
+const serverStartedAt = Date.now();
 
 // ローカルランナーを利用するユーザースクリプトが動作するジャッジサイト（EasyTest の @match と一致）。
 // これらのホスト（およびサブドメイン）からのブラウザ要求のみ許可する。
@@ -198,6 +209,20 @@ const server = http.createServer(async (req, res) => {
 				sourceCode: request.sourceCode,
 				stdin: request.stdin,
 			});
+		} else if (request.mode === "status") {
+			response = {
+				status: "running",
+				pid: process.pid,
+				uptimeMs: Date.now() - serverStartedAt,
+				javaVersion: JAVA_VERSION,
+				runnerLabel: RUNNER_LABEL,
+				dispatcherRunning: isDispatcherRunning(),
+				compileCacheSize: getCompileCacheSize(),
+				compileCacheMax: RUNNER_CONFIG.maxCacheSize,
+				warmUpProfile: RUNNER_CONFIG.warmUpProfile,
+				baseDir: RUNNER_CONFIG.baseDir,
+				logFile: LOG_FILE_PATH,
+			} satisfies RunnerStatusInfo;
 		} else if (request.mode === "shutdown") {
 			res.writeHead(200, {"Content-Type": "application/json", "Connection": "close"});
 			res.end(JSON.stringify({status: "accepted"}));

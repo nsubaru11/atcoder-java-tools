@@ -6,7 +6,7 @@ import {
 } from "@atcoder-tools/shared";
 import type {SamplePair, SampleResult} from "../types";
 import {CLI_CONFIG} from "../config";
-import {ANSI, colorizeStatus, formatExecTime, supportsCliColor} from "../utils";
+import {ANSI, colorizeStatus, formatExecTime, supportsCliColor, thresholdsFromTimeLimit} from "../utils";
 
 /**
  * 比較用に出力を行の配列へ正規化する。AtCoder の既定ジャッジに合わせ、
@@ -102,6 +102,12 @@ export type SampleDisplayOptions = {
 	waOnly?: boolean;
 	/** WA 差分の折りたたみ行数を上書きする（--max-lines=N）。未指定なら既定値。 */
 	maxLines?: number;
+	/**
+	 * 問題の実行時間制限(ms)。test/submit が問題ページから取得した値を渡すと、
+	 * exec 表示の警告しきい値（80%超=黄 / 制限以上=赤）に使う。
+	 * 未指定（localtest/crosscheck 等）は 2000ms を仮の制限とする（warn=1600ms / danger=2000ms）。
+	 */
+	timeLimitMs?: number;
 };
 
 /** WA 差分表示の既定の折りたたみ行数（--full でこの上限を解除 / --max-lines で変更）。 */
@@ -172,7 +178,7 @@ export function printSampleResult(
 	originalFileName: string,
 	display: SampleDisplayOptions,
 ): void {
-	const details = [`exec=${formatExecTime(r.execTime)}`];
+	const details = [`exec=${formatExecTime(r.execTime, thresholdsFromTimeLimit(display.timeLimitMs))}`];
 	// memory は使用ピーク(RSS)ではなく実行スレッドの累積アロケーション量なので alloc と明示する。
 	if (r.memoryKb > 0) details.push(`alloc=${r.memoryKb}KB`);
 	if (r.runnerStatus && r.runnerStatus !== "success") details.push(`runner=${r.runnerStatus}`);

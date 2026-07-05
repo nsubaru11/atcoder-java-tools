@@ -19,7 +19,7 @@ import type {SampleResult} from "../../types";
 export class CrossCheck implements Command {
 	readonly name = "crosscheck";
 	readonly usageLines = [
-		"  crosscheck  [--full] [--wa-only] [--max-lines=N] <actualSourceFile> <expectedSourceFile> [testDir]",
+		"  crosscheck  [--full] [--wa-only] [--max-lines=N] [--time-limit=N] <actualSourceFile> <expectedSourceFile> [testDir]",
 		"                                          (actual と expected を同じ入力で実行し出力を突き合わせます。expected側が異常終了したケースは比較せずそのまま報告)",
 	];
 
@@ -41,6 +41,11 @@ export class CrossCheck implements Command {
 			const maxLines = parseIntFlag(arg, "--max-lines");
 			if (maxLines !== undefined) {
 				display.maxLines = maxLines;
+				continue;
+			}
+			const timeLimit = parseIntFlag(arg, "--time-limit");
+			if (timeLimit !== undefined) {
+				display.timeLimitMs = timeLimit;
 				continue;
 			}
 			if (arg.startsWith("-")) throw new CliUsageError(`Unknown option: ${arg}`);

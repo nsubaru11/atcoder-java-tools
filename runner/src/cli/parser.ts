@@ -76,6 +76,21 @@ function dedupeSamplePairs(pairs: SamplePair[]) {
 	return result;
 }
 
+/**
+ * 問題ページから実行時間制限をミリ秒で抽出する。
+ * ページ冒頭の「実行時間制限: 2 sec / メモリ制限: 1024 MiB」（英語版は "Time Limit: 2 sec ..."）を読む。
+ * 単位は sec（大半）と msec/ms（一部の短い制限の問題）に対応。見つからなければ undefined。
+ */
+export function extractTimeLimitMs(taskHtml: string): number | undefined {
+	const m = taskHtml.match(/(?:実行時間制限|Time\s*Limit)\s*[:：]\s*([0-9]+(?:\.[0-9]+)?)\s*(msec|ms|sec|秒)/i);
+	if (!m) return undefined;
+	const value = Number(m[1]);
+	if (!Number.isFinite(value) || value <= 0) return undefined;
+	const unit = m[2].toLowerCase();
+	const ms = (unit === "sec" || unit === "秒") ? value * 1000 : value;
+	return Math.round(ms);
+}
+
 export function extractCsrfToken(html: string) {
 	const m = html.match(/name=["']csrf_token["']\s+value=["']([^"']+)["']/i);
 	if (!m) throw new Error("csrf_token not found.");

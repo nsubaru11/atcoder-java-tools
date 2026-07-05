@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import type {SamplePair, Task} from "../../types";
+import type {Task} from "../../types";
 import {httpGetText, toCookieHeader} from "../atcoder";
-import {extractSamples} from "../parser";
+import {extractSamples, extractTimeLimitMs} from "../parser";
 import {parseTask} from "../task";
 import {ensureLocalRunnerReady} from "../ensureServer";
 import {runAndReportSamples, type SampleDisplayOptions} from "../sampleJudge";
-import {readCachedSamples, writeCachedSamples} from "../sampleCache";
+import {type CachedTaskData, readCachedSamples, writeCachedSamples} from "../sampleCache";
 import {CliUsageError, type Command} from "./Command";
 import {parseBoolFlag, parseIntFlag} from "./options";
 import {prepareSource} from "./source";
@@ -63,16 +63,17 @@ export function expandShortTaskArg(token: string): { taskScreenName: string; sou
 }
 
 /**
- * サンプルケースを取得する。キャッシュにあればそれを使い、無ければ問題ページを
+ * サンプルケースと実行時間制限を取得する。キャッシュにあればそれを使い、無ければ問題ページを
  * フェッチして抽出・保存する。サンプルは不変なので test → submit の二重取得を避けられる。
  */
-async function getSamplesWithCache(task: Task, cookieHeader: string): Promise<SamplePair[]> {
+async function getSamplesWithCache(task: Task, cookieHeader: string): Promise<CachedTaskData> {
 	const cached = readCachedSamples(task);
 	if (cached) return cached;
 	const taskHtml = await httpGetText(task.taskUrl, cookieHeader);
 	const samples = extractSamples(taskHtml);
-	writeCachedSamples(task, samples);
-	return samples;
+	const timeLimitMs = extractTimeLimitMs(taskHtml);
+	writeCachedSamples(task, samples, timeLimitMs);
+	return {samples, timeLimitMs};
 }
 
 /** サンプル実行を終えた時点で onSamplesComplete に渡すコンテキスト。 */
@@ -171,7 +172,12 @@ export abstract class TaskCommand implements Command {
 		const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath, debug);
 
 		const cookieHeader = toCookieHeader();
-		const samples = await getSamplesWithCache(task, cookieHeader);
+		const {samples, timeLimitMs} = await getSamplesWithCache(task, cookieHeader);
+		// 問題の実行時間制限が分かれば、exec 表示の警告しきい値（80%で黄、100%で赤）に使う。
+		if (timeLimitMs) {
+			display.timeLimitMs = timeLimitMs;
+			console.log(`Time limit: ${timeLimitMs}ms`);
+		}
 		await ensureLocalRunnerReady();
 		const allAccepted = await runAndReportSamples(transformed, samples, originalClassName, originalFileName, display);
 

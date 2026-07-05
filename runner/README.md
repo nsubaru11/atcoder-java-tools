@@ -40,6 +40,7 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 | `tomain <sourceFile> [outFile]`                                | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き）                                                |
 | `serve`                                                        | Local Runner サーバーだけ先に起動して ready まで待つ                                                                |
 | `stop`                                                         | Local Runner サーバーを停止（graceful shutdown）                                                             |
+| `status`                                                       | Local Runner サーバーの稼働状況を表示（uptime・Java・dispatcher・キャッシュ等。稼働中=0/停止中=1。auto-start はしない）                |
 
 `taskScreenName` は URL の `/tasks/` 以降そのまま（例: `abc448_d`）。`contestId` は最後の `_` より前から自動解決します。
 
@@ -66,6 +67,7 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 | `--full`                      | `test` / `localtest` / `submit` / `crosscheck` | WA 差分を行数で折りたたまず**全行表示**する（`--max-lines` より優先）                    |
 | `--wa-only`                   | `test` / `localtest` / `submit` / `crosscheck` | WA 差分のうち**不一致行（×）だけ**を抽出して表示する（行番号は元のまま保持）                       |
 | `--max-lines=N`               | `test` / `localtest` / `submit` / `crosscheck` | WA 差分の折りたたみ行数を `N` に変更する（既定 20）                                  |
+| `--time-limit=N`              | `localtest` / `run` / `crosscheck`             | 実行時間警告のしきい値に使う制限(ms)。80%超で黄、制限以上で赤（既定 2000。表示のみで実行は打ち切らない）       |
 
 ```powershell
 # DEBUG を切って（提出と同じ条件で）ローカル実行
@@ -88,7 +90,11 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 ### 実行時間の警告
 
-各サンプルや `run` の実行時間が **500ms** を超えると黄色で警告します（`NO_COLOR=1` で色無効）。
+`test` / `submit` は問題ページから**実行時間制限**を取得し（サンプルと一緒にキャッシュ）、exec 表示を**制限の 80% 超で黄色、制限以上で赤**にします（例: 2 sec の問題 → 1600ms 超で黄、2000ms 以上で赤）。実行前に `Time limit: 2000ms` のように制限も表示します。
+
+制限が分からない `localtest` / `run` / `crosscheck` は、AtCoder で最も一般的な 2 sec を仮の制限として**1600ms 超で黄色、2000ms 以上で赤**です。`--time-limit=3000` のように制限(ms)を指定すれば、その値を基準に test/submit と同じしきい値（80%で黄、100%で赤）になります。
+
+いずれも表示上の警告で、実行自体は従来どおり最大 10 秒まで走ります（TLE 判定の打ち切りは変えません）。ローカルはウォームアップ済み JVM で本番より速く出やすいため、あくまで目安です（`NO_COLOR=1` で色無効）。
 
 ### 実行例
 
@@ -116,7 +122,7 @@ bun install
 .\bin\stop.cmd
 ```
 
-PATH 登録済みなら任意ディレクトリから `test` / `localtest` / `run` / `serve` / `stop` を実行できます（下記「PATH に登録」）。
+PATH 登録済みなら任意ディレクトリから `test` / `localtest` / `run` / `serve` / `stop` / `status` を実行できます（下記「PATH に登録」）。
 
 `package.json` から:
 

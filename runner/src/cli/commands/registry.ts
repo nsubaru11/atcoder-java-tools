@@ -6,6 +6,7 @@ import {LocalTestCommand} from "./LocalTestCommand";
 import {RunCommand} from "./RunCommand";
 import {ServeCommand} from "./ServeCommand";
 import {StopCommand} from "./StopCommand";
+import {StatusCommand} from "./StatusCommand";
 import {CacheClearCommand} from "./CacheClearCommand";
 import {CrossCheck} from "./CrossCheck";
 
@@ -22,6 +23,7 @@ const COMMAND_LIST: readonly Command[] = [
 	new RunCommand(),
 	new ServeCommand(),
 	new StopCommand(),
+	new StatusCommand(),
 	new CacheClearCommand(),
 	new CrossCheck(),
 ];
@@ -46,4 +48,5 @@ export function printUsage(): void {
 	console.error("  --full                     test/localtest/submit/crosscheck: WA 差分を折りたたまず全行表示");
 	console.error("  --wa-only                  test/localtest/submit/crosscheck: WA 差分のうち不一致行だけ抽出（行番号は保持）");
 	console.error("  --max-lines=N              test/localtest/submit/crosscheck: WA 差分の折りたたみ行数を変更（既定: 20）");
+	console.error("  --time-limit=N             localtest/run/crosscheck: 実行時間警告のしきい値に使う制限(ms)。80%超=黄/制限以上=赤（既定: 2000。表示のみで実行は打ち切らない）");
 }

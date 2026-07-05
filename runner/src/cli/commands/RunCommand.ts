@@ -1,10 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
-import {ANSI, colorizeStatus, formatExecTime, normalizeNewlines, supportsCliColor} from "../../utils";
+import {
+	ANSI,
+	colorizeStatus,
+	formatExecTime,
+	normalizeNewlines,
+	supportsCliColor,
+	thresholdsFromTimeLimit,
+} from "../../utils";
 import {ensureLocalRunnerReady} from "../ensureServer";
 import {postLocalRunner} from "../sampleJudge";
 import {CliUsageError, type Command} from "./Command";
-import {parseBoolFlag} from "./options";
+import {parseBoolFlag, parseIntFlag} from "./options";
 import {prepareSource} from "./source";
 
 /** Local Runner の実行ステータスを短いラベルに変換する。 */
@@ -29,17 +36,23 @@ function runStatusLabel(status: string): string {
 export class RunCommand implements Command {
 	readonly name = "run";
 	readonly usageLines = [
-		"  run [-d|--debug[=true|false]] <sourceFile> [inputFile]",
+		"  run [-d|--debug[=true|false]] [--time-limit=N] <sourceFile> [inputFile]",
 		"                                          (1回実行して出力表示。inputFile省略可。DEBUG は既定で有効)",
 	];
 
 	async execute(args: readonly string[]): Promise<number> {
 		const positionals: string[] = [];
 		let debug = true; // 既定で DEBUG 有効。-d/--debug で上書き。
+		let timeLimitMs: number | undefined;
 		for (const arg of args) {
 			const d = parseBoolFlag(arg, "--debug", "-d");
 			if (d !== undefined) {
 				debug = d;
+				continue;
+			}
+			const timeLimit = parseIntFlag(arg, "--time-limit");
+			if (timeLimit !== undefined) {
+				timeLimitMs = timeLimit;
 				continue;
 			}
 			if (arg.startsWith("-")) throw new CliUsageError(`Unknown option: ${arg}`);
@@ -58,7 +71,7 @@ export class RunCommand implements Command {
 		// ステータスは「OK / RE / CE / TLE / IE」に集約。OK=緑、エラー=色付き。遅い実行は time が黄色。
 		const label = runStatusLabel(result.status);
 		const coloredLabel = label === "OK" && supportsCliColor() ? `${ANSI.GREEN}OK${ANSI.RESET}` : colorizeStatus(label);
-		console.log(`[run] ${coloredLabel}  time=${formatExecTime(result.time || 0)}`);
+		console.log(`[run] ${coloredLabel}  time=${formatExecTime(result.time || 0, thresholdsFromTimeLimit(timeLimitMs))}`);
 
 		// 標準出力は既定色（白）。
 		const stdout = (result.stdout || "").replace(/\s+$/, "");

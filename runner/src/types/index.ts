@@ -48,6 +48,21 @@ export type SampleResult = {
 	expectedOutput: string;
 };
 
+/** mode:"status" のレスポンス。サーバーの稼働状況を CLI の status コマンドへ返す。 */
+export type RunnerStatusInfo = {
+	status: "running";
+	pid: number;
+	uptimeMs: number;
+	javaVersion: string;
+	runnerLabel: string;
+	dispatcherRunning: boolean;
+	compileCacheSize: number;
+	compileCacheMax: number;
+	warmUpProfile: string;
+	baseDir: string;
+	logFile: string;
+};
+
 export type CompileEntry = {
 	rootDir: string;
 	classDir: string;

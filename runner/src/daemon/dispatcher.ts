@@ -69,6 +69,11 @@ function buildWarmUpSourceCode() {
 	);
 }
 
+/** 常駐 Dispatcher(JVM) が起動中かどうか（status 表示用）。 */
+export function isDispatcherRunning() {
+	return dispatcherState.proc !== null;
+}
+
 export function stopDispatcher() {
 	if (dispatcherState.readline) {
 		dispatcherState.readline.close();

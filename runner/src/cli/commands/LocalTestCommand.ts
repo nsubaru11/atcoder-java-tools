@@ -9,7 +9,7 @@ import {prepareSource} from "./source";
 export class LocalTestCommand implements Command {
 	readonly name = "localtest";
 	readonly usageLines = [
-		"  localtest [-d|--debug[=true|false]] [--full] [--wa-only] [--max-lines=N] <sourceFile> [testDir]",
+		"  localtest [-d|--debug[=true|false]] [--full] [--wa-only] [--max-lines=N] [--time-limit=N] <sourceFile> [testDir]",
 		"                                          (.in/.out をローカル実行。DEBUG は既定で有効)",
 	];
 
@@ -36,6 +36,11 @@ export class LocalTestCommand implements Command {
 			const maxLines = parseIntFlag(arg, "--max-lines");
 			if (maxLines !== undefined) {
 				display.maxLines = maxLines;
+				continue;
+			}
+			const timeLimit = parseIntFlag(arg, "--time-limit");
+			if (timeLimit !== undefined) {
+				display.timeLimitMs = timeLimit;
 				continue;
 			}
 			if (arg.startsWith("-")) throw new CliUsageError(`Unknown option: ${arg}`);

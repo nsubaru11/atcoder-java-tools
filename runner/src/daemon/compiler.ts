@@ -362,6 +362,11 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 	};
 }
 
+/** コンパイルキャッシュの現在のエントリ数（status 表示用）。 */
+export function getCompileCacheSize() {
+	return compileCache.size;
+}
+
 export function getCompiledEntry(sourceCode: string) {
 	const hash = hashCode(sourceCode);
 	if (compileCache.has(hash)) {

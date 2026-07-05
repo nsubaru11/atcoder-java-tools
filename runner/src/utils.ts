@@ -33,14 +33,35 @@ export function colorizeStatus(status: string, mode: "cli" | "runner" = "cli") {
 	return status;
 }
 
-export const SLOW_EXEC_THRESHOLD_MS = 500;
+/** 実行時間の表示しきい値。warnMs 超で黄色、dangerMs 以上で赤。 */
+export type ExecTimeThresholds = {
+	warnMs: number;
+	dangerMs: number;
+};
 
-/** 実行時間を整形。閾値(500ms)超なら黄色で警告表示する。 */
-export function formatExecTime(timeMs: number) {
+/**
+ * 実行時間制限(ms)から表示しきい値を作る（警告=制限の80%超、赤=制限以上）。
+ * 制限が不明なローカル実行（localtest/run/crosscheck）は AtCoder で最も一般的な
+ * 2000ms を仮の制限として warn=1600ms / danger=2000ms とする。
+ * ローカルはウォームアップ済み JVM のため本番より速く出やすく、あくまで目安の警告。
+ */
+export function thresholdsFromTimeLimit(timeLimitMs?: number): ExecTimeThresholds {
+	const limit = timeLimitMs && timeLimitMs > 0 ? timeLimitMs : 2000;
+	return {warnMs: Math.round(limit * 0.8), dangerMs: limit};
+}
+
+/** 実行時間を整形。warnMs 超は黄色、dangerMs 以上は赤で警告表示する。 */
+export function formatExecTime(timeMs: number, thresholds: ExecTimeThresholds = thresholdsFromTimeLimit()) {
 	const text = `${timeMs}ms`;
-	if (timeMs <= SLOW_EXEC_THRESHOLD_MS) return text;
-	const warned = `${text} (>${SLOW_EXEC_THRESHOLD_MS}ms!)`;
-	return supportsCliColor() ? `${ANSI.YELLOW}${warned}${ANSI.RESET}` : warned;
+	if (timeMs >= thresholds.dangerMs) {
+		const warned = `${text} (>=${thresholds.dangerMs}ms!)`;
+		return supportsCliColor() ? `${ANSI.RED}${warned}${ANSI.RESET}` : warned;
+	}
+	if (timeMs > thresholds.warnMs) {
+		const warned = `${text} (>${thresholds.warnMs}ms!)`;
+		return supportsCliColor() ? `${ANSI.YELLOW}${warned}${ANSI.RESET}` : warned;
+	}
+	return text;
 }
 
 export function stripAnsi(text: string) {

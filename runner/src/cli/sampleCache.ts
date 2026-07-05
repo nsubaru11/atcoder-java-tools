@@ -15,13 +15,21 @@ import {CLI_CONFIG} from "../config";
  *   CLI 側データなので、`stop` でサーバーを止めても削除しない。明示的な `cache clear` で消す。
  */
 
-const CACHE_FORMAT_VERSION = 1;
+const CACHE_FORMAT_VERSION = 2;
 
 type SampleCacheFile = {
 	version: number;
 	taskScreenName: string;
 	fetchedAt: number;
 	samples: SamplePair[];
+	/** 問題の実行時間制限(ms)。ページから抽出できなかった場合は undefined。 */
+	timeLimitMs?: number;
+};
+
+/** キャッシュから読み出した、または取得直後のタスク付随データ。 */
+export type CachedTaskData = {
+	samples: SamplePair[];
+	timeLimitMs?: number;
 };
 
 function isCacheEnabled(): boolean {
@@ -48,8 +56,8 @@ function cacheFilePath(taskScreenName: string): string {
 	return dir ? path.join(dir, `${safeKey(taskScreenName)}.json`) : "";
 }
 
-/** キャッシュからサンプルを読む。無効・不在・壊れている場合は null。 */
-export function readCachedSamples(task: Task): SamplePair[] | null {
+/** キャッシュからサンプルと実行時間制限を読む。無効・不在・壊れている場合は null。 */
+export function readCachedSamples(task: Task): CachedTaskData | null {
 	if (!isCacheEnabled()) return null;
 	const file = cacheFilePath(task.taskScreenName);
 	if (!file) return null;
@@ -57,14 +65,17 @@ export function readCachedSamples(task: Task): SamplePair[] | null {
 		const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as SampleCacheFile;
 		if (parsed.version !== CACHE_FORMAT_VERSION) return null;
 		if (!Array.isArray(parsed.samples)) return null;
-		return parsed.samples;
+		return {
+			samples: parsed.samples,
+			timeLimitMs: typeof parsed.timeLimitMs === "number" && parsed.timeLimitMs > 0 ? parsed.timeLimitMs : undefined,
+		};
 	} catch {
 		return null;
 	}
 }
 
-/** サンプルをキャッシュへ保存する。失敗しても致命的ではないので握り潰す。 */
-export function writeCachedSamples(task: Task, samples: SamplePair[]): void {
+/** サンプルと実行時間制限をキャッシュへ保存する。失敗しても致命的ではないので握り潰す。 */
+export function writeCachedSamples(task: Task, samples: SamplePair[], timeLimitMs?: number): void {
 	if (!isCacheEnabled()) return;
 	if (!samples.length) return; // 空サンプルはキャッシュしない（取得失敗時の取りこぼし防止）
 	const dir = getSampleCacheDir();
@@ -75,6 +86,7 @@ export function writeCachedSamples(task: Task, samples: SamplePair[]): void {
 		taskScreenName: task.taskScreenName,
 		fetchedAt: Date.now(),
 		samples,
+		timeLimitMs,
 	};
 	try {
 		fs.mkdirSync(dir, {recursive: true});

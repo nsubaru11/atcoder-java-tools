@@ -1,4 +1,8 @@
-import {buildAtCoderSubmissionsMeUrl, buildAtCoderSubmissionUrl,} from "@atcoder-tools/shared";
+import {
+	buildAtCoderSubmissionsMeUrl,
+	buildAtCoderSubmissionStatusJsonUrl,
+	buildAtCoderSubmissionUrl,
+} from "@atcoder-tools/shared";
 import fs from "node:fs";
 import path from "node:path";
 import type {SubmissionFinalResult, SubmitResult, Task} from "../types";
@@ -12,8 +16,7 @@ import {
 	extractSubmitFailureReason,
 	extractSubmitForm,
 	isAtCoderLoginPage,
-	parseExecAndMemory,
-	parseSubmissionStatus,
+	parseSubmissionStatusJson,
 } from "./parser";
 
 export function toCookieHeader() {
@@ -240,31 +243,42 @@ export function formatMetricValue(value: string) {
 	return value && String(value).trim() ? String(value).trim() : "N/A";
 }
 
-export async function pollSubmissionFinal(submissionUrl: string, cookieHeader: string): Promise<SubmissionFinalResult> {
+// ジャッジ確定を表す終端ステータス。これ以外（WJ / WR / 空 / "3/14" 等の進捗）はまだ判定中。
+const TERMINAL_SUBMISSION_STATUSES = new Set(["AC", "WA", "TLE", "MLE", "RE", "OLE", "IE", "CE", "QLE"]);
+
+/**
+ * status/json API をポーリングしてジャッジ確定まで待つ。
+ * 提出詳細ページ(/submissions/<id>)は WAF に 403 で弾かれるため、
+ * 提出一覧が内部で使う JSON API を使う（自分の提出のみ、要ログイン）。
+ *
+ * 確定判定は「サーバが Interval を返さなくなった」かつ「ステータスが終端(AC/WA/...)」の両方が
+ * 揃ったときのみとする。提出直後に Result が空、または WJ のまま Interval がまだ付かない一過性の
+ * 状態を「確定」と誤認して早期に打ち切らないための二重条件。
+ */
+export async function pollSubmissionFinal(
+	contestId: string,
+	submissionId: string,
+	cookieHeader: string,
+): Promise<SubmissionFinalResult> {
+	const statusUrl = buildAtCoderSubmissionStatusJsonUrl(contestId, [submissionId]);
 	const started = Date.now();
 	let lastStatus = "";
-	const terminal = new Set(["AC", "WA", "RE", "TLE", "MLE", "CE", "OLE", "IE"]);
 	while (Date.now() - started < CLI_CONFIG.submissionPollTimeoutMs) {
-		const html = await httpGetText(submissionUrl, cookieHeader);
-		const status = parseSubmissionStatus(html) || lastStatus || "WJ";
-		if (status !== lastStatus) {
-			console.log(`Status: ${colorizeStatus(status)}`);
-			lastStatus = status;
+		const body = await httpGetTextWith429Retry(statusUrl, cookieHeader);
+		const snapshot = parseSubmissionStatusJson(body, submissionId);
+		const display = snapshot.status || lastStatus || "WJ";
+		if (display !== lastStatus) {
+			console.log(`Status: ${colorizeStatus(display)}`);
+			lastStatus = display;
 		}
-		if (terminal.has(status)) {
-			let extra = parseExecAndMemory(html);
-			if (status !== "AC") return {status, ...extra};
-			const extraFetchStarted = Date.now();
-			for (let i = 0; i < CLI_CONFIG.submissionTerminalExtraFetchRetry; i++) {
-				if (extra.execTime && extra.memory) break;
-				if (Date.now() - extraFetchStarted >= CLI_CONFIG.submissionTerminalExtraFetchMaxWaitMs) break;
-				await sleep(CLI_CONFIG.submissionTerminalExtraFetchIntervalMs);
-				const retryHtml = await httpGetText(submissionUrl, cookieHeader);
-				extra = parseExecAndMemory(retryHtml);
-			}
-			return {status, ...extra};
+		const isTerminal = TERMINAL_SUBMISSION_STATUSES.has(snapshot.status.toUpperCase());
+		if (!snapshot.pending && isTerminal) {
+			// 確定。この時点で実行時間・メモリも埋まっている。
+			return {status: snapshot.status, execTime: snapshot.execTime, memory: snapshot.memory};
 		}
-		await sleep(CLI_CONFIG.submissionPollIntervalMs);
+		// ジャッジ中はサーバ推奨間隔(Interval)を尊重。まだ Result 未反映等の一過性状態なら最小間隔で再試行。
+		const waitMs = Math.max(snapshot.intervalMs, CLI_CONFIG.submissionPollIntervalMs);
+		await sleep(waitMs);
 	}
 	return {status: lastStatus || "PENDING", execTime: "", memory: ""};
 }

@@ -1,5 +1,4 @@
 import type {IndexedBlock, SamplePair, SubmitForm, Task} from "../types";
-import {CLI_CONFIG} from "../config";
 import {normalizeNewlines} from "../utils";
 
 export function decodeHtmlEntities(text: string) {
@@ -193,58 +192,72 @@ export function stripTags(html: string) {
 	return decodeHtmlEntities(html).replace(/\s+/g, " ").trim();
 }
 
-export function parseSubmissionStatus(html: string) {
-	const patterns = [
-		/<span[^>]*data-title=["']Status["'][^>]*>([\s\S]*?)<\/span>/i,
-		/<td[^>]*id=["']judge-status["'][^>]*>([\s\S]*?)<\/td>/i,
-		/<td[^>]*>\s*<span[^>]*class=["'][^"']*label[^"']*["'][^>]*>([\s\S]*?)<\/span>\s*<\/td>/i,
-	];
-	for (const p of patterns) {
-		const m = html.match(p);
-		if (m) {
-			const status = stripTags(m[1]).replace(/\s+/g, "");
-			if (status) return status;
-		}
+/** status/json の Result[sid].Html スニペットから読み取った 1 回分のジャッジ状況。 */
+export type SubmissionStatusSnapshot = {
+	/** Interval が付いている（＝まだジャッジ中）か。 */
+	pending: boolean;
+	/** ラベル文字列（例: "AC", "WA", "WJ", "3/14"）。取得できなければ空。 */
+	status: string;
+	/** 実行時間の表示文字列（例: "520 ms"）。確定前は空のことがある。 */
+	execTime: string;
+	/** メモリの表示文字列（例: "93652 KiB"）。確定前は空のことがある。 */
+	memory: string;
+	/** ジャッジ中にサーバが推奨するポーリング間隔(ms)。無ければ 0。 */
+	intervalMs: number;
+};
+
+/** Html スニペットの先頭 label span（無ければ最初の td）からステータス文字列を取り出す。 */
+function parseStatusLabelFromSnippet(html: string): string {
+	const span = html.match(/<span[^>]*class=["'][^"']*label[^"']*["'][^>]*>([\s\S]*?)<\/span>/i);
+	if (span) {
+		const value = stripTags(span[1]).replace(/\s+/g, "");
+		if (value) return value;
+	}
+	const firstTd = html.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
+	if (firstTd) {
+		const value = stripTags(firstTd[1]).replace(/\s+/g, "");
+		if (value) return value;
 	}
 	return "";
 }
 
-function escapeRegExp(text: string) {
-	return String(text).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function parseMetricByDataTitle(html: string, labelCandidates: string[]) {
-	for (const label of labelCandidates) {
-		const pattern = new RegExp(`data-title=["']${escapeRegExp(label)}["'][^>]*>([\\s\\S]*?)<\\/td>`, "i");
-		const m = html.match(pattern);
-		if (m) {
-			const value = stripTags(m[1]);
-			if (value) return value;
-		}
+/** Html スニペット中の text-right な td を順に読み、[実行時間, メモリ] を取り出す。 */
+function parseExecAndMemoryFromSnippet(html: string): { execTime: string; memory: string } {
+	const values: string[] = [];
+	const regex = /<td[^>]*class=["'][^"']*text-right[^"']*["'][^>]*>([\s\S]*?)<\/td>/gi;
+	let m: RegExpExecArray | null;
+	while ((m = regex.exec(html)) !== null) {
+		values.push(stripTags(m[1]));
 	}
-	return "";
+	return {execTime: values[0] || "", memory: values[1] || ""};
 }
 
-function parseMetricByHeaderRow(html: string, labelCandidates: string[]) {
-	for (const label of labelCandidates) {
-		const pattern = new RegExp(`<tr[^>]*>[\\s\\S]*?<th[^>]*>\\s*${escapeRegExp(label)}\\s*<\\/th>[\\s\\S]*?<td[^>]*>([\\s\\S]*?)<\\/td>[\\s\\S]*?<\\/tr>`, "i");
-		const m = html.match(pattern);
-		if (m) {
-			const value = stripTags(m[1]);
-			if (value) return value;
-		}
+/**
+ * status/json のレスポンス本文と対象提出 ID から 1 回分の状況を解析する。
+ * JSON パース失敗時は pending=true（＝ポーリング継続）扱いで安全側に倒す。
+ */
+export function parseSubmissionStatusJson(bodyText: string, submissionId: string): SubmissionStatusSnapshot {
+	let data: unknown;
+	try {
+		data = JSON.parse(bodyText);
+	} catch {
+		return {pending: true, status: "", execTime: "", memory: "", intervalMs: 0};
 	}
-	return "";
-}
-
-export function parseExecAndMemory(html: string) {
-	const execTime = parseMetricByDataTitle(html, CLI_CONFIG.submissionExecTimeLabels)
-		|| parseMetricByHeaderRow(html, CLI_CONFIG.submissionExecTimeLabels);
-	const memory = parseMetricByDataTitle(html, CLI_CONFIG.submissionMemoryLabels)
-		|| parseMetricByHeaderRow(html, CLI_CONFIG.submissionMemoryLabels);
+	const root = (data && typeof data === "object") ? (data as Record<string, unknown>) : {};
+	const intervalValue = Number(root.Interval);
+	const intervalMs = Number.isFinite(intervalValue) && intervalValue > 0 ? intervalValue : 0;
+	const results = (root.Result && typeof root.Result === "object") ? (root.Result as Record<string, unknown>) : {};
+	const entry = results[submissionId];
+	const html = (entry && typeof entry === "object" && typeof (entry as Record<string, unknown>).Html === "string")
+		? ((entry as Record<string, unknown>).Html as string)
+		: "";
+	const {execTime, memory} = parseExecAndMemoryFromSnippet(html);
 	return {
+		pending: intervalMs > 0,
+		status: parseStatusLabelFromSnippet(html),
 		execTime,
 		memory,
+		intervalMs,
 	};
 }
 

@@ -30,24 +30,32 @@ export class SubmitCommand extends TaskCommand {
 			console.log("Warning: forcing submit despite non-AC sample results (-f/--force).");
 		}
 
-		const submitResult = await submitToAtCoder(task, transformed, toCookieHeader());
+		const cookieHeader = toCookieHeader();
+		const submitResult = await submitToAtCoder(task, transformed, cookieHeader);
+
+		let submissionId = submitResult.submissionId;
+		let submissionUrl = submitResult.submissionUrl;
 		if (submitResult.trackingUnavailable) {
-			const latestId = await fetchLatestSubmissionId(task, toCookieHeader());
+			const latestId = await fetchLatestSubmissionId(task, cookieHeader);
 			if (!latestId) {
 				throw new Error("Submission tracking failed: could not resolve latest submission ID.");
 			}
-			const trackedSubmissionUrl = buildAtCoderSubmissionUrl(task.contestId, latestId);
-			const trackedResult = await pollSubmissionFinal(trackedSubmissionUrl, toCookieHeader());
-			console.log(
-				`Result: ${colorizeStatus(trackedResult.status)} | ID: ${latestId} | Exec: ${formatMetricValue(trackedResult.execTime)} | Memory: ${formatMetricValue(trackedResult.memory)} | URL: ${trackedSubmissionUrl}`,
-			);
-			return trackedResult.status === "AC" ? 0 : 8;
+			submissionId = latestId;
+			submissionUrl = buildAtCoderSubmissionUrl(task.contestId, latestId);
 		}
 
-		const finalResult = await pollSubmissionFinal(submitResult.submissionUrl, toCookieHeader());
-		console.log(
-			`Result: ${colorizeStatus(finalResult.status)} | ID: ${submitResult.submissionId} | Exec: ${formatMetricValue(finalResult.execTime)} | Memory: ${formatMetricValue(finalResult.memory)} | URL: ${submitResult.submissionUrl}`,
-		);
-		return finalResult.status === "AC" ? 0 : 8;
+		// ここまで来れば提出自体は成功している。以降の結果ポーリングが失敗しても
+		// 「提出は成功」を明示し、提出 ID/URL を必ず表示して専用終了コードで返す。
+		try {
+			const finalResult = await pollSubmissionFinal(task.contestId, submissionId, cookieHeader);
+			console.log(
+				`Result: ${colorizeStatus(finalResult.status)} | ID: ${submissionId} | Exec: ${formatMetricValue(finalResult.execTime)} | Memory: ${formatMetricValue(finalResult.memory)} | URL: ${submissionUrl}`,
+			);
+			return finalResult.status === "AC" ? 0 : 8;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			console.log(`Submitted successfully (ID: ${submissionId} | URL: ${submissionUrl}), but result tracking failed: ${message}`);
+			return 9;
+		}
 	}
 }

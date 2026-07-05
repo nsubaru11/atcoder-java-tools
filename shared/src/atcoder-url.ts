@@ -63,3 +63,22 @@ export function buildAtCoderSubmissionsMeUrl(contestId: string, filter?: AtCoder
 export function buildAtCoderSubmissionUrl(contestId: string, submissionId: string | number): string {
 	return `https://atcoder.jp/contests/${contestId}/submissions/${submissionId}`;
 }
+
+/**
+ * 提出一覧ページが内部で叩くジャッジ状況取得用 JSON API の URL を組み立てる。
+ * 提出詳細ページ(/submissions/<id>)は WAF により 403 で機械アクセスが弾かれるため、
+ * 結果ポーリングはこちらを使う。要ログイン(自分の提出のみ)。
+ * レスポンスはジャッジ中のみ Interval(推奨ポーリング間隔ms)を含み、確定すると消える。
+ */
+export function buildAtCoderSubmissionStatusJsonUrl(
+	contestId: string,
+	submissionIds: Array<string | number>,
+): string {
+	const base = `https://atcoder.jp/contests/${contestId}/submissions/me/status/json`;
+	const params = new URLSearchParams();
+	params.set("reload", "true");
+	for (const sid of submissionIds) {
+		params.append("sids[]", String(sid));
+	}
+	return `${base}?${params.toString()}`;
+}

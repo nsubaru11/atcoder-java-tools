@@ -28,14 +28,10 @@ export const PROJECT_ROOT = resolveProjectRoot();
 export const CLI_CONFIG = {
 	defaultLocalRunnerUrl: process.env.LOCAL_RUNNER_URL || "http://localhost:8080",
 	submissionPollIntervalMs: 1000,
-	submissionPollTimeoutMs: 180000,
+	// 提出→確定まで（混雑時は数分かかることがある）。既定5分、ATCODER_SUBMISSION_POLL_TIMEOUT_MS で上書き可。
+	submissionPollTimeoutMs: Number(process.env.ATCODER_SUBMISSION_POLL_TIMEOUT_MS || 300000),
 	submissionIdDetectTimeoutMs: 45000,
 	submissionIdDetectIntervalMs: 800,
-	submissionTerminalExtraFetchRetry: 10,
-	submissionTerminalExtraFetchIntervalMs: 1000,
-	submissionTerminalExtraFetchMaxWaitMs: Number(process.env.ATCODER_SUBMISSION_METRIC_WAIT_MS || 30000),
-	submissionExecTimeLabels: ["Execution Time", "Exec Time", "実行時間"],
-	submissionMemoryLabels: ["Memory", "メモリ"],
 	submitPostRetryMax: Number(process.env.ATCODER_SUBMIT_RETRY_MAX || 5),
 	submitPostRetryBaseMs: Number(process.env.ATCODER_SUBMIT_RETRY_BASE_MS || 1200),
 	defaultSessionFileRelative: path.join(".atcoder", "session.txt"),

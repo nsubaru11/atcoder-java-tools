@@ -44,6 +44,32 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 `taskScreenName` は URL の `/tasks/` 以降そのまま（例: `abc448_d`）。`contestId` は最後の `_` より前から自動解決します。
 
+### `lib.*` の自動バンドル
+
+解答では通常のJavaコードとして競プロライブラリをimportできます。
+
+```java
+import lib.ds.UnionFind;
+import lib.io.FastPrinter;
+import lib.io.FastScanner;
+```
+
+`run` / `localtest` / `test` / `crosscheck` / `tomain` / `submit` は、実行前に`import lib.*`を検出し、`library/src/lib`から必要なクラスと推移的依存を単一ソースへ展開します。ログには`Bundled library classes: ...`として展開対象が表示されます。`patterns.*`は読む・写経する資料なので自動展開しません。
+
+ライブラリは次の順で検索します。
+
+1. `ATCODER_LIB_SRC`で指定された`src`ディレクトリ
+2. 解答ファイルから上位へ探索した`library/src`
+
+AtCoderリポジトリ直下にlibrary submoduleがあれば、通常は環境変数の設定は不要です。`import static lib...`、本文中の`lib.ds.UnionFind`のような完全修飾参照、バンドル後に単純名が衝突する型はエラーになります。
+
+提出前の展開結果だけを確認するには、次を使います。
+
+```powershell
+tomain -f D.java Main.java
+javac --release 24 -encoding UTF-8 Main.java
+```
+
 #### 短縮表記（フォルダからコンテスト推定）
 
 `test` / `submit` に**引数を 1 つだけ**渡すと短縮表記になります。
@@ -145,6 +171,7 @@ bun --cwd runner run localtest D.java
 | `ATCODER_JAVA_VER`               | auto-start で渡す Java バージョン        | `24`                     |
 | `ATCODER_WSL_DISTRO`             | auto-start で使う WSL ディストリ         | 既定ディストリ                  |
 | `ATCODER_RUNNER_DIR_WSL`         | WSL内の `tools/runner` パス（明示時）     | wslpath で自動導出            |
+| `ATCODER_LIB_SRC`                | 競プロライブラリの`src`ディレクトリ          | 上位階層の`library/src`を探索    |
 | `ATCODER_COOKIE`                 | 提出用 Cookie 全体                    | —                        |
 | `ATCODER_SESSION`                | `REVEL_SESSION` の値のみ             | —                        |
 | `ATCODER_SESSION_FILE`           | セッションファイル                        | `~/.atcoder/session.txt` |

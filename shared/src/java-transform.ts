@@ -28,7 +28,7 @@ type ClassInfo = {
 	isPublic: boolean;
 }
 
-function createMaskedCode(text: string): string {
+export function createMaskedCode(text: string): string {
 	const enum State {Normal, LineComment, BlockComment, String, Char}
 
 	const out: string[] = [];

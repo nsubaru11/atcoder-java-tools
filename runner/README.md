@@ -88,7 +88,7 @@ toclip D.java  # ファイルを明示
 - ソースは**カレントディレクトリ**から探します（例の構成では `ABC463/src` で実行）。
 - `toclip`はコンテストIDを必要とせず、短縮記号からソースだけを解決します（`toclip d1` → `D1.java`）。
 
-`test` / `submit` / `localtest` / `run` は、Local Runner サーバーが未起動なら自動起動します。WindowsではBun・JDKがPATHにあればnativeでバックグラウンド起動し、無ければWSLへフォールバックします。ライブラリがNTFS上にある通常構成ではnativeの方がCompiler API変換が高速です。`serve` で事前に温めておくと初回が速くなります。
+`test` / `submit` / `localtest` / `run` は、Local Runnerサーバーが未起動ならWSL上へ自動起動します。起動時にライブラリソースを`/dev/shm`へ同期して一度だけclass化し、解答のCompiler API解析はそのclasspathを使用します。提出用本文だけを同期済みsourceから取得するため、コンパイル・実行環境をWSLへ統一したままNTFS境界の反復コストを避けます。`serve`で事前に温めておくと初回が速くなります。ライブラリを編集した場合は`stop`→`serve`で同期し直してください。
 
 EasyTestの`precompile`要求は即座に`accepted`を返し、最後のエディタ変更から1.5秒のアイドル後に非同期実行します。連続変更はデバウンスされるため、JavaCodeSubmitterの貼り付け変換を常駐Dispatcherキュー上でブロックしません。
 
@@ -177,7 +177,7 @@ bun --cwd runner run localtest D.java
 | `LOCAL_RUNNER_PORT`              | 待受ポート                            | `8080`                   |
 | `LOCAL_RUNNER_INPROCESS_COMPILE` | `0` で常駐javacを無効化し外部javacにフォールバック | 有効                       |
 | `LOCAL_RUNNER_START_TIMEOUT_MS`  | auto-start の ready 待ちタイムアウト(ms)  | `60000`                  |
-| `LOCAL_RUNNER_BACKEND`           | Windowsで`native`または`wsl`を明示          | `auto`（native優先）       |
+| `LOCAL_RUNNER_BACKEND`           | Windowsで`native`を明示する診断用上書き        | `wsl`                    |
 | `LOCAL_RUNNER_BUN`               | native起動に使うBunコマンド                  | `bun`                    |
 | `ATCODER_RUNNER_AUTOSTART`       | `0` で auto-start を無効化（常駐運用に切替時）  | 有効                       |
 | `ATCODER_JAVA_VER`               | auto-start で渡す Java バージョン        | `24`                     |
@@ -204,7 +204,7 @@ cd tools/runner
 bun run build        # = typecheck + build:cli:win
 ```
 
-Local Runner（サーバー）は単一バイナリ化しません。Windows nativeでは直接、WSLでは`bin/start-local-runner.sh`経由で`bun ./src/daemon/server.ts`を実行します（`serve`や`test`等のauto-startから自動起動）。
+Local Runner（サーバー）は単一バイナリ化しません。通常は`bin/start-local-runner.sh`経由でWSL上の`bun ./src/daemon/server.ts`を実行します（`serve`や`test`等のauto-startから自動起動）。
 Java のコンパイルは外部 `javac` を都度起動せず **常駐Dispatcher 内の javac（インプロセス）** で行うため高速です。`Dispatcher.class` はソース未変更ならキャッシュを再利用します。
 
 ## PATH に登録（任意）

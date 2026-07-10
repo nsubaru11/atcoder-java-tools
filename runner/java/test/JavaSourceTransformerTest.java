@@ -18,6 +18,14 @@ public final class JavaSourceTransformerTest {
 					package lib.ds;
 					public final class UnusedTree {}
 					""", StandardCharsets.UTF_8);
+			final Path graph = Files.createDirectories(root.resolve("lib/graph"));
+			Files.writeString(graph.resolve("Kruskal.java"), """
+					package lib.graph;
+					import lib.ds.UnionFind;
+					public final class Kruskal {
+						public static Object create() { return new UnionFind(1); }
+					}
+					""", StandardCharsets.UTF_8);
 
 			final JavaSourceTransformer transformer = new JavaSourceTransformer();
 			final String wildcardSource = """
@@ -47,6 +55,16 @@ public final class JavaSourceTransformerTest {
 			check(unrelatedWildcard.exitCode() == 0, unrelatedWildcard.diagnostics());
 			check(unrelatedWildcard.sourceCode().contains("import java.util.Arrays;"),
 					"unrelated wildcard incorrectly covered dependency import");
+
+			final SourceTransformResult transitive = transformer.transform("""
+					import lib.graph.Kruskal;
+					public final class A {
+						public static void main(String[] args) { Kruskal.create(); }
+					}
+					""", root, false, true);
+			check(transitive.exitCode() == 0, transitive.diagnostics());
+			check(transitive.inlinedClasses().equals(java.util.List.of("lib.graph.Kruskal", "lib.ds.UnionFind")),
+					"transitive classpath dependency was not collected: " + transitive.inlinedClasses());
 
 			final String implicitSource = wildcardSource.replace("import lib.ds.*;\n", "");
 			final SourceTransformResult implicit = transformer.transform(implicitSource, root, false, true);

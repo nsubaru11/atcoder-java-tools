@@ -45,14 +45,14 @@ final class JavaSourceTransformer {
 			String source = normalize(rawSource);
 			final List<String> addedImports = new ArrayList<>();
 
-			Analysis analysis = analyze(source, root);
+			Analysis analysis = analyze(source, index.classPath());
 			if (autoImport) {
 				final AutoImportResult inferred = inferImports(source, analysis, index);
 				if (!inferred.error().isEmpty()) return failure(source, inferred.error());
 				if (!inferred.imports().isEmpty()) {
 					addedImports.addAll(inferred.imports());
 					source = insertImports(source, analysis, inferred.imports());
-					analysis = analyze(source, root);
+					analysis = analyze(source, index.classPath());
 				}
 			}
 
@@ -103,10 +103,33 @@ final class JavaSourceTransformer {
 				byFqcn.put(fqcn, libraryType);
 			}
 		}
+		final Path classPath = root.resolve(".compiled-library");
+		compileLibrary(byFqcn.values().stream().map(LibraryType::path).distinct().toList(), classPath);
 		cachedRoot = root;
 		cachedStamp = stamp;
-		cachedIndex = new LibraryIndex(bySimpleName, byFqcn);
+		cachedIndex = new LibraryIndex(bySimpleName, byFqcn, classPath, new HashMap<>());
 		return cachedIndex;
+	}
+
+	private void compileLibrary(final List<Path> sources, final Path classPath) throws IOException {
+		if (Files.exists(classPath)) {
+			try (Stream<Path> files = Files.walk(classPath)) {
+				for (final Path path : files.sorted(Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+			}
+		}
+		Files.createDirectories(classPath);
+		final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+		try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, Locale.ROOT, UTF_8)) {
+			final Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjectsFromPaths(sources);
+			final Boolean success = compiler.getTask(null, fileManager, diagnostics,
+					List.of("-encoding", "UTF-8", "-proc:none", "-implicit:none", "-d", classPath.toString()),
+					null, units).call();
+			if (!Boolean.TRUE.equals(success)) {
+				throw new IOException("library classpath compilation failed:\n" + diagnostics.getDiagnostics().stream()
+						.map(diagnostic -> diagnostic.getKind() + " " + diagnostic.getMessage(Locale.ROOT))
+						.collect(Collectors.joining("\n")));
+			}
+		}
 	}
 
 	private AutoImportResult inferImports(final String source, final Analysis analysis, final LibraryIndex index) {
@@ -166,28 +189,32 @@ final class JavaSourceTransformer {
 		return source.substring(0, (int) insertion) + block + source.substring((int) insertion);
 	}
 
-	private List<Path> collectDependencies(final Analysis analysis, final LibraryIndex index) {
-		final Map<Path, CompilationUnitTree> units = new HashMap<>();
-		for (final CompilationUnitTree unit : analysis.units()) {
-			try { units.put(Paths.get(unit.getSourceFile().toUri()).toAbsolutePath().normalize(), unit); }
-			catch (final Exception ignored) { }
-		}
+	private List<Path> collectDependencies(final Analysis analysis, final LibraryIndex index) throws IOException {
 		final LinkedHashSet<Path> ordered = new LinkedHashSet<>();
-		final ArrayDeque<CompilationUnitTree> queue = new ArrayDeque<>();
-		queue.add(analysis.solution());
-		final Set<CompilationUnitTree> scanned = Collections.newSetFromMap(new IdentityHashMap<>());
+		final ArrayDeque<Path> queue = new ArrayDeque<>(
+				referencedLibrarySources(analysis.solution(), analysis.trees(), index));
 		while (!queue.isEmpty()) {
-			final CompilationUnitTree unit = queue.removeFirst();
-			if (!scanned.add(unit)) continue;
-			final Set<Path> references = referencedLibrarySources(unit, analysis.trees(), index);
-			for (final Path path : references) {
-				if (ordered.add(path)) {
-					final CompilationUnitTree dependency = units.get(path);
-					if (dependency != null) queue.add(dependency);
-				}
+			final Path path = queue.removeFirst();
+			if (!ordered.add(path)) continue;
+			for (final Path dependency : libraryDependencies(path, index)) {
+				if (!ordered.contains(dependency)) queue.addLast(dependency);
 			}
 		}
 		return List.copyOf(ordered);
+	}
+
+	private Set<Path> libraryDependencies(final Path source, final LibraryIndex index) throws IOException {
+		final Set<Path> cached = index.dependencies().get(source);
+		if (cached != null) return cached;
+		final Analysis analysis = analyze(normalize(Files.readString(source, UTF_8)), index.classPath());
+		if (analysis.hasErrors()) throw new IOException("library dependency analysis failed: " + source + "\n" +
+				analysis.diagnostics());
+		final LinkedHashSet<Path> dependencies = new LinkedHashSet<>(
+				referencedLibrarySources(analysis.solution(), analysis.trees(), index));
+		dependencies.remove(source);
+		final Set<Path> result = Collections.unmodifiableSet(dependencies);
+		index.dependencies().put(source, result);
+		return result;
 	}
 
 	private Set<Path> referencedLibrarySources(final CompilationUnitTree unit, final Trees trees,
@@ -368,7 +395,7 @@ final class JavaSourceTransformer {
 		return applyEdits(source, edits).strip();
 	}
 
-	private Analysis analyze(final String source, final Path sourceRoot) throws IOException {
+	private Analysis analyze(final String source, final Path classPath) throws IOException {
 		final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 		final StringWriter output = new StringWriter();
 		final String fileName = primaryTypeName(source) + ".java";
@@ -376,7 +403,7 @@ final class JavaSourceTransformer {
 		final List<CompilationUnitTree> units = new ArrayList<>();
 		try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, Locale.ROOT, UTF_8)) {
 			final List<String> options = new ArrayList<>(List.of("-encoding", "UTF-8", "-proc:none", "-implicit:none"));
-			if (sourceRoot != null) options.addAll(List.of("-sourcepath", sourceRoot.toString()));
+			if (classPath != null) options.addAll(List.of("-classpath", classPath.toString()));
 			final JavacTask task = (JavacTask) compiler.getTask(output, fileManager, diagnostics, options, null, List.of(unit));
 			task.setTaskListener(new TaskListener() {
 				@Override public void started(final TaskEvent event) {
@@ -487,7 +514,8 @@ final class JavaSourceTransformer {
 	}
 
 	private record LibraryType(String simpleName, String fqcn, Path path) { }
-	private record LibraryIndex(Map<String, List<LibraryType>> bySimpleName, Map<String, LibraryType> byFqcn) { }
+	private record LibraryIndex(Map<String, List<LibraryType>> bySimpleName, Map<String, LibraryType> byFqcn,
+	                            Path classPath, Map<Path, Set<Path>> dependencies) { }
 	private record AutoImportResult(List<String> imports, String error) { }
 	private record BundleOutput(String source, List<String> inlined) { }
 	private record Parsed(CompilationUnitTree unit, SourcePositions positions) { }

@@ -3,7 +3,7 @@ import {pathToFileURL} from "node:url";
 import type {LocalRunnerCompilerInfo, LocalRunnerRunResponse} from "@atcoder-tools/shared";
 import type {LocalRunnerTransformResponse} from "@atcoder-tools/shared";
 import type {RunnerStatusInfo} from "../types";
-import {LOG_FILE_PATH, resolveLibrarySourceRoot, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../config";
+import {LOG_FILE_PATH, prepareLibrarySourceRoot, resolveLibrarySourceRoot, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../config";
 import {ensureDirectory, formatRunSummary, logError, logInfo, logWarn,} from "../utils";
 import {
 	getCompileCacheSize,
@@ -297,7 +297,10 @@ const server = http.createServer(async (req, res) => {
 async function bootstrap() {
 	ensureDirectory(RUNNER_CONFIG.baseDir);
 	ensureDirectory(RUNNER_CONFIG.compileRootDir);
+	const libraryRoots = prepareLibrarySourceRoot();
 	logInfo(`Local runner base directory: ${RUNNER_CONFIG.baseDir}`);
+	logInfo(`Library source: ${libraryRoots.source}`);
+	logInfo(`Prepared library source: ${libraryRoots.prepared}`);
 	logInfo(`Log file: ${LOG_FILE_PATH}`);
 	logInfo(`Log rotation size: ${RUNNER_CONFIG.maxLogFileSize} bytes`);
 	logInfo(`Dispatcher capture limit: ${RUNNER_CONFIG.dispatcherCaptureLimitBytes} bytes`);

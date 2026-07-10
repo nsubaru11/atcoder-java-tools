@@ -39,11 +39,14 @@ function startServer(): void {
 	const binDir = path.join(PROJECT_ROOT, "runner", "bin");
 
 	if (process.platform === "win32") {
-		const backend = (process.env.LOCAL_RUNNER_BACKEND || "auto").toLowerCase();
+		const backend = (process.env.LOCAL_RUNNER_BACKEND || "wsl").toLowerCase();
 		const bunCommand = process.env.LOCAL_RUNNER_BUN || "bun";
-		const nativeAvailable = commandAvailable(bunCommand, ["--version"]) &&
-			commandAvailable("java", ["-version"]) && commandAvailable("javac", ["-version"]);
-		if (backend !== "wsl" && nativeAvailable) {
+		if (backend === "native") {
+			const nativeAvailable = commandAvailable(bunCommand, ["--version"]) &&
+				commandAvailable("java", ["-version"]) && commandAvailable("javac", ["-version"]);
+			if (!nativeAvailable) {
+				throw new Error("LOCAL_RUNNER_BACKEND=native requires bun, java, and javac on Windows PATH.");
+			}
 			const serverPath = path.join(PROJECT_ROOT, "runner", "src", "daemon", "server.ts");
 			const child = spawn(bunCommand, [serverPath], {
 				cwd: PROJECT_ROOT,
@@ -54,9 +57,6 @@ function startServer(): void {
 			});
 			child.unref();
 			return;
-		}
-		if (backend === "native") {
-			throw new Error("LOCAL_RUNNER_BACKEND=native requires bun, java, and javac on Windows PATH.");
 		}
 		// 新しいコンソール窓で wsl を直接起動（PowerShell を介さない）。
 		// --cd で Windows パスのまま作業ディレクトリ指定（スペース対応）、bash で .sh 実行（実行権限ビット不要）。

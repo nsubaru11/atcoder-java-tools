@@ -25,7 +25,9 @@ function resolveProjectRoot() {
 
 export const PROJECT_ROOT = resolveProjectRoot();
 
-export function resolveLibrarySourceRoot(): string {
+let preparedLibrarySourceRoot: string | null = null;
+
+function findLibrarySourceRoot(): string {
 	const candidates = [
 		process.env.ATCODER_LIB_SRC,
 		path.resolve(PROJECT_ROOT, "../library/src"),
@@ -35,6 +37,10 @@ export function resolveLibrarySourceRoot(): string {
 		if (fs.existsSync(path.join(candidate, "lib"))) return path.resolve(candidate);
 	}
 	throw new Error(`Library source root not found. Tried: ${candidates.join(", ")}`);
+}
+
+export function resolveLibrarySourceRoot(): string {
+	return preparedLibrarySourceRoot || findLibrarySourceRoot();
 }
 
 export const CLI_CONFIG = {
@@ -93,6 +99,20 @@ export const RUNNER_CONFIG = {
 	warmUpProfile: (process.env.LOCAL_RUNNER_WARMUP_PROFILE || "full").toLowerCase(),
 	warmUpRunTimeoutMs: Number(process.env.LOCAL_RUNNER_WARMUP_TIMEOUT_MS || 30000),
 };
+
+export function prepareLibrarySourceRoot(): {source: string; prepared: string} {
+	const source = findLibrarySourceRoot();
+	if (process.platform !== "linux") {
+		preparedLibrarySourceRoot = source;
+		return {source, prepared: source};
+	}
+	const prepared = path.join(RUNNER_CONFIG.baseDir, "library-source");
+	fs.rmSync(prepared, {recursive: true, force: true});
+	fs.mkdirSync(prepared, {recursive: true});
+	fs.cpSync(path.join(source, "lib"), path.join(prepared, "lib"), {recursive: true, force: true});
+	preparedLibrarySourceRoot = prepared;
+	return {source, prepared};
+}
 
 export const LOG_FILE_PATH = path.join(RUNNER_CONFIG.baseDir, "local-runner.log");
 export const DISPATCHER_CLASS_FILE = path.join(RUNNER_CONFIG.dispatcherBuildDir, "Dispatcher.class");

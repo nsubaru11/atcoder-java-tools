@@ -21,7 +21,7 @@ import {
 		renameClass: true,
 		// DEBUG = true を自動的に false に強制するか
 		fixDebug: true,
-		// 貼り付け後に Main クラスを自動折りたたみするか
+		// 貼り付け後に Main とトップレベル final class を自動折りたたみするか
 		foldMainOnPaste: true,
 		// デバッグログを有効化するか
 		logEnabled: false,
@@ -54,6 +54,9 @@ import {
 		}
 	};
 	const isEnterKey = (e: KeyboardEvent): boolean => e.key === 'Enter' || e.keyCode === 13;
+	const findTopLevelFinalClassLines = (source: string): number[] => source.split('\n')
+		.map((line, index) => /^(?:public\s+)?final\s+class\s+\w+\b/.test(line) ? index : -1)
+		.filter((line) => line >= 0);
 	const clickElementRobust = (el: Element | null): void => {
 		if (!el) return;
 		try {
@@ -132,7 +135,7 @@ import {
 			return false;
 		}
 
-		foldMain(): void {
+		foldClasses(): void {
 		}
 	}
 
@@ -169,7 +172,7 @@ import {
 				setTimeout(() => void transformEditorSnapshot(
 					() => session.getValue(),
 					(value) => session.setValue(value),
-					() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100); },
+					() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0); },
 				), 0);
 			});
 			this.initialized = true;
@@ -177,43 +180,34 @@ import {
 			return true;
 		}
 
-		foldMain(): void {
+		foldClasses(): void {
 			const ace = this.getAce();
 			const editor = this.getEditor();
 			if (!ace || !editor) return;
 			const session = editor.getSession();
 			const lines = session.getValue().split('\n');
-			const mainLine = lines.findIndex((l: string) => /class\s+Main\s*(\{|extends|implements)/.test(l));
-			if (mainLine === -1) return;
-
-			const existingFold = (session.getAllFolds() || []).find((fold: any) => fold.start.row === mainLine);
-			if (existingFold) {
-				session.expandFold(existingFold);
-				return;
-			}
-			const widget = session.getFoldWidget(mainLine);
-			if (widget) {
-				const range = session.getFoldWidgetRange(mainLine);
+			const classLines = findTopLevelFinalClassLines(session.getValue());
+			for (const classLine of classLines) {
+				const existingFold = (session.getAllFolds() || []).find((fold: any) => fold.start.row === classLine);
+				if (existingFold) continue;
+				const range = session.getFoldWidget(classLine) ? session.getFoldWidgetRange(classLine) : null;
 				if (range) {
 					session.addFold('...', range);
-					return;
+					continue;
 				}
-			}
-			// マニュアルフォールド
-			let brace = 0, endLine = -1;
-			// ここも厳密には文字列考慮が必要だが、フォールディングなので簡易版のままでOK
-			for (let i = mainLine; i < lines.length; i++) {
-				brace += (lines[i].match(/\{/g) || []).length;
-				brace -= (lines[i].match(/}/g) || []).length;
-				if (i > mainLine && brace === 0) {
-					endLine = i;
-					break;
+				let brace = 0, endLine = -1;
+				for (let i = classLine; i < lines.length; i++) {
+					brace += (lines[i].match(/\{/g) || []).length;
+					brace -= (lines[i].match(/}/g) || []).length;
+					if (i > classLine && brace === 0) {
+						endLine = i;
+						break;
+					}
 				}
-			}
-			if (endLine > mainLine) {
-				const Range = ace.require('ace/range').Range;
-				const foldRange = new Range(mainLine, lines[mainLine].length, endLine, 0);
-				session.addFold('...', foldRange);
+				if (endLine > classLine) {
+					const Range = ace.require('ace/range').Range;
+					session.addFold('...', new Range(classLine, lines[classLine].length, endLine, 0));
+				}
 			}
 		}
 	}
@@ -244,7 +238,7 @@ import {
 					void transformEditorSnapshot(
 						() => model.getValue(),
 						(value) => model.setValue(value),
-						() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100); },
+						() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0); },
 					);
 				});
 			} catch (err) {
@@ -256,7 +250,7 @@ import {
 							void transformEditorSnapshot(
 								() => model.getValue(),
 								(value) => model.setValue(value),
-								() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100); },
+								() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0); },
 							);
 						}
 					}
@@ -267,24 +261,22 @@ import {
 			return true;
 		}
 
-		foldMain(): void {
+		foldClasses(): void {
 			const editor = this.getEditor();
 			if (!editor) return;
 			const model = editor.getModel();
 			if (!model) return;
-			const lines = model.getValue().split('\n');
-			let mainLine = -1;
-			for (let i = 0; i < lines.length; i++) {
-				if (/class\s+Main\s*(\{|extends|implements)/.test(lines[i])) {
-					mainLine = i + 1;
-					break;
-				}
-			}
-			if (mainLine === -1) return;
-			editor.setPosition({lineNumber: mainLine, column: 1});
+			const classLines = findTopLevelFinalClassLines(model.getValue()).map((line) => line + 1);
+			if (!classLines.length) return;
+			const position = editor.getPosition?.();
+			editor.setSelections(classLines.map((lineNumber) => ({
+				startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1,
+			})));
 			editor.focus();
-			const action = editor.getAction && editor.getAction('editor.toggleFold');
-			if (action && action.run) action.run();
+			const action = editor.getAction && editor.getAction('editor.fold');
+			if (action?.run) void Promise.resolve(action.run()).finally(() => {
+				if (position) editor.setPosition(position);
+			});
 		}
 	}
 
@@ -383,7 +375,7 @@ import {
 				} else if (event.ctrlKey && event.shiftKey && (event.key === 'M' || event.key === 'm')) {
 					event.preventDefault();
 					event.stopPropagation();
-					this.active?.editor?.foldMain();
+					this.active?.editor?.foldClasses();
 				}
 			}, true);
 		}

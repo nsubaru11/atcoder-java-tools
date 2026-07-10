@@ -86,18 +86,14 @@ final class JavaSourceTransformer {
 		final Map<String, LibraryType> byFqcn = new HashMap<>();
 		try (Stream<Path> files = Files.walk(root.resolve("lib"))) {
 			for (final Path file : files.filter(path -> path.toString().endsWith(".java")).sorted().toList()) {
-				final String code = Files.readString(file, UTF_8);
-				final Parsed parsed = parse(code, file.toUri());
-				final String packageName = parsed.unit().getPackageName() == null
-						? "" : parsed.unit().getPackageName().toString();
-				for (final Tree declaration : parsed.unit().getTypeDecls()) {
-					if (!(declaration instanceof ClassTree type) || type.getSimpleName().isEmpty()) continue;
-					final String simpleName = type.getSimpleName().toString();
-					final String fqcn = packageName.isEmpty() ? simpleName : packageName + "." + simpleName;
-					final LibraryType libraryType = new LibraryType(simpleName, fqcn, file.toAbsolutePath().normalize());
-					bySimpleName.computeIfAbsent(simpleName, ignored -> new ArrayList<>()).add(libraryType);
-					byFqcn.put(fqcn, libraryType);
-				}
+				// Public importable types follow src/lib/<package>/<ClassName>.java by project policy.
+				// Deriving the index from that canonical path avoids parsing every library file on first paste.
+				final String relative = root.relativize(file).toString().replace(File.separatorChar, '.');
+				final String fqcn = relative.substring(0, relative.length() - ".java".length());
+				final String simpleName = file.getFileName().toString().replaceFirst("\\.java$", "");
+				final LibraryType libraryType = new LibraryType(simpleName, fqcn, file.toAbsolutePath().normalize());
+				bySimpleName.computeIfAbsent(simpleName, ignored -> new ArrayList<>()).add(libraryType);
+				byFqcn.put(fqcn, libraryType);
 			}
 		}
 		cachedRoot = root;
@@ -241,11 +237,7 @@ final class JavaSourceTransformer {
 			parts.add("// ===== inlined: " + fqcn + " =====\n" + transformLibraryUnit(code, parsed));
 			inlined.add(fqcn);
 		}
-		final Set<String> solutionImports = analysis.solution().getImports().stream()
-				.map(importTree -> "import " + (importTree.isStatic() ? "static " : "") +
-						importTree.getQualifiedIdentifier() + ";")
-				.collect(Collectors.toSet());
-		hoisted.removeAll(solutionImports);
+		hoisted.removeIf(candidate -> isCoveredBySolutionImport(candidate, analysis.solution().getImports()));
 
 		String transformedSolution = transformSolution(source, analysis, debug, hoisted);
 		if (!parts.isEmpty()) transformedSolution = transformedSolution.stripTrailing() + "\n\n" +
@@ -266,12 +258,30 @@ final class JavaSourceTransformer {
 			if (!name.startsWith("lib.")) continue;
 			final Span span = treeSpan(source, analysis.solution(), importTree, analysis.positions());
 			final String original = source.substring(span.start(), span.end()).stripTrailing();
-			final String prefix = firstLibraryImport && !hoisted.isEmpty() ? String.join("\n", hoisted) + "\n" : "";
+			String prefix = firstLibraryImport && !hoisted.isEmpty() ? String.join("\n", hoisted) + "\n\n" : "";
+			if (firstLibraryImport && prefix.isEmpty() && span.start() > 0 &&
+					!source.substring(0, span.start()).endsWith("\n\n")) prefix = "\n";
 			edits.add(new Edit(span.start(), span.end(), prefix + "// " + original.stripLeading() + "\n"));
 			firstLibraryImport = false;
 		}
 		addMainAndDebugEdits(source, analysis, debug, edits);
 		return applyEdits(source, edits);
+	}
+
+	private boolean isCoveredBySolutionImport(final String candidate, final List<? extends ImportTree> solutionImports) {
+		final boolean candidateStatic = candidate.startsWith("import static ");
+		final int prefixLength = candidateStatic ? "import static ".length() : "import ".length();
+		final String candidateName = candidate.substring(prefixLength, candidate.length() - 1);
+		for (final ImportTree solutionImport : solutionImports) {
+			if (solutionImport.isStatic() != candidateStatic) continue;
+			final String solutionName = solutionImport.getQualifiedIdentifier().toString();
+			if (solutionName.equals(candidateName)) return true;
+			if (!solutionName.endsWith(".*")) continue;
+			final int separator = candidateName.lastIndexOf('.');
+			if (separator >= 0 && solutionName.substring(0, solutionName.length() - 1)
+					.equals(candidateName.substring(0, separator + 1))) return true;
+		}
+		return false;
 	}
 
 	private void addMainAndDebugEdits(final String source, final Analysis analysis, final boolean debug,

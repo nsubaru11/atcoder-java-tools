@@ -21,6 +21,7 @@ public final class JavaSourceTransformerTest {
 
 			final JavaSourceTransformer transformer = new JavaSourceTransformer();
 			final String wildcardSource = """
+					import java.util.*;
 					import lib.ds.*;
 					public final class A {
 						private static final boolean DEBUG = true;
@@ -31,9 +32,19 @@ public final class JavaSourceTransformerTest {
 			check(wildcard.exitCode() == 0, wildcard.diagnostics());
 			check(wildcard.inlinedClasses().equals(java.util.List.of("lib.ds.UnionFind")), wildcard.inlinedClasses().toString());
 			check(wildcard.sourceCode().contains("// import lib.ds.*;"), "wildcard import was not commented");
+			check(wildcard.sourceCode().contains("import java.util.*;\n\n// import lib.ds.*;"),
+					"library import comment was not separated from regular imports");
+			check(!wildcard.sourceCode().contains("import java.util.Arrays;"),
+					"explicit dependency import was not covered by solution wildcard import");
 			check(!wildcard.sourceCode().contains("UnusedTree"), "unused type was inlined");
 			check(wildcard.sourceCode().contains("class Main"), "main class was not renamed");
 			check(wildcard.sourceCode().contains("DEBUG = false"), "DEBUG was not disabled");
+
+			final SourceTransformResult unrelatedWildcard = transformer.transform(
+					wildcardSource.replace("import java.util.*;", "import java.util.concurrent.*;"), root, false, true);
+			check(unrelatedWildcard.exitCode() == 0, unrelatedWildcard.diagnostics());
+			check(unrelatedWildcard.sourceCode().contains("import java.util.Arrays;"),
+					"unrelated wildcard incorrectly covered dependency import");
 
 			final String implicitSource = wildcardSource.replace("import lib.ds.*;\n", "");
 			final SourceTransformResult implicit = transformer.transform(implicitSource, root, false, true);

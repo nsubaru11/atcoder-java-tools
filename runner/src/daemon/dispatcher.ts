@@ -494,3 +494,19 @@ export function queueDispatcherTransform(
 		});
 	return dispatcherState.requestQueue as Promise<DispatcherTransformResult>;
 }
+
+export async function warmUpSourceTransformer(librarySourceRoot: string): Promise<void> {
+	const startedAt = Date.now();
+	const source = [
+		"import lib.io.FastScanner;",
+		"public final class TransformerWarmUp {",
+		"\tFastScanner scanner;",
+		"\tpublic static void main(String[] args) {}",
+		"}",
+	].join("\n");
+	const result = await queueDispatcherTransform(source, librarySourceRoot, false, true);
+	if (result.exitCode !== 0) {
+		throw new Error(`[WarmUp] source transform failed: ${firstLine(result.diagnostics) || "unknown error"}`);
+	}
+	logInfo(`Source transformer warmed up in ${Date.now() - startedAt}ms`);
+}

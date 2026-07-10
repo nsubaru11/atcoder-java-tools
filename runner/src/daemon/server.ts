@@ -21,6 +21,7 @@ import {
 	queueDispatcherTransform,
 	stopDispatcher,
 	warmUpDispatcher,
+	warmUpSourceTransformer,
 } from "./dispatcher";
 
 const serverStartedAt = Date.now();
@@ -290,6 +291,7 @@ async function bootstrap() {
 	ensureDirectory(RUNNER_CONFIG.dispatcherBuildDir);
 	await ensureDispatcherReady();
 	await warmUpDispatcher();
+	await warmUpSourceTransformer(resolveLibrarySourceRoot());
 	// 既定でループバック(127.0.0.1)にのみバインドし、LAN/リモートからの無認証アクセスを遮断する。
 	// どうしても外部公開が必要な場合のみ LOCAL_RUNNER_HOST で上書き可能（非推奨）。
 	const host = process.env.LOCAL_RUNNER_HOST || "127.0.0.1";

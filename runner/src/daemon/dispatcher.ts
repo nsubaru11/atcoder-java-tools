@@ -76,10 +76,7 @@ function buildWarmUpSourceCode() {
 	if (!classDeclarationPattern.test(sourceCode)) {
 		throw new Error(`class declaration not found in ${RUNNER_CONFIG.warmUpSourceFile}`);
 	}
-	return sourceCode.replace(
-		classDeclarationPattern,
-		`public final class ${RUNNER_CONFIG.warmUpTargetClassName}`,
-	);
+	return sourceCode;
 }
 
 /** 常駐 Dispatcher(JVM) が起動中かどうか（status 表示用）。 */
@@ -270,15 +267,19 @@ export async function ensureDispatcherReady() {
 	await dispatcherState.startupPromise;
 }
 
-export async function warmUpDispatcher() {
+export async function warmUpDispatcher(librarySourceRoot: string) {
 	if (hasDispatcherWarmedUp) {
 		return;
 	}
 	logInfo(
-		`Warm up dispatcher... profile=${RUNNER_CONFIG.warmUpProfile} repeat=${WARMUP_REPEAT_COUNT} timeout=${RUNNER_CONFIG.warmUpRunTimeoutMs}ms`,
+		`Warm up dispatcher and common I/O... profile=${RUNNER_CONFIG.warmUpProfile} repeat=${WARMUP_REPEAT_COUNT} timeout=${RUNNER_CONFIG.warmUpRunTimeoutMs}ms`,
 	);
 	const warmupSourceCode = buildWarmUpSourceCode();
-	const warmupEntry = await getCompiledEntry(warmupSourceCode);
+	const transformed = await queueDispatcherTransform(warmupSourceCode, librarySourceRoot, false, true, false);
+	if (transformed.exitCode !== 0) {
+		throw new Error(`[WarmUp] transform failed: ${firstLine(transformed.diagnostics) || "unknown error"}`);
+	}
+	const warmupEntry = await getCompiledEntry(transformed.sourceCode);
 	if (warmupEntry.status !== "compiled") {
 		throw new Error(`[WarmUp] compile failed: ${firstLine(warmupEntry.error) || "unknown error"}`);
 	}
@@ -494,22 +495,4 @@ export function queueDispatcherTransform(
 			});
 		});
 	return dispatcherState.requestQueue as Promise<DispatcherTransformResult>;
-}
-
-export async function warmUpSourceTransformer(librarySourceRoot: string): Promise<void> {
-	const startedAt = Date.now();
-	const source = [
-		"import lib.io.FastPrinter;",
-		"import lib.io.FastScanner;",
-		"public final class TransformerWarmUp {",
-		"\tFastPrinter printer;",
-		"\tFastScanner scanner;",
-		"\tpublic static void main(String[] args) {}",
-		"}",
-	].join("\n");
-	const result = await queueDispatcherTransform(source, librarySourceRoot, false, true);
-	if (result.exitCode !== 0) {
-		throw new Error(`[WarmUp] source transform failed: ${firstLine(result.diagnostics) || "unknown error"}`);
-	}
-	logInfo(`Source transformer warmed up (FastScanner, FastPrinter) in ${Date.now() - startedAt}ms`);
 }

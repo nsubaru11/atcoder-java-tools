@@ -53,7 +53,7 @@ const DISPATCHER_SOURCE_DIR = path.dirname(DISPATCHER_SOURCE_FILE);
 function listDispatcherSources(): string[] {
 	return fs
 		.readdirSync(DISPATCHER_SOURCE_DIR)
-		.filter((name) => name.endsWith(".java"))
+		.filter((name) => name.endsWith(".java") && name !== "WarmUp.java")
 		.map((name) => path.join(DISPATCHER_SOURCE_DIR, name));
 }
 

@@ -11,7 +11,7 @@ const output = fs.mkdtempSync(path.join(os.tmpdir(), "java-source-transformer-sm
 
 try {
 	const javaSources = fs.readdirSync(sourceDir)
-		.filter((name) => name.endsWith(".java"))
+		.filter((name) => name.endsWith(".java") && name !== "WarmUp.java")
 		.map((name) => path.join(sourceDir, name));
 	const compile = spawnSync("javac", ["--release", "24", "-encoding", "UTF-8", "-d", output, ...javaSources, testFile], {
 		encoding: "utf8",

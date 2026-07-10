@@ -94,7 +94,6 @@ export const RUNNER_CONFIG = {
 	dispatcherBuildDir: path.join(process.env.LOCAL_RUNNER_BASE_DIR || defaultRunnerBaseDir, "dispatcher"),
 	warmUpSourceFile: path.join(PROJECT_ROOT, "runner", "java", "src", "WarmUp.java"),
 	warmUpSourceClassName: "WarmUp",
-	warmUpTargetClassName: "Main",
 	warmUpStdin: "",
 	warmUpProfile: (process.env.LOCAL_RUNNER_WARMUP_PROFILE || "full").toLowerCase(),
 	warmUpRunTimeoutMs: Number(process.env.LOCAL_RUNNER_WARMUP_TIMEOUT_MS || 30000),

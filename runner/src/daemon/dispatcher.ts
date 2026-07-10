@@ -499,8 +499,10 @@ export function queueDispatcherTransform(
 export async function warmUpSourceTransformer(librarySourceRoot: string): Promise<void> {
 	const startedAt = Date.now();
 	const source = [
+		"import lib.io.FastPrinter;",
 		"import lib.io.FastScanner;",
 		"public final class TransformerWarmUp {",
+		"\tFastPrinter printer;",
 		"\tFastScanner scanner;",
 		"\tpublic static void main(String[] args) {}",
 		"}",
@@ -509,5 +511,5 @@ export async function warmUpSourceTransformer(librarySourceRoot: string): Promis
 	if (result.exitCode !== 0) {
 		throw new Error(`[WarmUp] source transform failed: ${firstLine(result.diagnostics) || "unknown error"}`);
 	}
-	logInfo(`Source transformer warmed up in ${Date.now() - startedAt}ms`);
+	logInfo(`Source transformer warmed up (FastScanner, FastPrinter) in ${Date.now() - startedAt}ms`);
 }

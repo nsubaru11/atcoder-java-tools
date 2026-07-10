@@ -1,6 +1,6 @@
 # runner
 
-AtCoder 向けの **ローカル Java 実行** と **CLI**（`test` / `submit` / `localtest` / `run` / `tomain` / `serve` / `stop`）です。
+AtCoder 向けの **ローカル Java 実行** と **CLI**（`test` / `submit` / `toclip` / `localtest` / `run` / `tomain` / `serve` / `stop`）です。
 Bun + TypeScript で実装し、Java 側は常駐 `Dispatcher`（インプロセス javac ＋ 実行）と連携します。
 
 ## 構成
@@ -38,6 +38,7 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 | `run <sourceFile> [inputFile]`                                 | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG 既定 true**）                                             |
 | `crosscheck <actualSourceFile> <expectedSourceFile> [testDir]` | `.in` を入力に2つのコードを実行し標準出力を突き合わせ（`.out` は不要。testDir は actual 側から自動探索。expected 側が異常終了したケースは比較せずそのまま報告） |
 | `tomain <sourceFile> [outFile]`                                | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き）                                                |
+| `toclip <sourceFile>` / `toclip <task>`                        | 提出用ソースをクリップボードへコピー（**DEBUG=false**。短縮例: `toclip d` → `D.java`）                                  |
 | `serve`                                                        | Local Runner サーバーだけ先に起動して ready まで待つ                                                                |
 | `stop`                                                         | Local Runner サーバーを停止（graceful shutdown）                                                             |
 | `status`                                                       | Local Runner サーバーの稼働状況を表示（uptime・Java・dispatcher・キャッシュ等。稼働中=0/停止中=1。auto-start はしない）                |
@@ -54,7 +55,7 @@ import lib.io.FastPrinter;
 import lib.io.FastScanner;
 ```
 
-`run` / `localtest` / `test` / `crosscheck` / `tomain` / `submit` は、実行前に`import lib.*`を検出し、`library/src/lib`から必要なクラスと推移的依存を単一ソースへ展開します。ログには`Bundled library classes: ...`として展開対象が表示されます。`patterns.*`は読む・写経する資料なので自動展開しません。
+`run` / `localtest` / `test` / `crosscheck` / `tomain` / `toclip` / `submit` は、実行前に`import lib.*`を検出し、`library/src/lib`から必要なクラスと推移的依存を単一ソースへ展開します。ログには`Bundled library classes: ...`として展開対象が表示されます。`patterns.*`は読む・写経する資料なので自動展開しません。
 
 ライブラリは次の順で検索します。
 
@@ -63,22 +64,23 @@ import lib.io.FastScanner;
 
 AtCoderリポジトリ直下にlibrary submoduleがあれば、通常は環境変数の設定は不要です。`import static lib...`、本文中の`lib.ds.UnionFind`のような完全修飾参照、バンドル後に単純名が衝突する型はエラーになります。
 
-提出前の展開結果だけを確認するには、次を使います。
+ブラウザへ手動で貼り付ける提出コードは、クリップボードへ直接コピーできます。
 
 ```powershell
-tomain -f D.java Main.java
-javac --release 24 -encoding UTF-8 Main.java
+toclip d       # 短縮表記: カレントディレクトリの D.java
+toclip D.java  # ファイルを明示
 ```
 
 #### 短縮表記（フォルダからコンテスト推定）
 
-`test` / `submit` に**引数を 1 つだけ**渡すと短縮表記になります。
+`test` / `submit` / `toclip` に**引数を 1 つだけ**渡すと短縮表記になります。
 `test d` は、カレントの上位階層にある `ABC463` のようなフォルダ名からコンテスト（小文字化して `abc463`）を、引数の記号からタスク（`abc463_d`）とソース（`D.java`）を解決し、`test abc463_d D.java` と同等に動きます。
 
 - 記号は**大小無視**（`d` = `D`）。コンテスト名は URL に合わせ**小文字化**。
 - 末尾の数字は**ファイル変種**扱い: `test d1` → `D1.java` を、問題 `d`（`abc463_d`）のサンプルでテスト（AtCoder のタスク記号は A〜H と Ex のみで数字付きは無いため）。
 - コンテストフォルダは `ABC463` / `typical90` のような「英字＋数字」を採用。範囲フォルダ `ABC451~475` や `src` は無視。当てはまらない場合はフル指定（2 引数）で。
 - ソースは**カレントディレクトリ**から探します（例の構成では `ABC463/src` で実行）。
+- `toclip`はコンテストIDを必要とせず、短縮記号からソースだけを解決します（`toclip d1` → `D1.java`）。
 
 `test` / `submit` / `localtest` / `run` は、Local Runner サーバーが未起動なら自動起動します（新しい「Local Runner」コンソール窓が開き、サーバーログがリアルタイム表示）。`serve` で事前に温めておくと初回が速くなります。
 
@@ -110,9 +112,9 @@ javac --release 24 -encoding UTF-8 Main.java
 
 ### DEBUG の扱い
 
-ソース中の `DEBUG = true` は、`submit` / `tomain`（提出物）では `false` に固定し、`test` / `localtest` / `run`（ローカル実行）では既定で `true` のまま実行します。デバッグ出力を `System.err` に出しておけば、判定（stdout 比較）に影響せず確認できます。
+ソース中の `DEBUG = true` は、`submit` / `tomain` / `toclip`（提出物）では `false` に固定し、`test` / `localtest` / `run`（ローカル実行）では既定で `true` のまま実行します。デバッグ出力を `System.err` に出しておけば、判定（stdout 比較）に影響せず確認できます。
 
-`test` / `localtest` / `run` は `-d/--debug=false` で DEBUG を切って実行でき、提出と同じ条件での確認に使えます。`submit` / `tomain` は提出物のため常に `false`（上書き不可）。
+`test` / `localtest` / `run` は `-d/--debug=false` で DEBUG を切って実行でき、提出と同じ条件での確認に使えます。`submit` / `tomain` / `toclip` は提出物のため常に `false`（上書き不可）。
 
 ### 実行時間の警告
 

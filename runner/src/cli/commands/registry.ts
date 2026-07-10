@@ -2,6 +2,7 @@ import type {Command} from "./Command";
 import {TestCommand} from "./TestCommand";
 import {SubmitCommand} from "./SubmitCommand";
 import {TomainCommand} from "./TomainCommand";
+import {ToclipCommand} from "./ToclipCommand";
 import {LocalTestCommand} from "./LocalTestCommand";
 import {RunCommand} from "./RunCommand";
 import {ServeCommand} from "./ServeCommand";
@@ -19,6 +20,7 @@ const COMMAND_LIST: readonly Command[] = [
 	new TestCommand(),
 	new SubmitCommand(),
 	new TomainCommand(),
+	new ToclipCommand(),
 	new LocalTestCommand(),
 	new RunCommand(),
 	new ServeCommand(),

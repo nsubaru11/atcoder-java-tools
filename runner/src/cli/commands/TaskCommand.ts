@@ -43,6 +43,14 @@ function resolveShortSourceFile(token: string, cwd: string): string {
 	return `${token.toUpperCase()}.java`;
 }
 
+/** 短縮指定（d, ex, d1など）から、現在ディレクトリ内のJavaソースを解決する。 */
+export function resolveShortSourceArg(token: string): string {
+	if (!SHORT_TASK_PATTERN.test(token)) {
+		throw new Error(`短縮タスク指定が不正です: "${token}"（例: d, e, ex, d1）。`);
+	}
+	return resolveShortSourceFile(token, process.cwd());
+}
+
 /**
  * 短縮タスク指定（例: "d", "ex", "d1"）を {taskScreenName, sourceFilePath} に展開する。
  * - コンテストID: cwd から上の階層にある ABC463 等のフォルダ名を小文字化（URL はほぼ小文字なので統一）。

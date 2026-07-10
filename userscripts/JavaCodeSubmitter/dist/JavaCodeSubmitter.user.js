@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.1.1
+// @version        1.2.0
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -306,6 +306,10 @@
 	function mergeWithDefaults(defaults, raw) {
 		return Object.assign({}, defaults, parseStoredObject(raw));
 	}
+	// ../shared/src/local-runner.ts
+	function buildLocalRunnerTransformRequest(sourceCode, debug = false, autoImport = true) {
+		return { mode: "transform", sourceCode, debug, autoImport };
+	}
 	// JavaCodeSubmitter/src/main.ts
 	(function () {
 		const g = typeof unsafeWindow !== "undefined" && unsafeWindow ? unsafeWindow : window;
@@ -315,6 +319,7 @@
 			fixDebug: true,
 			foldMainOnPaste: true,
 			logEnabled: false,
+			localRunnerURL: "http://localhost:8080",
 		};
 		function loadSettings() {
 			try {
@@ -347,18 +352,42 @@
 				el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
 			} catch {}
 		};
-		function modifyPastedCode(text) {
+		async function modifyPastedCode(text) {
 			const code = typeof text === "string" ? text : "";
 			if (!code) return { modified: "", didModify: false };
+			try {
+				const response = await fetch(SETTINGS.localRunnerURL, {
+					method: "POST",
+					mode: "cors",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify(buildLocalRunnerTransformRequest(code, false, true)),
+				});
+				if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
+				const transformed = await response.json();
+				if (transformed.status !== "success") throw new Error(transformed.diagnostics);
+				if (transformed.addedImports.length) log("Added imports:", transformed.addedImports.join(", "));
+				if (transformed.inlinedClasses.length) log("Bundled:", transformed.inlinedClasses.join(", "));
+				return { modified: transformed.sourceCode, didModify: transformed.sourceCode !== code };
+			} catch (error) {
+				log("LocalRunner transform unavailable; using lexical fallback:", error);
+			}
 			const result = modifyJavaCode(code, {
 				removePackage: SETTINGS.removePackage,
 				renameClass: SETTINGS.renameClass,
 				fixDebug: SETTINGS.fixDebug,
 			});
-			const didModify = result.classReplaced || result.debugReplaced;
+			const didModify = result.packageRemoved || result.classReplaced || result.debugReplaced;
 			if (result.classReplaced) log("Class renamed to Main");
 			if (result.debugReplaced) log("DEBUG flag disabled");
 			return { modified: result.modified, didModify };
+		}
+		async function transformEditorSnapshot(getValue, setValue, onModified) {
+			const snapshot = getValue();
+			if (!snapshot || snapshot.length < 30) return;
+			const { modified, didModify } = await modifyPastedCode(snapshot);
+			if (!didModify || getValue() !== snapshot) return;
+			setValue(modified);
+			onModified();
 		}
 
 		class EditorAdapter {
@@ -398,14 +427,18 @@
 				const session = editor.getSession && editor.getSession();
 				const modeId = (session && (session.$modeId || (session.getMode && session.getMode().$id))) || "";
 				if (modeId && !/java/i.test(modeId)) return false;
-				editor.on("paste", (e) => {
-					if (e && typeof e.text === "string") {
-						const { modified, didModify } = modifyPastedCode(e.text);
-						if (didModify) {
-							e.text = modified;
-							if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
-						}
-					}
+				editor.on("paste", () => {
+					setTimeout(
+						() =>
+							void transformEditorSnapshot(
+								() => session.getValue(),
+								(value) => session.setValue(value),
+								() => {
+									if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
+								},
+							),
+						0,
+					);
 				});
 				this.initialized = true;
 				log("ACE Adapter initialized");
@@ -469,25 +502,28 @@
 				if (!model) return false;
 				if (model.getLanguageId && model.getLanguageId() !== "java") return false;
 				try {
-					editor.onDidPaste((e) => {
-						const pastedText = model.getValueInRange(e.range);
-						const { modified, didModify } = modifyPastedCode(pastedText);
-						if (didModify) {
-							editor.executeEdits("uss-paste", [{ range: e.range, text: modified }]);
-							if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
-						}
+					editor.onDidPaste(() => {
+						transformEditorSnapshot(
+							() => model.getValue(),
+							(value) => model.setValue(value),
+							() => {
+								if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
+							},
+						);
 					});
 				} catch (err) {
 					model.onDidChangeContent((e) => {
 						if (e.isFlush) return;
 						if (e.changes.length === 1) {
-							const { text, range } = e.changes[0];
+							const { text } = e.changes[0];
 							if (text && text.length >= 30) {
-								const { modified, didModify } = modifyPastedCode(text);
-								if (didModify) {
-									editor.executeEdits("uss-change", [{ range, text: modified }]);
-									if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
-								}
+								transformEditorSnapshot(
+									() => model.getValue(),
+									(value) => model.setValue(value),
+									() => {
+										if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
+									},
+								);
 							}
 						}
 					});

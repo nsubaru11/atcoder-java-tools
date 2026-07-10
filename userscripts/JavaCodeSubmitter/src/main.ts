@@ -1,4 +1,10 @@
-import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/shared";
+import {
+	buildLocalRunnerTransformRequest,
+	mergeWithDefaults,
+	modifyJavaCode,
+	safeJsonParse,
+	type LocalRunnerTransformResponse,
+} from "@atcoder-tools/shared";
 
 (function () {
 	'use strict';
@@ -19,6 +25,8 @@ import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/s
 		foldMainOnPaste: true,
 		// デバッグログを有効化するか
 		logEnabled: false,
+		// Java Compiler API を提供する LocalRunner
+		localRunnerURL: 'http://localhost:8080',
 	};
 
 	function loadSettings(): SubmitterSettings {
@@ -64,9 +72,25 @@ import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/s
 	/**
 	 * ペーストされたコードを自動修正する
 	 */
-	function modifyPastedCode(text: unknown): { modified: string; didModify: boolean } {
+	async function modifyPastedCode(text: unknown): Promise<{ modified: string; didModify: boolean }> {
 		const code = (typeof text === 'string') ? text : '';
 		if (!code) return {modified: '', didModify: false};
+		try {
+			const response = await fetch(SETTINGS.localRunnerURL, {
+				method: 'POST',
+				mode: 'cors',
+				headers: {'Content-Type': 'application/json'},
+				body: JSON.stringify(buildLocalRunnerTransformRequest(code, false, true)),
+			});
+			if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
+			const transformed = await response.json() as LocalRunnerTransformResponse;
+			if (transformed.status !== 'success') throw new Error(transformed.diagnostics);
+			if (transformed.addedImports.length) log('Added imports:', transformed.addedImports.join(', '));
+			if (transformed.inlinedClasses.length) log('Bundled:', transformed.inlinedClasses.join(', '));
+			return {modified: transformed.sourceCode, didModify: transformed.sourceCode !== code};
+		} catch (error) {
+			log('LocalRunner transform unavailable; using lexical fallback:', error);
+		}
 
 		const result = modifyJavaCode(code, {
 			removePackage: SETTINGS.removePackage,
@@ -74,11 +98,24 @@ import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/s
 			fixDebug: SETTINGS.fixDebug,
 		});
 
-		const didModify = result.classReplaced || result.debugReplaced;
+		const didModify = result.packageRemoved || result.classReplaced || result.debugReplaced;
 		if (result.classReplaced) log('Class renamed to Main');
 		if (result.debugReplaced) log('DEBUG flag disabled');
 
 		return {modified: result.modified, didModify};
+	}
+
+	async function transformEditorSnapshot(
+		getValue: () => string,
+		setValue: (value: string) => void,
+		onModified: () => void,
+	): Promise<void> {
+		const snapshot = getValue();
+		if (!snapshot || snapshot.length < 30) return;
+		const {modified, didModify} = await modifyPastedCode(snapshot);
+		if (!didModify || getValue() !== snapshot) return;
+		setValue(modified);
+		onModified();
 	}
 
 	// --------------- Editor Adapters ---------------
@@ -128,14 +165,12 @@ import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/s
 			const modeId = (session && (session.$modeId || (session.getMode && session.getMode().$id))) || '';
 			if (modeId && !/java/i.test(modeId)) return false;
 
-			editor.on('paste', (e: { text?: string }) => {
-				if (e && typeof e.text === 'string') {
-					const {modified, didModify} = modifyPastedCode(e.text);
-					if (didModify) {
-						e.text = modified;
-						if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
-					}
-				}
+			editor.on('paste', () => {
+				setTimeout(() => void transformEditorSnapshot(
+					() => session.getValue(),
+					(value) => session.setValue(value),
+					() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100); },
+				), 0);
 			});
 			this.initialized = true;
 			log('ACE Adapter initialized');
@@ -205,25 +240,24 @@ import {mergeWithDefaults, modifyJavaCode, safeJsonParse} from "@atcoder-tools/s
 			if (model.getLanguageId && model.getLanguageId() !== 'java') return false;
 
 			try {
-				editor.onDidPaste((e: any) => {
-					const pastedText = model.getValueInRange(e.range);
-					const {modified, didModify} = modifyPastedCode(pastedText);
-					if (didModify) {
-						editor.executeEdits('uss-paste', [{range: e.range, text: modified}]);
-						if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
-					}
+				editor.onDidPaste(() => {
+					void transformEditorSnapshot(
+						() => model.getValue(),
+						(value) => model.setValue(value),
+						() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100); },
+					);
 				});
 			} catch (err) {
 				model.onDidChangeContent((e: any) => {
 					if (e.isFlush) return;
 					if (e.changes.length === 1) {
-						const {text, range} = e.changes[0];
+						const {text} = e.changes[0];
 						if (text && text.length >= 30) {
-							const {modified, didModify} = modifyPastedCode(text);
-							if (didModify) {
-								editor.executeEdits('uss-change', [{range, text: modified}]);
-								if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100);
-							}
+							void transformEditorSnapshot(
+								() => model.getValue(),
+								(value) => model.setValue(value),
+								() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldMain(), 100); },
+							);
 						}
 					}
 				});

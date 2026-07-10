@@ -18,7 +18,7 @@ import com.sun.source.util.*;
  */
 final class JavaSourceTransformer {
 	private static final Charset UTF_8 = StandardCharsets.UTF_8;
-	private static final Pattern PUBLIC_TOKEN = Pattern.compile("\\bpublic\\b");
+	private static final Pattern PUBLIC_TOKEN = Pattern.compile("\\bpublic\\s+");
 	private final JavaCompiler compiler;
 	private Path cachedRoot;
 	private long cachedStamp = Long.MIN_VALUE;
@@ -31,6 +31,11 @@ final class JavaSourceTransformer {
 
 	SourceTransformResult transform(final String rawSource, final Path librarySourceRoot,
 	                                final boolean debug, final boolean autoImport) {
+		return transform(rawSource, librarySourceRoot, debug, autoImport, true);
+	}
+
+	SourceTransformResult transform(final String rawSource, final Path librarySourceRoot,
+	                                final boolean debug, final boolean autoImport, final boolean validate) {
 		try {
 			final Path root = librarySourceRoot.toAbsolutePath().normalize();
 			if (!Files.isDirectory(root.resolve("lib"))) {
@@ -54,8 +59,10 @@ final class JavaSourceTransformer {
 			if (analysis.hasErrors()) return failure(source, analysis);
 			final List<Path> dependencies = collectDependencies(analysis, index);
 			final BundleOutput bundled = bundle(source, analysis, dependencies, root, debug);
-			final Analysis validation = analyze(bundled.source(), null);
-			if (validation.hasErrors()) return failure(bundled.source(), validation);
+			if (validate) {
+				final Analysis validation = analyze(bundled.source(), null);
+				if (validation.hasErrors()) return failure(bundled.source(), validation);
+			}
 			return new SourceTransformResult(0, bundled.source(), "", bundled.inlined(), List.copyOf(addedImports), List.of());
 		} catch (final Exception exception) {
 			return failure(rawSource, exception.toString());

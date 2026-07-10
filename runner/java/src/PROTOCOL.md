@@ -130,7 +130,7 @@ COMPILED \t <id> \t <exitCode> \t <requiresIsolation> \t b64(diagnostics) \t b64
 要求:
 
 ```text
-TRANSFORM \t <id> \t b64(sourceCode) \t b64(librarySourceRoot) \t <debug> \t <autoImport>
+TRANSFORM \t <id> \t b64(sourceCode) \t b64(librarySourceRoot) \t <debug> \t <autoImport> \t <validate>
 ```
 
 応答:
@@ -139,7 +139,7 @@ TRANSFORM \t <id> \t b64(sourceCode) \t b64(librarySourceRoot) \t <debug> \t <au
 TRANSFORMED \t <id> \t <exitCode> \t b64(sourceCode) \t b64(diagnostics) \t b64(inlinedClasses) \t b64(addedImports) \t b64(diagnosticItemsJson)
 ```
 
-`inlinedClasses`と`addedImports`はLF区切りです。javacの構文木・シンボル解決で暗黙importと実依存を確定し、Main/DEBUG/package/import変換、単一ソース化、変換後の再解析まで行います。
+`inlinedClasses`と`addedImports`はLF区切りです。javacの構文木・シンボル解決で暗黙importと実依存を確定し、Main/DEBUG/package/import変換と単一ソース化を行います。`validate=1`では変換後ソースも再解析します。旧クライアントが`validate`を省略した場合も`1`として扱います。
 
 ### 3.6 `ERROR`：エラー応答
 
@@ -162,7 +162,7 @@ response     = ready | pong | run-ack | result | compiled | transformed | error
 ping         = "PING"
 run-req      = "RUN"     TAB id TAB b64 TAB b64 TAB b64       ; classDir, mainClass, stdin
 compile-req  = "COMPILE" TAB id TAB b64 TAB b64               ; sourceFile, outDir
-transform-req = "TRANSFORM" TAB id TAB b64 TAB b64 TAB flag TAB flag
+transform-req = "TRANSFORM" TAB id TAB b64 TAB b64 TAB flag TAB flag [ TAB flag ]
 
 ready        = "READY"
 pong         = "PONG"

@@ -19,3 +19,4 @@ Java 提出時に必要となる `public class Main` への書き換えや、デ
 [Tampermonkey に追加する](https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js)
 
 Compiler API変換には`http://localhost:8080`のLocalRunnerが必要です。利用できない場合は従来の字句変換へフォールバックします。
+貼り付け時は応答性を優先し、元コードのjavac解析と依存解決は行いつつ、インライン後ソースの重複した再解析だけを省略します。CLIの`run`、`test`、`toclip`、`submit`では従来どおり再解析します。

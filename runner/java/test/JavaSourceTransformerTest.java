@@ -37,6 +37,8 @@ public final class JavaSourceTransformerTest {
 			check(!wildcard.sourceCode().contains("import java.util.Arrays;"),
 					"explicit dependency import was not covered by solution wildcard import");
 			check(!wildcard.sourceCode().contains("UnusedTree"), "unused type was inlined");
+			check(wildcard.sourceCode().contains("\nfinal class UnionFind"), "public removal left leading whitespace");
+			check(!wildcard.sourceCode().contains("\n final class UnionFind"), "library class has a leading space");
 			check(wildcard.sourceCode().contains("class Main"), "main class was not renamed");
 			check(wildcard.sourceCode().contains("DEBUG = false"), "DEBUG was not disabled");
 

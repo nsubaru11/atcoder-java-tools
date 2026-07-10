@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.2.1
+// @version        1.2.2
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -307,8 +307,8 @@
 		return Object.assign({}, defaults, parseStoredObject(raw));
 	}
 	// ../shared/src/local-runner.ts
-	function buildLocalRunnerTransformRequest(sourceCode, debug = false, autoImport = true) {
-		return { mode: "transform", sourceCode, debug, autoImport };
+	function buildLocalRunnerTransformRequest(sourceCode, debug = false, autoImport = true, validate = true) {
+		return { mode: "transform", sourceCode, debug, autoImport, validate };
 	}
 	// JavaCodeSubmitter/src/main.ts
 	(function () {
@@ -348,7 +348,7 @@
 					`
 `,
 				)
-				.map((line, index) => (/^(?:public\s+)?final\s+class\s+\w+\b/.test(line) ? index : -1))
+				.map((line, index) => (/^\s*(?:public\s+)?final\s+class\s+\w+\b/.test(line) ? index : -1))
 				.filter((line) => line >= 0);
 		const clickElementRobust = (el) => {
 			if (!el) return;
@@ -368,7 +368,7 @@
 					method: "POST",
 					mode: "cors",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(buildLocalRunnerTransformRequest(code, false, true)),
+					body: JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false)),
 				});
 				if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
 				const transformed = await response.json();
@@ -442,7 +442,7 @@
 								() => session.getValue(),
 								(value) => session.setValue(value),
 								() => {
-									if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0);
+									if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100);
 								},
 							),
 						0,
@@ -509,7 +509,7 @@
 							() => model.getValue(),
 							(value) => model.setValue(value),
 							() => {
-								if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0);
+								if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100);
 							},
 						);
 					});
@@ -523,7 +523,7 @@
 									() => model.getValue(),
 									(value) => model.setValue(value),
 									() => {
-										if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0);
+										if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100);
 									},
 								);
 							}

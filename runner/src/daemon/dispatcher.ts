@@ -450,6 +450,7 @@ export function queueDispatcherTransform(
 	librarySourceRoot: string,
 	debug: boolean,
 	autoImport = true,
+	validate = true,
 	timeoutMs = RUNNER_CONFIG.compileTimeoutMs,
 ): Promise<DispatcherTransformResult> {
 	dispatcherState.requestQueue = dispatcherState.requestQueue
@@ -483,7 +484,7 @@ export function queueDispatcherTransform(
 				}, timeoutMs);
 				const command = [
 					"TRANSFORM", requestId, encodeField(sourceCode), encodeField(librarySourceRoot),
-					debug ? "1" : "0", autoImport ? "1" : "0",
+					debug ? "1" : "0", autoImport ? "1" : "0", validate ? "1" : "0",
 				].join("\t");
 				dispatcherState.proc!.stdin.write(`${command}\n`, "utf8", (error) => {
 					if (!error) return;

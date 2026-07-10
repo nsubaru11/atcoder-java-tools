@@ -28,6 +28,7 @@ export type LocalRunnerTransformRequest = {
 	sourceCode: string;
 	debug?: boolean;
 	autoImport?: boolean;
+	validate?: boolean;
 };
 
 export type LocalRunnerRunRequest = {
@@ -104,8 +105,9 @@ export function buildLocalRunnerTransformRequest(
 	sourceCode: string,
 	debug = false,
 	autoImport = true,
+	validate = true,
 ): LocalRunnerTransformRequest {
-	return {mode: "transform", sourceCode, debug, autoImport};
+	return {mode: "transform", sourceCode, debug, autoImport, validate};
 }
 
 export function buildLocalRunnerRunRequest(

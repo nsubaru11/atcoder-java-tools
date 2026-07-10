@@ -51,8 +51,9 @@ function isAllowedOrigin(origin: string | undefined): boolean {
 	return DEFAULT_ALLOWED_ORIGIN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
 }
 
-async function transformCode(sourceCode: string, debug: boolean, autoImport = true): Promise<LocalRunnerTransformResponse> {
-	const result = await queueDispatcherTransform(sourceCode, resolveLibrarySourceRoot(), debug, autoImport);
+async function transformCode(sourceCode: string, debug: boolean, autoImport = true,
+	validate = true): Promise<LocalRunnerTransformResponse> {
+	const result = await queueDispatcherTransform(sourceCode, resolveLibrarySourceRoot(), debug, autoImport, validate);
 	return {
 		status: result.exitCode === 0 ? "success" : "compileError",
 		sourceCode: result.sourceCode,
@@ -202,7 +203,8 @@ const server = http.createServer(async (req, res) => {
 		body += buffer.toString("utf8");
 	}
 
-	let request: { mode?: string; sourceCode?: string; stdin?: string; prepared?: boolean; debug?: boolean; autoImport?: boolean };
+	let request: { mode?: string; sourceCode?: string; stdin?: string; prepared?: boolean; debug?: boolean;
+		autoImport?: boolean; validate?: boolean };
 	try {
 		request = JSON.parse(body) as { mode?: string; sourceCode?: string; stdin?: string };
 	} catch (error) {
@@ -233,7 +235,8 @@ const server = http.createServer(async (req, res) => {
 			if (transformed.status === "success") await getCompiledEntry(transformed.sourceCode);
 			response = {status: "accepted"};
 		} else if (request.mode === "transform" && typeof request.sourceCode === "string") {
-			response = await transformCode(request.sourceCode, !!request.debug, request.autoImport !== false);
+			response = await transformCode(request.sourceCode, !!request.debug, request.autoImport !== false,
+				request.validate !== false);
 		} else if (request.mode === "run" && typeof request.sourceCode === "string") {
 			response = await runCode({
 				sourceCode: request.sourceCode,

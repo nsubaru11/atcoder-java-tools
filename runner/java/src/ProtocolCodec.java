@@ -68,7 +68,8 @@ final class ProtocolCodec {
 					decode(parts[2]),
 					Paths.get(decode(parts[3])),
 					"1".equals(parts[4]),
-					"1".equals(parts[5])
+					"1".equals(parts[5]),
+					parts.length < 7 || "1".equals(parts[6])
 			));
 		} catch (final RuntimeException exception) {
 			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed TRANSFORM command.");

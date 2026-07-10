@@ -55,7 +55,7 @@ import {
 	};
 	const isEnterKey = (e: KeyboardEvent): boolean => e.key === 'Enter' || e.keyCode === 13;
 	const findTopLevelFinalClassLines = (source: string): number[] => source.split('\n')
-		.map((line, index) => /^(?:public\s+)?final\s+class\s+\w+\b/.test(line) ? index : -1)
+		.map((line, index) => /^\s*(?:public\s+)?final\s+class\s+\w+\b/.test(line) ? index : -1)
 		.filter((line) => line >= 0);
 	const clickElementRobust = (el: Element | null): void => {
 		if (!el) return;
@@ -83,7 +83,7 @@ import {
 				method: 'POST',
 				mode: 'cors',
 				headers: {'Content-Type': 'application/json'},
-				body: JSON.stringify(buildLocalRunnerTransformRequest(code, false, true)),
+				body: JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false)),
 			});
 			if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
 			const transformed = await response.json() as LocalRunnerTransformResponse;
@@ -172,7 +172,7 @@ import {
 				setTimeout(() => void transformEditorSnapshot(
 					() => session.getValue(),
 					(value) => session.setValue(value),
-					() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0); },
+					() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100); },
 				), 0);
 			});
 			this.initialized = true;
@@ -238,7 +238,7 @@ import {
 					void transformEditorSnapshot(
 						() => model.getValue(),
 						(value) => model.setValue(value),
-						() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0); },
+						() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100); },
 					);
 				});
 			} catch (err) {
@@ -250,7 +250,7 @@ import {
 							void transformEditorSnapshot(
 								() => model.getValue(),
 								(value) => model.setValue(value),
-								() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 0); },
+								() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100); },
 							);
 						}
 					}

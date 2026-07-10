@@ -88,7 +88,9 @@ toclip D.java  # ファイルを明示
 - ソースは**カレントディレクトリ**から探します（例の構成では `ABC463/src` で実行）。
 - `toclip`はコンテストIDを必要とせず、短縮記号からソースだけを解決します（`toclip d1` → `D1.java`）。
 
-`test` / `submit` / `localtest` / `run` は、Local Runner サーバーが未起動なら自動起動します（新しい「Local Runner」コンソール窓が開き、サーバーログがリアルタイム表示）。`serve` で事前に温めておくと初回が速くなります。
+`test` / `submit` / `localtest` / `run` は、Local Runner サーバーが未起動なら自動起動します。WindowsではBun・JDKがPATHにあればnativeでバックグラウンド起動し、無ければWSLへフォールバックします。ライブラリがNTFS上にある通常構成ではnativeの方がCompiler API変換が高速です。`serve` で事前に温めておくと初回が速くなります。
+
+EasyTestの`precompile`要求は即座に`accepted`を返し、最後のエディタ変更から1.5秒のアイドル後に非同期実行します。連続変更はデバウンスされるため、JavaCodeSubmitterの貼り付け変換を常駐Dispatcherキュー上でブロックしません。
 
 ### オプション
 
@@ -175,6 +177,8 @@ bun --cwd runner run localtest D.java
 | `LOCAL_RUNNER_PORT`              | 待受ポート                            | `8080`                   |
 | `LOCAL_RUNNER_INPROCESS_COMPILE` | `0` で常駐javacを無効化し外部javacにフォールバック | 有効                       |
 | `LOCAL_RUNNER_START_TIMEOUT_MS`  | auto-start の ready 待ちタイムアウト(ms)  | `60000`                  |
+| `LOCAL_RUNNER_BACKEND`           | Windowsで`native`または`wsl`を明示          | `auto`（native優先）       |
+| `LOCAL_RUNNER_BUN`               | native起動に使うBunコマンド                  | `bun`                    |
 | `ATCODER_RUNNER_AUTOSTART`       | `0` で auto-start を無効化（常駐運用に切替時）  | 有効                       |
 | `ATCODER_JAVA_VER`               | auto-start で渡す Java バージョン        | `24`                     |
 | `ATCODER_WSL_DISTRO`             | auto-start で使う WSL ディストリ         | 既定ディストリ                  |
@@ -200,7 +204,7 @@ cd tools/runner
 bun run build        # = typecheck + build:cli:win
 ```
 
-Local Runner（サーバー）は単一バイナリ化しません。`bin/start-local-runner.sh` 経由で WSL 上の `bun ./src/daemon/server.ts`を実行します（`serve` や `test` 等の auto-start から自動起動）。
+Local Runner（サーバー）は単一バイナリ化しません。Windows nativeでは直接、WSLでは`bin/start-local-runner.sh`経由で`bun ./src/daemon/server.ts`を実行します（`serve`や`test`等のauto-startから自動起動）。
 Java のコンパイルは外部 `javac` を都度起動せず **常駐Dispatcher 内の javac（インプロセス）** で行うため高速です。`Dispatcher.class` はソース未変更ならキャッシュを再利用します。
 
 ## PATH に登録（任意）

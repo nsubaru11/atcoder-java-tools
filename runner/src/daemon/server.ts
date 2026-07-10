@@ -25,6 +25,8 @@ import {
 } from "./dispatcher";
 
 const serverStartedAt = Date.now();
+const PRECOMPILE_IDLE_DELAY_MS = 1500;
+let precompileTimer: NodeJS.Timeout | null = null;
 
 // ローカルランナーを利用するユーザースクリプトが動作するジャッジサイト（EasyTest の @match と一致）。
 // これらのホスト（およびサブドメイン）からのブラウザ要求のみ許可する。
@@ -156,6 +158,21 @@ async function runCode({sourceCode, stdin, prepared}: { sourceCode: string; stdi
 	}
 }
 
+function schedulePrecompile(sourceCode: string): void {
+	if (precompileTimer) clearTimeout(precompileTimer);
+	precompileTimer = setTimeout(() => {
+		precompileTimer = null;
+		void (async () => {
+			try {
+				const transformed = await transformCode(sourceCode, true, true);
+				if (transformed.status === "success") await getCompiledEntry(transformed.sourceCode);
+			} catch (error) {
+				logWarn(`[Precompile] ${error instanceof Error ? error.message : String(error)}`);
+			}
+		})();
+	}, PRECOMPILE_IDLE_DELAY_MS);
+}
+
 const server = http.createServer(async (req, res) => {
 	// CORS/Origin ゲート。ブラウザからの要求は Origin ヘッダを必ず伴うため、
 	// 許可した競プロジャッジのサイト以外からの実行を「実処理の前に」拒否する。
@@ -231,8 +248,7 @@ const server = http.createServer(async (req, res) => {
 				},
 			] satisfies LocalRunnerCompilerInfo[];
 		} else if (request.mode === "precompile" && typeof request.sourceCode === "string") {
-			const transformed = await transformCode(request.sourceCode, true, true);
-			if (transformed.status === "success") await getCompiledEntry(transformed.sourceCode);
+			schedulePrecompile(request.sourceCode);
 			response = {status: "accepted"};
 		} else if (request.mode === "transform" && typeof request.sourceCode === "string") {
 			response = await transformCode(request.sourceCode, !!request.debug, request.autoImport !== false,
@@ -307,6 +323,7 @@ async function bootstrap() {
 
 function shutdown(signal: string) {
 	logInfo(`Shutting down LocalRunner server (${signal})...`);
+	if (precompileTimer) clearTimeout(precompileTimer);
 	stopDispatcher();
 	server.close(() => {
 		process.exit(0);

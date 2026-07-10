@@ -1,4 +1,4 @@
-import {spawn} from "node:child_process";
+import {spawn, spawnSync} from "node:child_process";
 import path from "node:path";
 import {CLI_CONFIG, PROJECT_ROOT} from "../config";
 
@@ -26,17 +26,38 @@ function shq(s: string): string {
 	return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
+function commandAvailable(command: string, args: string[]): boolean {
+	return spawnSync(command, args, {stdio: "ignore", windowsHide: true}).status === 0;
+}
+
 /**
  * Local Runner サーバーを起動する。
- * Windows: 新しいコンソール窓で wsl を直接前面実行（ConPTY＝擬似端末）→ ログがリアルタイムで窓に流れる。
- *          PowerShell を介さないのは、ネイティブ出力がパイプ経由でバッファされ窓に流れないため。
- *          cmd /k で失敗時もログが残り、窓を閉じるとサーバーも停止する。
+ * Windows: native Bun/JDKを優先し、未導入時または明示指定時だけWSLへフォールバックする。
  * WSL/Linux 内: setsid でバックグラウンド化し、ログは ~/.atcoder/runner-autostart.log へ。
  */
 function startServer(): void {
 	const binDir = path.join(PROJECT_ROOT, "runner", "bin");
 
 	if (process.platform === "win32") {
+		const backend = (process.env.LOCAL_RUNNER_BACKEND || "auto").toLowerCase();
+		const bunCommand = process.env.LOCAL_RUNNER_BUN || "bun";
+		const nativeAvailable = commandAvailable(bunCommand, ["--version"]) &&
+			commandAvailable("java", ["-version"]) && commandAvailable("javac", ["-version"]);
+		if (backend !== "wsl" && nativeAvailable) {
+			const serverPath = path.join(PROJECT_ROOT, "runner", "src", "daemon", "server.ts");
+			const child = spawn(bunCommand, [serverPath], {
+				cwd: PROJECT_ROOT,
+				detached: true,
+				windowsHide: true,
+				stdio: "ignore",
+				env: {...process.env, LOCAL_RUNNER_PROJECT_ROOT: PROJECT_ROOT},
+			});
+			child.unref();
+			return;
+		}
+		if (backend === "native") {
+			throw new Error("LOCAL_RUNNER_BACKEND=native requires bun, java, and javac on Windows PATH.");
+		}
 		// 新しいコンソール窓で wsl を直接起動（PowerShell を介さない）。
 		// --cd で Windows パスのまま作業ディレクトリ指定（スペース対応）、bash で .sh 実行（実行権限ビット不要）。
 		// cmd /k により .sh 終了後も窓が残り、エラーログを読める。
@@ -68,7 +89,7 @@ export async function ensureLocalRunnerReady(): Promise<void> {
 	if (process.env.ATCODER_RUNNER_AUTOSTART === "0") return; // 自動起動を無効化（常駐運用に切替時）
 	if (await pingServer()) return;                            // 既に起動済み
 
-	console.error("Local Runner not responding — starting it in a new window...");
+	console.error("Local Runner not responding — starting it...");
 	try {
 		startServer();
 	} catch (e) {
@@ -85,8 +106,7 @@ export async function ensureLocalRunnerReady(): Promise<void> {
 	}
 	throw new Error(
 		`Local Runner did not become ready within ${READY_TIMEOUT_MS}ms.\n` +
-		`  起動した "Local Runner" ウィンドウのログを確認してください（bun/java が WSL に無い等）。\n` +
-		`  手動確認: PowerShell 7 で  pwsh -File .\\bin\\start-local-runner.ps1 ${JAVA_VER}\n` +
-		`  上書き用env: ATCODER_JAVA_VER / LOCAL_RUNNER_START_TIMEOUT_MS`,
+		`  LocalRunnerのログを確認してください。\n` +
+		`  上書き用env: LOCAL_RUNNER_BACKEND=native|wsl / ATCODER_JAVA_VER / LOCAL_RUNNER_START_TIMEOUT_MS`,
 	);
 }

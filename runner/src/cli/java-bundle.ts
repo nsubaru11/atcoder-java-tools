@@ -147,8 +147,24 @@ function isLibImport(name: string): boolean {
 	return LIB_ROOT_PACKAGES.includes(root);
 }
 
+/** package/importを空白化し、型の使用判定に使う実コード部分だけを返す。 */
+function codeBodyMasked(parsed: ParsedJavaFile): string {
+	const chars = parsed.masked.split("");
+	const spans: Array<{start: number; end: number}> = [...parsed.imports];
+	if (parsed.packageSpan) spans.push(parsed.packageSpan);
+	for (const {start, end} of spans) {
+		for (let i = start; i < end; i++) if (chars[i] !== "\n") chars[i] = " ";
+	}
+	return chars.join("");
+}
+
+function containsIdentifier(masked: string, identifier: string): boolean {
+	const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(`\\b${escaped}\\b`).test(masked);
+}
+
 /** import 名（例: "lib.ds.UnionFind" / "lib.ds.*"）を実ファイル群へ解決する。 */
-function resolveImportFiles(name: string, libSrcRoot: string): string[] {
+function resolveImportFiles(name: string, libSrcRoot: string, importer: ParsedJavaFile): string[] {
 	const segments = name.split(".");
 	const last = segments[segments.length - 1];
 	if (last === "*") {
@@ -156,10 +172,15 @@ function resolveImportFiles(name: string, libSrcRoot: string): string[] {
 		if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
 			throw new BundleError(`ライブラリパッケージが見つかりません: ${name}（探した場所: ${dir}）`);
 		}
+		const body = codeBodyMasked(importer);
 		return fs.readdirSync(dir)
 			.filter((f) => f.endsWith(".java"))
 			.sort()
-			.map((f) => path.join(dir, f));
+			.map((f) => path.join(dir, f))
+			.filter((file) => {
+				const candidate = parseJavaFile(fs.readFileSync(file, "utf8"));
+				return candidate.topLevelTypes.some((typeName) => containsIdentifier(body, typeName));
+			});
 	}
 	// 通常は lib.ds.UnionFind → lib/ds/UnionFind.java。
 	// ネストクラス import（lib.ds.UnionFind.Node）にも対応するため、後ろから順にファイル候補を探す。
@@ -253,7 +274,7 @@ export function bundleJavaSource(source: string, options: BundleOptions): Bundle
 	};
 
 	for (const imp of solutionLibImports) {
-		for (const file of resolveImportFiles(imp.name, libSrcRoot)) enqueue(file);
+		for (const file of resolveImportFiles(imp.name, libSrcRoot, solution)) enqueue(file);
 	}
 
 	const inlinedParts: string[] = [];
@@ -280,7 +301,7 @@ export function bundleJavaSource(source: string, options: BundleOptions): Bundle
 				if (imp.isStatic) {
 					throw new BundleError(`static import はバンドルできません（${fqcn} 内）: ${imp.normalized}`);
 				}
-				for (const file of resolveImportFiles(imp.name, libSrcRoot)) enqueue(file);
+				for (const file of resolveImportFiles(imp.name, libSrcRoot, parsed)) enqueue(file);
 			} else if (!hoistedSeen.has(imp.normalized)) {
 				hoistedSeen.add(imp.normalized);
 				hoistedImports.push(imp.normalized);
@@ -314,15 +335,16 @@ export function bundleJavaSource(source: string, options: BundleOptions): Bundle
 		inlinedFqcns.push(fqcn);
 	}
 
-	// 解答側の編集: lib import を除去し、先頭の lib import 位置に巻き上げ import を挿入する。
+	// 解答側の編集: lib import をコメントアウトし、先頭の lib import 位置に巻き上げ import を挿入する。
 	const solutionImportSet = new Set(solution.imports.map((imp) => imp.normalized));
 	const importsToInsert = hoistedImports.filter((line) => !solutionImportSet.has(line));
 
-	const edits: Array<{ start: number; end: number; text: string }> = solutionLibImports.map((imp, i) => ({
-		start: imp.start,
-		end: imp.end,
-		text: i === 0 && importsToInsert.length > 0 ? `${importsToInsert.join("\n")}\n` : "",
-	}));
+	const edits: Array<{ start: number; end: number; text: string }> = solutionLibImports.map((imp, i) => {
+		const original = solution.code.slice(imp.start, imp.end).replace(/\n$/, "");
+		const commented = original.replace(/^([ \t]*)(import\b)/, "$1// $2");
+		const hoisted = i === 0 && importsToInsert.length > 0 ? `${importsToInsert.join("\n")}\n` : "";
+		return {start: imp.start, end: imp.end, text: `${hoisted}${commented}\n`};
+	});
 	edits.sort((a, b) => b.start - a.start);
 	let solutionCode = solution.code;
 	for (const e of edits) {

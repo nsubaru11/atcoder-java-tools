@@ -64,6 +64,8 @@ import lib.io.FastScanner;
 
 AtCoderリポジトリ直下にlibrary submoduleがあれば、通常は環境変数の設定は不要です。`import static lib...`、本文中の`lib.ds.UnionFind`のような完全修飾参照、バンドル後に単純名が衝突する型はエラーになります。
 
+`import lib.io.*;`のようなワイルドカードimportでも、解答本文で実際に参照しているトップレベル型だけをインラインします。提出コードでは元のlibrary importを削除せず、`// import lib.io.*;`のようにコメントアウトして展開元を残します。
+
 ブラウザへ手動で貼り付ける提出コードは、クリップボードへ直接コピーできます。
 
 ```powershell

@@ -21,6 +21,10 @@ public final class UnionFind {
 	public UnionFind(int n) { root = new int[n]; Arrays.setAll(root, i -> i); }
 }
 `);
+	fs.writeFileSync(path.join(ds, "UnusedTree.java"), `package lib.ds;
+
+public final class UnusedTree {}
+`);
 	fs.writeFileSync(path.join(graph, "Kruskal.java"), `package lib.graph;
 
 import lib.ds.UnionFind;
@@ -40,7 +44,16 @@ public class Main {
 	const result = bundleJavaSource(source, {libSrcRoot: root});
 	assert.deepEqual(result.inlined, ["lib.graph.Kruskal", "lib.ds.UnionFind"]);
 	assert.match(result.bundled, /import java\.util\.Arrays;/);
-	assert.doesNotMatch(result.bundled, /(?:package|import lib\.)/);
+	assert.match(result.bundled, /\/\/ import lib\.graph\.Kruskal;/);
+	assert.doesNotMatch(result.bundled, /^\s*import\s+lib\./m);
+	assert.doesNotMatch(result.bundled, /\bpackage\s+lib\./);
+
+	const wildcard = bundleJavaSource(`import lib.ds.*;
+class Main { UnionFind uf = new UnionFind(3); }
+`, {libSrcRoot: root});
+	assert.deepEqual(wildcard.inlined, ["lib.ds.UnionFind"]);
+	assert.match(wildcard.bundled, /\/\/ import lib\.ds\.\*;/);
+	assert.doesNotMatch(wildcard.bundled, /UnusedTree/);
 	assert.equal(hasLibImports("// import lib.ds.UnionFind;\nclass Main {}"), false);
 	assert.equal(hasLibImports("import patterns.dp.Frog;\nclass Main {}"), false);
 	assert.throws(

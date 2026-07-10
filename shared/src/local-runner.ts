@@ -23,17 +23,43 @@ export type LocalRunnerPrecompileRequest = {
 	sourceCode: string;
 };
 
+export type LocalRunnerTransformRequest = {
+	mode: "transform";
+	sourceCode: string;
+	debug?: boolean;
+	autoImport?: boolean;
+};
+
 export type LocalRunnerRunRequest = {
 	mode: "run";
 	compilerName?: string;
 	sourceCode: string;
 	stdin?: string;
+	prepared?: boolean;
 };
 
 export type LocalRunnerRequest =
 	| LocalRunnerListRequest
 	| LocalRunnerPrecompileRequest
+	| LocalRunnerTransformRequest
 	| LocalRunnerRunRequest;
+
+export type LocalRunnerTransformResponse = {
+	status: "success" | "compileError";
+	sourceCode: string;
+	diagnostics: string;
+	inlinedClasses: string[];
+	addedImports: string[];
+	diagnosticItems: CompilerDiagnostic[];
+};
+
+export type CompilerDiagnostic = {
+	kind: string;
+	line: number;
+	column: number;
+	code: string;
+	message: string;
+};
 
 export type LocalRunnerRunResponse = {
 	status: LocalRunnerStatus;
@@ -74,16 +100,26 @@ export function buildLocalRunnerPrecompileRequest(sourceCode: string): LocalRunn
 	};
 }
 
+export function buildLocalRunnerTransformRequest(
+	sourceCode: string,
+	debug = false,
+	autoImport = true,
+): LocalRunnerTransformRequest {
+	return {mode: "transform", sourceCode, debug, autoImport};
+}
+
 export function buildLocalRunnerRunRequest(
 	sourceCode: string,
 	stdin: string,
 	compilerName?: string,
+	prepared = false,
 ): LocalRunnerRunRequest {
 	return {
 		mode: "run",
 		compilerName,
 		sourceCode,
 		stdin,
+		prepared,
 	};
 }
 

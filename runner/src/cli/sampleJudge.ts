@@ -36,7 +36,7 @@ export async function postLocalRunner(sourceCode: string, stdinText: string): Pr
 	const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
-		body: JSON.stringify(buildLocalRunnerRunRequest(sourceCode, stdinText)),
+		body: JSON.stringify(buildLocalRunnerRunRequest(sourceCode, stdinText, undefined, true)),
 	});
 	if (!res.ok) {
 		throw new Error(`Local runner request failed: ${res.status}`);

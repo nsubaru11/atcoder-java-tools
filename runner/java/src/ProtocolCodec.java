@@ -32,9 +32,11 @@ final class ProtocolCodec {
 	private static final String PING = "PING";
 	private static final String RUN = "RUN";
 	private static final String COMPILE = "COMPILE";
+	private static final String TRANSFORM = "TRANSFORM";
 
 	private static final int RUN_PARTS_MIN_SIZE = 5;
 	private static final int COMPILE_PARTS_MIN_SIZE = 4;
+	private static final int TRANSFORM_PARTS_MIN_SIZE = 6;
 
 	private ProtocolCodec() {
 	}
@@ -51,8 +53,26 @@ final class ProtocolCodec {
 			case PING -> new ValidRequest(new Ping());
 			case RUN -> parseRun(parts);
 			case COMPILE -> parseCompile(parts);
+			case TRANSFORM -> parseTransform(parts);
 			default -> new ProtocolError(PROTOCOL_ERROR_ID, "Unknown command: " + parts[0]);
 		};
+	}
+
+	private static ParseOutcome parseTransform(final String[] parts) {
+		if (parts.length < TRANSFORM_PARTS_MIN_SIZE) {
+			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed TRANSFORM command.");
+		}
+		try {
+			return new ValidRequest(new Transform(
+					parts[1],
+					decode(parts[2]),
+					Paths.get(decode(parts[3])),
+					"1".equals(parts[4]),
+					"1".equals(parts[5])
+			));
+		} catch (final RuntimeException exception) {
+			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed TRANSFORM command.");
+		}
 	}
 
 	private static ParseOutcome parseRun(final String[] parts) {
@@ -103,12 +123,57 @@ final class ProtocolCodec {
 					compiled.requestId(),
 					Integer.toString(compiled.result().exitCode()),
 					compiled.result().requiresIsolation() ? "1" : "0",
-					b64(compiled.result().diagnostics()));
+					b64(compiled.result().diagnostics()),
+					b64(diagnosticsJson(compiled.result().diagnosticItems())));
+			case Transformed transformed -> encodeTransformed(transformed);
 			case ErrorResponse error -> String.join(SEPARATOR,
 					"ERROR",
 					error.requestId(),
 					b64(error.message()));
 		};
+	}
+
+	private static String encodeTransformed(final Transformed response) {
+		final SourceTransformResult result = response.result();
+		return new StringJoiner(SEPARATOR)
+				.add("TRANSFORMED")
+				.add(response.requestId())
+				.add(Integer.toString(result.exitCode()))
+				.add(b64(result.sourceCode()))
+				.add(b64(result.diagnostics()))
+				.add(b64(String.join("\n", result.inlinedClasses())))
+				.add(b64(String.join("\n", result.addedImports())))
+				.add(b64(diagnosticsJson(result.diagnosticItems())))
+				.toString();
+	}
+
+	private static String diagnosticsJson(final List<CompilerDiagnostic> diagnostics) {
+		return diagnostics.stream().map(diagnostic -> "{" +
+				"\"kind\":\"" + jsonEscape(diagnostic.kind()) + "\"," +
+				"\"line\":" + diagnostic.line() + "," +
+				"\"column\":" + diagnostic.column() + "," +
+				"\"code\":\"" + jsonEscape(diagnostic.code()) + "\"," +
+				"\"message\":\"" + jsonEscape(diagnostic.message()) + "\"}")
+				.collect(java.util.stream.Collectors.joining(",", "[", "]"));
+	}
+
+	private static String jsonEscape(final String value) {
+		final StringBuilder result = new StringBuilder(value.length() + 16);
+		for (int i = 0; i < value.length(); i++) {
+			final char c = value.charAt(i);
+			switch (c) {
+				case '\\' -> result.append("\\\\");
+				case '"' -> result.append("\\\"");
+				case '\n' -> result.append("\\n");
+				case '\r' -> result.append("\\r");
+				case '\t' -> result.append("\\t");
+				default -> {
+					if (c < 0x20) result.append(String.format("\\u%04x", (int) c));
+					else result.append(c);
+				}
+			}
+		}
+		return result.toString();
 	}
 
 	private static String encodeResult(final Result response) {

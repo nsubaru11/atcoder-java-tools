@@ -31,6 +31,7 @@ final class JavaCompilerService {
 	 */
 	CompileResult compile(final Path sourceFile, final Path outputDirectory) {
 		final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+		final List<CompilerDiagnostic> diagnosticItems = new ArrayList<>();
 		final StringWriter additionalOutput = new StringWriter();
 		try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, UTF_8)) {
 			Files.createDirectories(outputDirectory);
@@ -42,15 +43,21 @@ final class JavaCompilerService {
 			final boolean ok = compiler.getTask(additionalOutput, fileManager, diagnostics, options, null, units).call();
 			final StringBuilder message = new StringBuilder();
 			for (final Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-				message.append(diagnostic).append("\n");
+				diagnosticItems.add(new CompilerDiagnostic(
+						diagnostic.getKind().name(), diagnostic.getLineNumber(), diagnostic.getColumnNumber(),
+						diagnostic.getCode(), diagnostic.getMessage(Locale.ROOT)));
+				message.append(diagnostic.getKind()).append(' ')
+						.append(diagnostic.getLineNumber()).append(':').append(diagnostic.getColumnNumber()).append(' ')
+						.append(diagnostic.getCode()).append(' ')
+						.append(diagnostic.getMessage(Locale.ROOT)).append('\n');
 			}
 			final String extra = additionalOutput.toString();
 			if (!extra.isBlank()) message.append(extra);
 			// 成功時のみ、危険 API を参照していて隔離実行が要るかをバイトコードから判定する（改善1）。
 			final boolean requiresIsolation = ok && IsolationAnalyzer.requiresIsolation(outputDirectory);
-			return new CompileResult(ok ? 0 : 1, message.toString(), requiresIsolation);
+			return new CompileResult(ok ? 0 : 1, message.toString(), requiresIsolation, List.copyOf(diagnosticItems));
 		} catch (final Exception exception) {
-			return new CompileResult(1, exception.toString(), false);
+			return new CompileResult(1, exception.toString(), false, List.of());
 		}
 	}
 }

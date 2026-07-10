@@ -115,7 +115,7 @@ COMPILE \t <id> \t b64(sourceFile) \t b64(outDir)
 応答:
 
 ```
-COMPILED \t <id> \t <exitCode> \t <requiresIsolation> \t b64(diagnostics)
+COMPILED \t <id> \t <exitCode> \t <requiresIsolation> \t b64(diagnostics) \t b64(diagnosticItemsJson)
 ```
 
 | フィールド               | 内容                                                    |
@@ -123,8 +123,25 @@ COMPILED \t <id> \t <exitCode> \t <requiresIsolation> \t b64(diagnostics)
 | `exitCode`          | `0` = 成功 / `1` = 失敗                                   |
 | `requiresIsolation` | 危険 API を参照し隔離実行が必要なら `1`、そうでなければ `0`（成功時のみ意味を持つ。§6.2） |
 | `diagnostics`       | コンパイラ診断（エラー・警告）を連結したテキスト。成功時は空のこともある                  |
+| `diagnosticItemsJson` | `kind`・`line`・`column`・javac `code`・`message`を持つJSON配列             |
 
-### 3.5 `ERROR`：エラー応答
+### 3.5 `TRANSFORM`：Compiler APIによる提出ソース変換
+
+要求:
+
+```text
+TRANSFORM \t <id> \t b64(sourceCode) \t b64(librarySourceRoot) \t <debug> \t <autoImport>
+```
+
+応答:
+
+```text
+TRANSFORMED \t <id> \t <exitCode> \t b64(sourceCode) \t b64(diagnostics) \t b64(inlinedClasses) \t b64(addedImports) \t b64(diagnosticItemsJson)
+```
+
+`inlinedClasses`と`addedImports`はLF区切りです。javacの構文木・シンボル解決で暗黙importと実依存を確定し、Main/DEBUG/package/import変換、単一ソース化、変換後の再解析まで行います。
+
+### 3.6 `ERROR`：エラー応答
 
 不正・未知の要求、または要求処理中に例外が起きた場合に返る。
 
@@ -139,18 +156,20 @@ ERROR \t <id> \t b64(message)
 
 ```
 message      = request | response
-request      = ping | run-req | compile-req
-response     = ready | pong | run-ack | result | compiled | error
+request      = ping | run-req | compile-req | transform-req
+response     = ready | pong | run-ack | result | compiled | transformed | error
 
 ping         = "PING"
 run-req      = "RUN"     TAB id TAB b64 TAB b64 TAB b64       ; classDir, mainClass, stdin
 compile-req  = "COMPILE" TAB id TAB b64 TAB b64               ; sourceFile, outDir
+transform-req = "TRANSFORM" TAB id TAB b64 TAB b64 TAB flag TAB flag
 
 ready        = "READY"
 pong         = "PONG"
 run-ack      = "RUN"
 result       = "RESULT"   TAB id TAB int TAB int TAB b64 TAB b64 TAB flag TAB flag TAB int
-compiled     = "COMPILED" TAB id TAB int TAB flag TAB b64
+compiled     = "COMPILED" TAB id TAB int TAB flag TAB b64 TAB b64
+transformed  = "TRANSFORMED" TAB id TAB int TAB b64 TAB b64 TAB b64 TAB b64 TAB b64
 error        = "ERROR"    TAB id TAB b64
 
 id           = ("protocol" | 1*DIGIT)
@@ -163,9 +182,10 @@ TAB          = %x09
 
 ## 5. 有効な要求と境界ケース
 
-- daemon → JVM へ送ってよい要求コマンドは **`PING` / `RUN` / `COMPILE` のみ**。応答系トークン（`RESULT` 等）を要求として送ってはならない。
+- daemon → JVM へ送ってよい要求コマンドは **`PING` / `RUN` / `COMPILE` / `TRANSFORM`**。応答系トークン（`RESULT` 等）を要求として送ってはならない。
 - `RUN` のフィールドが 5 未満 → `ERROR  protocol  b64("Malformed RUN command.")`
 - `COMPILE` のフィールドが 4 未満 → `ERROR  protocol  b64("Malformed COMPILE command.")`
+- `TRANSFORM` のフィールドが 6 未満 → `ERROR  protocol  b64("Malformed TRANSFORM command.")`
 - 先頭トークンが未知 → `ERROR  protocol  b64("Unknown command: <token>")`
 
 ## 6. 出力上限・メモリ・隔離判定
@@ -181,7 +201,7 @@ TAB          = %x09
 
 ### 6.2 隔離実行の判定（`requiresIsolation`）
 
-`COMPILED` の `requiresIsolation` は、**コンパイル済みクラス（内部クラス・ラムダ含む全 `.class`）の定数プールを走査**し、常駐 JVM 内で実行すると共有 JVM を壊す/汚す/状態を残す API を参照している場合に `1` になる。
+`COMPILED` の `requiresIsolation` は、**Java 24 Class-File APIでコンパイル済みクラス（内部クラス・ラムダ含む全 `.class`）を走査**し、常駐 JVM 内で実行すると共有 JVM を壊す/汚す/状態を残す API を参照している場合に `1` になる。
 daemon はこのフラグが立った提出を、使い捨ての外部 JVM 経路へ振り分ける。
 検出はソースの正規表現ではなくバイトコードに基づく（コメントや文字列中の誤検出が無い）。
 直接参照のみを対象とし、リフレクション経由は対象外。検出対象（競プロ前提）:
@@ -204,7 +224,7 @@ join しない残存スレッドという稀なリスクは受容する。
 |----------------|----------|--------------------------------------------------------------|
 | 起動（`READY` まで） | 10 秒     | JVM を SIGKILL し起動失敗                                          |
 | `RUN`          | 10 秒     | JVM を SIGKILL し、当該要求を `timeLimitExceeded` 扱い。次の要求時に JVM を再起動 |
-| `COMPILE`      | 30 秒     | 同上（コンパイルのタイムアウト）                                             |
+| `COMPILE` / `TRANSFORM` | 30 秒 | 同上（コンパイル・変換のタイムアウト）                                      |
 
 無限ループ等で停止しない実行対象は、同一 JVM 内のスレッドとして動くため、daemon がプロセスごと強制終了する。
 
@@ -243,7 +263,7 @@ COMPILE	1	TWFpbi5qYXZh	Y2xhc3Nlcw==
 応答（`requiresIsolation = 0`、診断は空）:
 
 ```
-COMPILED	1	0	0	
+COMPILED	1	0	0		W10=
 ```
 
 > 補足: 上記の Base64 は `b64("classes") = Y2xhc3Nlcw==`、`b64("Main") = TWFpbg==`、`b64("3 5\n") = MyA1Cg==`、
@@ -257,5 +277,6 @@ COMPILED	1	0	0
 | 要求の符号化  | —                                         | `encodeField`（Base64）＋タブ連結  |
 | 要求の解析   | `ProtocolParser` / `handleCompileCommand` | —                           |
 | 応答の組み立て | `ProtocolWriter`（`writeResult` 等）         | —                           |
+| ソース変換   | `JavaSourceTransformer`                    | `queueDispatcherTransform`  |
 | 応答の解析   | —                                         | `handleDispatcherResponse`  |
 | 相関 ID   | 受信した `id` をそのまま応答へ                        | `nextRequestId` を採番         |

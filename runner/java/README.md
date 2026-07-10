@@ -13,6 +13,7 @@ JVM を 1 つ起動しっぱなしにして、TS デーモン（`runner/src/daem
 | 層   | クラス                    | 役割                                                                                                              |
 |-----|------------------------|-----------------------------------------------------------------------------------------------------------------|
 | app | `Dispatcher`           | エントリポイント。`受信→解析→（必要なら受理通知）→実行→応答` の配線のみ                                                                         |
+| 解析  | `JavaSourceTransformer` | Compiler APIで暗黙import、依存型、Main/DEBUG/package/import位置を解決し、提出用単一ソースを生成・再解析                                        |
 | 通信  | `MessageChannel`       | 行 IO ＋ 型付きメッセージ ⇄ 行 の変換（`ProtocolCodec` へ委譲）。`send(Response)` / `receive():ParseOutcome`                        |
 | 変換  | `ProtocolCodec`        | 文字列・Base64・タブ・コマンド名を扱う唯一の場所。`parse` / `encode`（`ParseOutcome`/`ValidRequest`/`ProtocolError` を含む）               |
 | 実行  | `Executor`             | 要求をサービスへ振り分ける薄いルーター（`handle(Request):Response`）                                                                 |
@@ -20,7 +21,7 @@ JVM を 1 つ起動しっぱなしにして、TS デーモン（`runner/src/daem
 | 実行  | `ProgramRunner`        | 使い捨て `URLClassLoader` で隔離ロード＋リフレクションで `main` 実行。時間・出力・メモリ近似を収集                                                  |
 | 実行  | `StandardStreamsGuard` | `System.in/out/err`・uncaught ハンドラ・CCL の退避/差し替え/復元を 1 か所に隔離する RAII                                               |
 | 実行  | `BoundedCapture`       | 上限付きバイトバッファ（大量出力でメモリを食い潰さない）                                                                                    |
-| 実行  | `IsolationAnalyzer`    | コンパイル済み `.class` の定数プールを走査し、隔離実行が要る危険 API 参照を検出（`requiresIsolation`）                                            |
+| 実行  | `IsolationAnalyzer`    | Java 24 Class-File APIでコンパイル済み `.class` を走査し、隔離実行が要る危険 API 参照を検出（`requiresIsolation`）                              |
 | API | `Request`              | 受信メッセージ（sealed: `Ping`/`Run`/`Compile`）                                                                         |
 | API | `Response`             | 送信メッセージ（sealed: `Ready`/`Pong`/`RunAck`/`Result`/`Compiled`/`ErrorResponse`）＋ `ExecutionResult`/`CompileResult` |
 | —   | `WarmUp`               | 起動時に代表処理を走らせ JIT を温める専用クラス（`src/PROTOCOL.md` 対象外）                                                               |

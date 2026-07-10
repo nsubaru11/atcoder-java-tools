@@ -99,7 +99,7 @@ export const RUNNER_LABEL = process.platform === "linux"
 	: `Java ${JAVA_VERSION} (Daemon Local)`;
 
 function hashCode(sourceCode: string) {
-	const digest = crypto.createHash("md5").update(sourceCode).digest("hex");
+	const digest = crypto.createHash("md5").update(`java=${JAVA_VERSION}\nencoding=UTF-8\n${sourceCode}`).digest("hex");
 	return `${sourceCode.length.toString(16)}-${digest}`;
 }
 

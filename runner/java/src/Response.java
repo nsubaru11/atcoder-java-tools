@@ -1,3 +1,5 @@
+import java.util.*;
+
 /**
  * daemon へ送信する応答メッセージです。
  * <p>
@@ -45,6 +47,9 @@ record Result(String requestId, ExecutionResult result) implements Response {
 record Compiled(String requestId, CompileResult result) implements Response {
 }
 
+record Transformed(String requestId, SourceTransformResult result) implements Response {
+}
+
 /**
  * エラー応答です（PROTOCOL.md 3.5 ERROR）。
  *
@@ -76,5 +81,14 @@ record ExecutionResult(int exitCode, long timeMillis, byte[] stdout, byte[] stde
  * @param diagnostics       診断メッセージ
  * @param requiresIsolation 常駐 JVM 内で実行すると危険な API を参照しており、隔離実行が必要なら true
  */
-record CompileResult(int exitCode, String diagnostics, boolean requiresIsolation) {
+record CompileResult(int exitCode, String diagnostics, boolean requiresIsolation,
+                     List<CompilerDiagnostic> diagnosticItems) {
+}
+
+record SourceTransformResult(int exitCode, String sourceCode, String diagnostics,
+                             List<String> inlinedClasses, List<String> addedImports,
+                             List<CompilerDiagnostic> diagnosticItems) {
+}
+
+record CompilerDiagnostic(String kind, long line, long column, String code, String message) {
 }

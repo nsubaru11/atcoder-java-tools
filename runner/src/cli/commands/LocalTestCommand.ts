@@ -54,7 +54,7 @@ export class LocalTestCommand implements Command {
 			transformed,
 			originalFileName,
 			originalClassName
-		} = prepareSource(sourceFilePath, debug);
+		} = await prepareSource(sourceFilePath, debug);
 		await ensureLocalRunnerReady();
 		const samples = loadLocalSamples(resolvedSourcePath, testDir);
 		const allAccepted = await runAndReportSamples(transformed, samples, originalClassName, originalFileName, display);

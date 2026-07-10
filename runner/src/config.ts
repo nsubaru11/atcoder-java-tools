@@ -25,6 +25,18 @@ function resolveProjectRoot() {
 
 export const PROJECT_ROOT = resolveProjectRoot();
 
+export function resolveLibrarySourceRoot(): string {
+	const candidates = [
+		process.env.ATCODER_LIB_SRC,
+		path.resolve(PROJECT_ROOT, "../library/src"),
+		path.resolve(PROJECT_ROOT, "library/src"),
+	].filter(Boolean) as string[];
+	for (const candidate of candidates) {
+		if (fs.existsSync(path.join(candidate, "lib"))) return path.resolve(candidate);
+	}
+	throw new Error(`Library source root not found. Tried: ${candidates.join(", ")}`);
+}
+
 export const CLI_CONFIG = {
 	defaultLocalRunnerUrl: process.env.LOCAL_RUNNER_URL || "http://localhost:8080",
 	submissionPollIntervalMs: 1000,

@@ -1,5 +1,6 @@
 import {type ChildProcessWithoutNullStreams, spawn} from "node:child_process";
 import readline from "node:readline";
+import type {CompilerDiagnostic} from "@atcoder-tools/shared";
 import type {CompileEntry, DispatcherRunResult} from "../types";
 import {RUNNER_CONFIG, WARMUP_REPEAT_COUNT,} from "../config";
 import {firstLine, logInfo, logWarn, trimForLog,} from "../utils";
@@ -10,11 +11,23 @@ export interface DispatcherCompileResult {
 	kind: "compile";
 	exitCode: number;
 	diagnostics: string;
+	diagnosticItems?: CompilerDiagnostic[];
 	requiresIsolation?: boolean;
 	timedOut?: boolean;
 }
 
-type DispatcherResponse = DispatcherRunResult | DispatcherCompileResult;
+export interface DispatcherTransformResult {
+	kind: "transform";
+	exitCode: number;
+	sourceCode: string;
+	diagnostics: string;
+	inlinedClasses: string[];
+	addedImports: string[];
+	diagnosticItems: CompilerDiagnostic[];
+	timedOut?: boolean;
+}
+
+type DispatcherResponse = DispatcherRunResult | DispatcherCompileResult | DispatcherTransformResult;
 
 interface PendingRequest {
 	id: string;
@@ -127,6 +140,20 @@ function handleDispatcherResponse(line: string) {
 			exitCode: Number(parts[2]),
 			requiresIsolation: Number(parts[3] || "0") !== 0,
 			diagnostics: decodeField(parts[4] || ""),
+			diagnosticItems: parts[5] ? JSON.parse(decodeField(parts[5])) as CompilerDiagnostic[] : [],
+		});
+		dispatcherState.currentRequest = null;
+		return;
+	}
+	if (responseType === "TRANSFORMED") {
+		pendingRequest.resolve({
+			kind: "transform",
+			exitCode: Number(parts[2]),
+			sourceCode: decodeField(parts[3] || ""),
+			diagnostics: decodeField(parts[4] || ""),
+			inlinedClasses: decodeField(parts[5] || "").split("\n").filter(Boolean),
+			addedImports: decodeField(parts[6] || "").split("\n").filter(Boolean),
+			diagnosticItems: parts[7] ? JSON.parse(decodeField(parts[7])) as CompilerDiagnostic[] : [],
 		});
 		dispatcherState.currentRequest = null;
 		return;
@@ -416,4 +443,54 @@ export function queueDispatcherCompile(
 			});
 		});
 	return dispatcherState.requestQueue as Promise<DispatcherCompileResult>;
+}
+
+export function queueDispatcherTransform(
+	sourceCode: string,
+	librarySourceRoot: string,
+	debug: boolean,
+	autoImport = true,
+	timeoutMs = RUNNER_CONFIG.compileTimeoutMs,
+): Promise<DispatcherTransformResult> {
+	dispatcherState.requestQueue = dispatcherState.requestQueue
+		.catch(() => null)
+		.then(async () => {
+			await ensureDispatcherReady();
+			return new Promise<DispatcherTransformResult>((resolve, reject) => {
+				const requestId = String(++dispatcherState.nextRequestId);
+				let settled = false;
+				let timeoutHandle: NodeJS.Timeout | null = null;
+				const finishResolve = (value: DispatcherResponse) => {
+					if (settled || value.kind !== "transform") return;
+					settled = true;
+					if (timeoutHandle) clearTimeout(timeoutHandle);
+					resolve(value);
+				};
+				const finishReject = (error: Error) => {
+					if (settled) return;
+					settled = true;
+					if (timeoutHandle) clearTimeout(timeoutHandle);
+					reject(error);
+				};
+				dispatcherState.currentRequest = {id: requestId, resolve: finishResolve, reject: finishReject};
+				timeoutHandle = setTimeout(() => {
+					if (dispatcherState.currentRequest?.id === requestId) dispatcherState.currentRequest = null;
+					stopDispatcher();
+					finishResolve({
+						kind: "transform", exitCode: 1, sourceCode, inlinedClasses: [], addedImports: [], diagnosticItems: [],
+						diagnostics: `Transformation timed out after ${timeoutMs}ms.`, timedOut: true,
+					});
+				}, timeoutMs);
+				const command = [
+					"TRANSFORM", requestId, encodeField(sourceCode), encodeField(librarySourceRoot),
+					debug ? "1" : "0", autoImport ? "1" : "0",
+				].join("\t");
+				dispatcherState.proc!.stdin.write(`${command}\n`, "utf8", (error) => {
+					if (!error) return;
+					if (dispatcherState.currentRequest?.id === requestId) dispatcherState.currentRequest = null;
+					finishReject(error);
+				});
+			});
+		});
+	return dispatcherState.requestQueue as Promise<DispatcherTransformResult>;
 }

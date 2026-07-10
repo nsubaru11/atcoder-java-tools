@@ -1,8 +1,9 @@
 import http from "node:http";
 import {pathToFileURL} from "node:url";
 import type {LocalRunnerCompilerInfo, LocalRunnerRunResponse} from "@atcoder-tools/shared";
+import type {LocalRunnerTransformResponse} from "@atcoder-tools/shared";
 import type {RunnerStatusInfo} from "../types";
-import {LOG_FILE_PATH, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../config";
+import {LOG_FILE_PATH, resolveLibrarySourceRoot, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../config";
 import {ensureDirectory, formatRunSummary, logError, logInfo, logWarn,} from "../utils";
 import {
 	getCompileCacheSize,
@@ -17,6 +18,7 @@ import {
 	isDispatcherRunning,
 	logCaptureAndBodySizeBalance,
 	queueDispatcherRun,
+	queueDispatcherTransform,
 	stopDispatcher,
 	warmUpDispatcher,
 } from "./dispatcher";
@@ -25,7 +27,9 @@ const serverStartedAt = Date.now();
 
 // ローカルランナーを利用するユーザースクリプトが動作するジャッジサイト（EasyTest の @match と一致）。
 // これらのホスト（およびサブドメイン）からのブラウザ要求のみ許可する。
-const DEFAULT_ALLOWED_ORIGIN_HOSTS = ["atcoder.jp", "yukicoder.me", "codeforces.com"];
+const DEFAULT_ALLOWED_ORIGIN_HOSTS = [
+	"atcoder.jp", "yukicoder.me", "codeforces.com", "onlinejudge.u-aizu.ac.jp", "judge.yosupo.jp", "paiza.jp",
+];
 
 // LOCAL_RUNNER_ALLOWED_ORIGINS で完全一致のオリジン許可リストに差し替え可能（カンマ区切り）。
 const ALLOWED_ORIGINS_OVERRIDE = (process.env.LOCAL_RUNNER_ALLOWED_ORIGINS || "")
@@ -46,8 +50,30 @@ function isAllowedOrigin(origin: string | undefined): boolean {
 	return DEFAULT_ALLOWED_ORIGIN_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
 }
 
-async function runCode({sourceCode, stdin}: { sourceCode: string; stdin?: string }): Promise<LocalRunnerRunResponse> {
+async function transformCode(sourceCode: string, debug: boolean, autoImport = true): Promise<LocalRunnerTransformResponse> {
+	const result = await queueDispatcherTransform(sourceCode, resolveLibrarySourceRoot(), debug, autoImport);
+	return {
+		status: result.exitCode === 0 ? "success" : "compileError",
+		sourceCode: result.sourceCode,
+		diagnostics: result.diagnostics,
+		inlinedClasses: result.inlinedClasses,
+		addedImports: result.addedImports,
+		diagnosticItems: result.diagnosticItems,
+	};
+}
+
+async function runCode({sourceCode, stdin, prepared}: { sourceCode: string; stdin?: string; prepared?: boolean }): Promise<LocalRunnerRunResponse> {
 	const overallStart = Date.now();
+	if (!prepared) {
+		const transformed = await transformCode(sourceCode, true, true);
+		if (transformed.status !== "success") {
+			return {
+				status: "compileError", exitCode: 1, stdout: "", stderr: transformed.diagnostics,
+				time: Date.now() - overallStart, stdoutTruncated: false, stderrTruncated: false, memory: 0,
+			};
+		}
+		sourceCode = transformed.sourceCode;
+	}
 	const entry = await getCompiledEntry(sourceCode);
 	const waitTime = Date.now() - overallStart;
 
@@ -175,7 +201,7 @@ const server = http.createServer(async (req, res) => {
 		body += buffer.toString("utf8");
 	}
 
-	let request: { mode?: string; sourceCode?: string; stdin?: string };
+	let request: { mode?: string; sourceCode?: string; stdin?: string; prepared?: boolean; debug?: boolean; autoImport?: boolean };
 	try {
 		request = JSON.parse(body) as { mode?: string; sourceCode?: string; stdin?: string };
 	} catch (error) {
@@ -202,12 +228,16 @@ const server = http.createServer(async (req, res) => {
 				},
 			] satisfies LocalRunnerCompilerInfo[];
 		} else if (request.mode === "precompile" && typeof request.sourceCode === "string") {
-			await getCompiledEntry(request.sourceCode);
+			const transformed = await transformCode(request.sourceCode, true, true);
+			if (transformed.status === "success") await getCompiledEntry(transformed.sourceCode);
 			response = {status: "accepted"};
+		} else if (request.mode === "transform" && typeof request.sourceCode === "string") {
+			response = await transformCode(request.sourceCode, !!request.debug, request.autoImport !== false);
 		} else if (request.mode === "run" && typeof request.sourceCode === "string") {
 			response = await runCode({
 				sourceCode: request.sourceCode,
 				stdin: request.stdin,
+				prepared: request.prepared,
 			});
 		} else if (request.mode === "status") {
 			response = {

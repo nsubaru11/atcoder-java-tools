@@ -8,6 +8,7 @@
 final class Executor {
 	private final JavaCompilerService compilerService = new JavaCompilerService();
 	private final ProgramRunner programRunner = new ProgramRunner();
+	private final JavaSourceTransformer sourceTransformer = new JavaSourceTransformer();
 
 	/**
 	 * 要求種別ごとに処理を振り分けます（Ping/Compile/Run を網羅）。
@@ -20,7 +21,17 @@ final class Executor {
 			case Ping ignored -> new Pong();
 			case Compile compile -> onCompile(compile);
 			case Run run -> onRun(run);
+			case Transform transform -> onTransform(transform);
 		};
+	}
+
+	private Response onTransform(final Transform request) {
+		try {
+			return new Transformed(request.requestId(), sourceTransformer.transform(
+					request.sourceCode(), request.librarySourceRoot(), request.debug(), request.autoImport()));
+		} catch (final Throwable throwable) {
+			return new ErrorResponse(request.requestId(), throwable.toString());
+		}
 	}
 
 	private Response onCompile(final Compile request) {

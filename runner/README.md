@@ -47,6 +47,8 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 ### `lib.*` の自動バンドル
 
+提出前処理はTSの正規表現ではなく、常駐JVM内のJava Compiler API（`JavacTask` / `Trees` / `SourcePositions`）を使います。型解決、Main対象、コンストラクタ・自己参照、DEBUGフィールド、package/import範囲をjavacの構文木とシンボルから決定し、生成後の単一ソースも再解析します。
+
 解答では通常のJavaコードとして競プロライブラリをimportできます。
 
 ```java
@@ -65,6 +67,8 @@ import lib.io.FastScanner;
 AtCoderリポジトリ直下にlibrary submoduleがあれば、通常は環境変数の設定は不要です。`import static lib...`、本文中の`lib.ds.UnionFind`のような完全修飾参照、バンドル後に単純名が衝突する型はエラーになります。
 
 `import lib.io.*;`のようなワイルドカードimportでも、解答本文で実際に参照しているトップレベル型だけをインラインします。提出コードでは元のlibrary importを削除せず、`// import lib.io.*;`のようにコメントアウトして展開元を残します。
+
+importを書かずに`FastScanner`や`UnionFind`を使用した場合も、単純名がlibrary内で一意ならCompiler APIがimportを補完してバンドルします。同名候補ではパッケージ階層が最短の標準APIを優先し、同順位が複数なら曖昧エラーで停止します。
 
 ブラウザへ手動で貼り付ける提出コードは、クリップボードへ直接コピーできます。
 

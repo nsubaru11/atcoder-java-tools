@@ -10,7 +10,7 @@ export class TomainCommand implements Command {
 		"  tomain [-f|--force] <sourceFile> [outFile]",
 	];
 
-	execute(args: readonly string[]): number {
+	async execute(args: readonly string[]): Promise<number> {
 		const positionals: string[] = [];
 		let force = false;
 		for (const arg of args) {
@@ -24,7 +24,7 @@ export class TomainCommand implements Command {
 		const [sourceFilePath, outFilePath] = positionals;
 		if (!sourceFilePath) throw new CliUsageError();
 
-		const {resolvedSourcePath, transformed} = prepareSource(sourceFilePath);
+		const {resolvedSourcePath, transformed} = await prepareSource(sourceFilePath);
 		const outPath = outFilePath
 			? path.resolve(outFilePath)
 			: path.join(path.dirname(resolvedSourcePath), "Main.java");

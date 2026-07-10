@@ -54,8 +54,8 @@ export class CrossCheck implements Command {
 		const [actualSourceFile, expectedSourceFile, testDir] = positionals;
 		if (!actualSourceFile || !expectedSourceFile) throw new CliUsageError();
 
-		const actual = prepareSource(actualSourceFile);
-		const expected = prepareSource(expectedSourceFile);
+		const actual = await prepareSource(actualSourceFile);
+		const expected = await prepareSource(expectedSourceFile);
 		await ensureLocalRunnerReady();
 		// テストケース（.in）はテスト対象である actual 側のソースの近傍/指定 testDir から探す。
 		// .out は無視する（あっても比較対象は「もう一方の実行結果」であって .out ではない）。

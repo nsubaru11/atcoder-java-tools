@@ -177,7 +177,7 @@ export abstract class TaskCommand implements Command {
 
 	async execute(args: readonly string[]): Promise<number> {
 		const {task, sourceFilePath, force, debug, display} = this.validate(args);
-		const {transformed, originalFileName, originalClassName} = prepareSource(sourceFilePath, debug);
+		const {transformed, originalFileName, originalClassName} = await prepareSource(sourceFilePath, debug);
 
 		const cookieHeader = toCookieHeader();
 		const {samples, timeLimitMs} = await getSamplesWithCache(task, cookieHeader);

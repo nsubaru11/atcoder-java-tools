@@ -120,7 +120,10 @@ import {
 		if (!code) return {modified: '', didModify: false};
 		try {
 			const transformed = await requestLocalTransform(code);
-			if (transformed.status !== 'success') throw new Error(transformed.diagnostics);
+			if (transformed.status !== 'success') {
+				console.error(LOG_PREFIX, 'LocalRunner compile error:\n' + transformed.diagnostics);
+				throw new Error(transformed.diagnostics);
+			}
 			if (transformed.addedImports.length) log('Added imports:', transformed.addedImports.join(', '));
 			if (transformed.inlinedClasses.length) log('Bundled:', transformed.inlinedClasses.join(', '));
 			return {modified: transformed.sourceCode, didModify: transformed.sourceCode !== code};
@@ -302,12 +305,14 @@ import {
 			const classLines = findTopLevelFinalClassLines(model.getValue()).map((line) => line + 1);
 			if (!classLines.length) return;
 			const position = editor.getPosition?.();
-			editor.setSelections(classLines.map((lineNumber) => ({
-				startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1,
-			})));
-			editor.focus();
 			const action = editor.getAction && editor.getAction('editor.fold');
-			if (action?.run) void Promise.resolve(action.run()).finally(() => {
+			if (!action?.run) return;
+			void (async () => {
+				for (const lineNumber of classLines) {
+					editor.setPosition({lineNumber, column: 1});
+					await action.run();
+				}
+			})().catch((error) => log('Monaco fold failed:', error)).finally(() => {
 				if (position) editor.setPosition(position);
 			});
 		}

@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.2.6
+// @version        1.2.7
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -409,7 +409,14 @@
 			if (!code) return { modified: "", didModify: false };
 			try {
 				const transformed = await requestLocalTransform(code);
-				if (transformed.status !== "success") throw new Error(transformed.diagnostics);
+				if (transformed.status !== "success") {
+					console.error(
+						LOG_PREFIX,
+						`LocalRunner compile error:
+` + transformed.diagnostics,
+					);
+					throw new Error(transformed.diagnostics);
+				}
 				if (transformed.addedImports.length) log("Added imports:", transformed.addedImports.join(", "));
 				if (transformed.inlinedClasses.length) log("Bundled:", transformed.inlinedClasses.join(", "));
 				return { modified: transformed.sourceCode, didModify: transformed.sourceCode !== code };
@@ -579,18 +586,16 @@
 				const classLines = findTopLevelFinalClassLines(model.getValue()).map((line) => line + 1);
 				if (!classLines.length) return;
 				const position = editor.getPosition?.();
-				editor.setSelections(
-					classLines.map((lineNumber) => ({
-						startLineNumber: lineNumber,
-						startColumn: 1,
-						endLineNumber: lineNumber,
-						endColumn: 1,
-					})),
-				);
-				editor.focus();
 				const action = editor.getAction && editor.getAction("editor.fold");
-				if (action?.run)
-					Promise.resolve(action.run()).finally(() => {
+				if (!action?.run) return;
+				(async () => {
+					for (const lineNumber of classLines) {
+						editor.setPosition({ lineNumber, column: 1 });
+						await action.run();
+					}
+				})()
+					.catch((error) => log("Monaco fold failed:", error))
+					.finally(() => {
 						if (position) editor.setPosition(position);
 					});
 			}

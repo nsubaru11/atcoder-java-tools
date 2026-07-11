@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.2.2
+// @version        1.2.3
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -16,6 +16,9 @@
 // @match          https://paiza.jp/*
 // @match          https://codeforces.com/*
 // @grant          unsafeWindow
+// @grant          GM_xmlhttpRequest
+// @connect        localhost
+// @connect        127.0.0.1
 // @run-at         document-end
 // @icon           https://atcoder.jp/favicon.ico
 // @updateURL      https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/JavaCodeSubmitter/dist/JavaCodeSubmitter.user.js
@@ -360,18 +363,48 @@
 				el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
 			} catch {}
 		};
+		function requestLocalTransform(code) {
+			const body = JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false));
+			if (typeof GM_xmlhttpRequest === "function") {
+				return new Promise((resolve, reject) => {
+					GM_xmlhttpRequest({
+						method: "POST",
+						url: SETTINGS.localRunnerURL,
+						headers: { "Content-Type": "application/json" },
+						data: body,
+						timeout: 30000,
+						responseType: "json",
+						onload: (response) => {
+							if (response.status < 200 || response.status >= 300) {
+								reject(new Error(`LocalRunner HTTP ${response.status}`));
+								return;
+							}
+							try {
+								resolve(response.response || JSON.parse(response.responseText));
+							} catch (error) {
+								reject(error);
+							}
+						},
+						onerror: (response) => reject(new Error(response.statusText || "LocalRunner request failed")),
+						ontimeout: () => reject(new Error("LocalRunner request timed out")),
+					});
+				});
+			}
+			return fetch(SETTINGS.localRunnerURL, {
+				method: "POST",
+				mode: "cors",
+				headers: { "Content-Type": "application/json" },
+				body,
+			}).then(async (response) => {
+				if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
+				return await response.json();
+			});
+		}
 		async function modifyPastedCode(text) {
 			const code = typeof text === "string" ? text : "";
 			if (!code) return { modified: "", didModify: false };
 			try {
-				const response = await fetch(SETTINGS.localRunnerURL, {
-					method: "POST",
-					mode: "cors",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false)),
-				});
-				if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
-				const transformed = await response.json();
+				const transformed = await requestLocalTransform(code);
 				if (transformed.status !== "success") throw new Error(transformed.diagnostics);
 				if (transformed.addedImports.length) log("Added imports:", transformed.addedImports.join(", "));
 				if (transformed.inlinedClasses.length) log("Bundled:", transformed.inlinedClasses.join(", "));

@@ -75,18 +75,49 @@ import {
 	/**
 	 * ペーストされたコードを自動修正する
 	 */
+	function requestLocalTransform(code: string): Promise<LocalRunnerTransformResponse> {
+		const body = JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false));
+		if (typeof GM_xmlhttpRequest === 'function') {
+			return new Promise((resolve, reject) => {
+				GM_xmlhttpRequest({
+					method: 'POST',
+					url: SETTINGS.localRunnerURL,
+					headers: {'Content-Type': 'application/json'},
+					data: body,
+					timeout: 30_000,
+					responseType: 'json',
+					onload: (response) => {
+						if (response.status < 200 || response.status >= 300) {
+							reject(new Error(`LocalRunner HTTP ${response.status}`));
+							return;
+						}
+						try {
+							resolve((response.response || JSON.parse(response.responseText)) as LocalRunnerTransformResponse);
+						} catch (error) {
+							reject(error);
+						}
+					},
+					onerror: (response) => reject(new Error(response.statusText || 'LocalRunner request failed')),
+					ontimeout: () => reject(new Error('LocalRunner request timed out')),
+				});
+			});
+		}
+		return fetch(SETTINGS.localRunnerURL, {
+			method: 'POST',
+			mode: 'cors',
+			headers: {'Content-Type': 'application/json'},
+			body,
+		}).then(async (response) => {
+			if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
+			return await response.json() as LocalRunnerTransformResponse;
+		});
+	}
+
 	async function modifyPastedCode(text: unknown): Promise<{ modified: string; didModify: boolean }> {
 		const code = (typeof text === 'string') ? text : '';
 		if (!code) return {modified: '', didModify: false};
 		try {
-			const response = await fetch(SETTINGS.localRunnerURL, {
-				method: 'POST',
-				mode: 'cors',
-				headers: {'Content-Type': 'application/json'},
-				body: JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false)),
-			});
-			if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
-			const transformed = await response.json() as LocalRunnerTransformResponse;
+			const transformed = await requestLocalTransform(code);
 			if (transformed.status !== 'success') throw new Error(transformed.diagnostics);
 			if (transformed.addedImports.length) log('Added imports:', transformed.addedImports.join(', '));
 			if (transformed.inlinedClasses.length) log('Bundled:', transformed.inlinedClasses.join(', '));

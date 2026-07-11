@@ -250,11 +250,8 @@ const server = http.createServer(async (req, res) => {
 			schedulePrecompile(request.sourceCode);
 			response = {status: "accepted"};
 		} else if (request.mode === "transform" && typeof request.sourceCode === "string") {
-			const transformStartedAt = Date.now();
 			response = await transformCode(request.sourceCode, !!request.debug, request.autoImport !== false,
 				request.validate !== false);
-			logInfo(`[Transform] status=${response.status} time=${Date.now() - transformStartedAt}ms ` +
-				`inlined=${response.inlinedClasses.length} origin=${origin || "none"}`);
 		} else if (request.mode === "run" && typeof request.sourceCode === "string") {
 			response = await runCode({
 				sourceCode: request.sourceCode,

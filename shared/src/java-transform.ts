@@ -236,4 +236,3 @@ export function modifyJavaCode(originalCode: string, options: TransformOptions):
 
 	return {modified: currentCode, packageRemoved, classReplaced, debugReplaced};
 }
-

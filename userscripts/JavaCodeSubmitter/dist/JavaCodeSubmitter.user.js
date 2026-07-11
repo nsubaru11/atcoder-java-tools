@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.2.5
+// @version        1.2.6
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -322,7 +322,7 @@
 			fixDebug: true,
 			foldMainOnPaste: true,
 			logEnabled: false,
-			localRunnerURL: "http://127.0.0.1:8080",
+			localRunnerURL: "http://localhost:8080",
 		};
 		function loadSettings() {
 			try {
@@ -363,103 +363,46 @@
 				el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
 			} catch {}
 		};
-		function localRunnerURLs() {
-			const urls = [SETTINGS.localRunnerURL];
-			try {
-				const alternate = new URL(SETTINGS.localRunnerURL);
-				if (alternate.hostname === "localhost") alternate.hostname = "127.0.0.1";
-				else if (alternate.hostname === "127.0.0.1") alternate.hostname = "localhost";
-				if (alternate.toString() !== SETTINGS.localRunnerURL) urls.push(alternate.toString());
-			} catch {}
-			return [...new Set(urls)];
-		}
-		function requestWithGM(url, body) {
-			return new Promise((resolve, reject) => {
-				GM_xmlhttpRequest({
-					method: "POST",
-					url,
-					headers: { "Content-Type": "application/json" },
-					data: body,
-					timeout: 30000,
-					responseType: "json",
-					onload: (response) => {
-						if (response.status < 200 || response.status >= 300) {
-							reject(new Error(`${url}: HTTP ${response.status}`));
-							return;
-						}
-						try {
-							const parsed =
-								response.response && typeof response.response === "object"
-									? response.response
-									: JSON.parse(response.responseText);
-							resolve(parsed);
-						} catch (error) {
-							reject(new Error(`${url}: invalid JSON (${String(error)})`));
-						}
-					},
-					onerror: (response) => reject(new Error(`${url}: ${response.statusText || "request failed"}`)),
-					ontimeout: () => reject(new Error(`${url}: request timed out`)),
+		function requestLocalTransform(code) {
+			const body = JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false));
+			if (typeof GM_xmlhttpRequest === "function") {
+				return new Promise((resolve, reject) => {
+					GM_xmlhttpRequest({
+						method: "POST",
+						url: SETTINGS.localRunnerURL,
+						headers: { "Content-Type": "application/json" },
+						data: body,
+						timeout: 30000,
+						responseType: "json",
+						onload: (response) => {
+							if (response.status < 200 || response.status >= 300) {
+								reject(new Error(`LocalRunner HTTP ${response.status}`));
+								return;
+							}
+							try {
+								const parsed =
+									response.response && typeof response.response === "object"
+										? response.response
+										: JSON.parse(response.responseText);
+								resolve(parsed);
+							} catch (error) {
+								reject(error);
+							}
+						},
+						onerror: (response) => reject(new Error(response.statusText || "LocalRunner request failed")),
+						ontimeout: () => reject(new Error("LocalRunner request timed out")),
+					});
 				});
-			});
-		}
-		async function requestWithFetch(url, body) {
-			const response = await fetch(url, {
+			}
+			return fetch(SETTINGS.localRunnerURL, {
 				method: "POST",
 				mode: "cors",
 				headers: { "Content-Type": "application/json" },
 				body,
+			}).then(async (response) => {
+				if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
+				return await response.json();
 			});
-			if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
-			return await response.json();
-		}
-		async function requestLocalTransform(code) {
-			const body = JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false));
-			const errors = [];
-			if (typeof GM_xmlhttpRequest === "function") {
-				for (const url of localRunnerURLs()) {
-					try {
-						return await requestWithGM(url, body);
-					} catch (error) {
-						errors.push(String(error));
-					}
-				}
-			}
-			for (const url of localRunnerURLs()) {
-				try {
-					return await requestWithFetch(url, body);
-				} catch (error) {
-					errors.push(String(error));
-				}
-			}
-			throw new Error(errors.join(" | ") || "No LocalRunner transport is available");
-		}
-		function reportTransformFailure(error, fallbackApplied) {
-			const message = error instanceof Error ? error.message : String(error);
-			console.error(LOG_PREFIX, "LocalRunner transform failed:", error);
-			document.getElementById("java-code-submitter-error")?.remove();
-			const notice = document.createElement("div");
-			notice.id = "java-code-submitter-error";
-			const action = fallbackApplied
-				? "自己完結コードとしてMain変換だけを適用しました。ライブラリのインライン化は行っていません。"
-				: "ライブラリを未展開のままにしないため、コードは変更していません。";
-			notice.textContent = `Java Code Submitter: LocalRunner変換に失敗しました。${action}
-${message}`;
-			Object.assign(notice.style, {
-				position: "fixed",
-				right: "16px",
-				bottom: "16px",
-				zIndex: "2147483647",
-				maxWidth: "640px",
-				padding: "12px 16px",
-				whiteSpace: "pre-wrap",
-				color: "#fff",
-				background: "#b42318",
-				borderRadius: "6px",
-				boxShadow: "0 4px 16px rgba(0,0,0,.35)",
-				fontSize: "13px",
-			});
-			document.body.appendChild(notice);
-			setTimeout(() => notice.remove(), 20000);
 		}
 		async function modifyPastedCode(text) {
 			const code = typeof text === "string" ? text : "";
@@ -471,22 +414,17 @@ ${message}`;
 				if (transformed.inlinedClasses.length) log("Bundled:", transformed.inlinedClasses.join(", "));
 				return { modified: transformed.sourceCode, didModify: transformed.sourceCode !== code };
 			} catch (error) {
-				if (/^\s*import\s+lib\./m.test(code)) {
-					reportTransformFailure(error, false);
-					return { modified: code, didModify: false };
-				}
-				const result = modifyJavaCode(code, {
-					removePackage: SETTINGS.removePackage,
-					renameClass: SETTINGS.renameClass,
-					fixDebug: SETTINGS.fixDebug,
-				});
-				const didModify = result.packageRemoved || result.classReplaced || result.debugReplaced;
-				reportTransformFailure(error, didModify);
-				return {
-					modified: result.modified,
-					didModify,
-				};
+				log("LocalRunner transform unavailable; using lexical fallback:", error);
 			}
+			const result = modifyJavaCode(code, {
+				removePackage: SETTINGS.removePackage,
+				renameClass: SETTINGS.renameClass,
+				fixDebug: SETTINGS.fixDebug,
+			});
+			const didModify = result.packageRemoved || result.classReplaced || result.debugReplaced;
+			if (result.classReplaced) log("Class renamed to Main");
+			if (result.debugReplaced) log("DEBUG flag disabled");
+			return { modified: result.modified, didModify };
 		}
 		async function transformEditorSnapshot(getValue, setValue, onModified) {
 			const snapshot = getValue();

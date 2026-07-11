@@ -90,7 +90,7 @@ toclip D.java  # ファイルを明示
 
 `test` / `submit` / `localtest` / `run` は、Local Runnerサーバーが未起動ならWSL上へ自動起動します。起動時にライブラリソースを`/dev/shm`へ同期して一度だけclass化し、解答のCompiler API解析はそのclasspathを使用します。提出用本文だけを同期済みsourceから取得するため、コンパイル・実行環境をWSLへ統一したままNTFS境界の反復コストを避けます。`serve`で事前に温めておくと初回が速くなります。ライブラリを編集した場合は`stop`→`serve`で同期し直してください。
 
-ほぼすべての解答で使う`lib.io.FastScanner`と`lib.io.FastPrinter`は、最小構成の`WarmUp.java`から通常どおりimportします。起動時にこのファイルを提出変換してからコンパイル・実行することで、class解決・依存解析・インライン・javac・常駐JVMの経路を一度に温めます。アルゴリズムやデータ構造の私有コピーは持ちません。
+ほぼすべての解答で使う`lib.io.FastScanner`と`lib.io.FastPrinter`は、最小構成の`WarmUp.java`から通常どおりimportします。起動時にこのファイルを提出変換してからコンパイルし、メモリ入力と破棄出力で`nextInt`・`nextLong`・`println(long)`を実行することで、class解決・依存解析・インライン・javac・I/OのJIT経路を一度に温めます。標準入出力への副作用や、アルゴリズム・データ構造の私有コピーはありません。
 
 EasyTestの`precompile`要求は即座に`accepted`を返し、最後のエディタ変更から1.5秒のアイドル後に非同期実行します。連続変更はデバウンスされるため、JavaCodeSubmitterの貼り付け変換を常駐Dispatcherキュー上でブロックしません。
 

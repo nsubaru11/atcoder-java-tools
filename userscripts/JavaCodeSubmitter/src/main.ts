@@ -1,6 +1,7 @@
 import {
 	buildLocalRunnerTransformRequest,
 	mergeWithDefaults,
+	modifyJavaCode,
 	safeJsonParse,
 	type LocalRunnerTransformResponse,
 } from "@atcoder-tools/shared";
@@ -14,6 +15,12 @@ import {
 
 	// --------------- Utilities ---------------
 	const DEFAULT_SETTINGS = {
+		// LocalRunner障害時に自己完結コードのpackage宣言を削除するか
+		removePackage: true,
+		// LocalRunner障害時に自己完結コードのクラス名をMainへ変更するか
+		renameClass: true,
+		// LocalRunner障害時に自己完結コードのDEBUGをfalseへ変更するか
+		fixDebug: true,
 		// 貼り付け後に Main とトップレベル final class を自動折りたたみするか
 		foldMainOnPaste: true,
 		// デバッグログを有効化するか
@@ -132,13 +139,16 @@ import {
 		throw new Error(errors.join(' | ') || 'No LocalRunner transport is available');
 	}
 
-	function reportTransformFailure(error: unknown): void {
+	function reportTransformFailure(error: unknown, fallbackApplied: boolean): void {
 		const message = error instanceof Error ? error.message : String(error);
 		console.error(LOG_PREFIX, 'LocalRunner transform failed:', error);
 		document.getElementById('java-code-submitter-error')?.remove();
 		const notice = document.createElement('div');
 		notice.id = 'java-code-submitter-error';
-		notice.textContent = `Java Code Submitter: LocalRunner変換に失敗しました。コードは変更していません。\n${message}`;
+		const action = fallbackApplied
+			? '自己完結コードとしてMain変換だけを適用しました。ライブラリのインライン化は行っていません。'
+			: 'ライブラリを未展開のままにしないため、コードは変更していません。';
+		notice.textContent = `Java Code Submitter: LocalRunner変換に失敗しました。${action}\n${message}`;
 		Object.assign(notice.style, {
 			position: 'fixed', right: '16px', bottom: '16px', zIndex: '2147483647', maxWidth: '640px',
 			padding: '12px 16px', whiteSpace: 'pre-wrap', color: '#fff', background: '#b42318',
@@ -158,8 +168,21 @@ import {
 			if (transformed.inlinedClasses.length) log('Bundled:', transformed.inlinedClasses.join(', '));
 			return {modified: transformed.sourceCode, didModify: transformed.sourceCode !== code};
 		} catch (error) {
-			reportTransformFailure(error);
-			return {modified: code, didModify: false};
+			if (/^\s*import\s+lib\./m.test(code)) {
+				reportTransformFailure(error, false);
+				return {modified: code, didModify: false};
+			}
+			const result = modifyJavaCode(code, {
+				removePackage: SETTINGS.removePackage,
+				renameClass: SETTINGS.renameClass,
+				fixDebug: SETTINGS.fixDebug,
+			});
+			const didModify = result.packageRemoved || result.classReplaced || result.debugReplaced;
+			reportTransformFailure(error, didModify);
+			return {
+				modified: result.modified,
+				didModify,
+			};
 		}
 	}
 

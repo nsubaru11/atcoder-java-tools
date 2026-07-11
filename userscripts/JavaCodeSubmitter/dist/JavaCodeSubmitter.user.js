@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.2.4
+// @version        1.2.5
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -53,6 +53,236 @@
 
 	// JavaCodeSubmitter/src/main.ts
 	var exports_main = {};
+	// ../shared/src/utils.ts
+	function normalizeNewlines(text) {
+		return text.replace(
+			/\r\n?/g,
+			`
+`,
+		);
+	}
+
+	// ../shared/src/java-transform.ts
+	function createMaskedCode(text) {
+		var State;
+		((State2) => {
+			State2[(State2["Normal"] = 0)] = "Normal";
+			State2[(State2["LineComment"] = 1)] = "LineComment";
+			State2[(State2["BlockComment"] = 2)] = "BlockComment";
+			State2[(State2["String"] = 3)] = "String";
+			State2[(State2["Char"] = 4)] = "Char";
+		})((State ||= {}));
+		const out = [];
+		let state = 0; /* Normal */
+		let isEscape = false;
+		const mask = (c) =>
+			c ===
+			`
+`
+				? `
+`
+				: " ";
+		for (let i = 0, len = text.length; i < len; i++) {
+			const c = text[i],
+				n = i + 1 < len ? text[i + 1] : "";
+			if (state === 1 /* LineComment */) {
+				out.push(mask(c));
+				if (
+					c ===
+					`
+`
+				)
+					state = 0 /* Normal */;
+			} else if (state === 2 /* BlockComment */) {
+				if (c === "*" && n === "/") {
+					out.push(" ", " ");
+					i++;
+					state = 0 /* Normal */;
+				} else {
+					out.push(mask(c));
+				}
+			} else if (state === 3 /* String */ || state === 4 /* Char */) {
+				const closeChar = state === 3 /* String */ ? '"' : "'";
+				if (isEscape) {
+					isEscape = false;
+					out.push(" ");
+				} else if (c === "\\") {
+					isEscape = true;
+					out.push(" ");
+				} else if (c === closeChar) {
+					state = 0 /* Normal */;
+					out.push(" ");
+				} else {
+					out.push(mask(c));
+				}
+			} else {
+				if (c === "/" && n === "/") {
+					out.push(" ", " ");
+					i++;
+					state = 1 /* LineComment */;
+				} else if (c === "/" && n === "*") {
+					out.push(" ", " ");
+					i++;
+					state = 2 /* BlockComment */;
+				} else if (c === '"') {
+					state = 3 /* String */;
+					out.push(" ");
+				} else if (c === "'") {
+					state = 4 /* Char */;
+					out.push(" ");
+				} else {
+					out.push(c);
+				}
+			}
+		}
+		return out.join("");
+	}
+	function findMatchingBrace(maskedText, openBraceIdx) {
+		let depth = 1;
+		for (let i = openBraceIdx + 1; i < maskedText.length; i++) {
+			if (maskedText[i] === "{") depth++;
+			else if (maskedText[i] === "}" && --depth === 0) return i;
+		}
+		return -1;
+	}
+	function isPublicClass(maskedText, classKeywordIndex) {
+		const lineStart =
+			maskedText.lastIndexOf(
+				`
+`,
+				classKeywordIndex,
+			) + 1;
+		return /\bpublic\b/.test(maskedText.slice(lineStart, classKeywordIndex));
+	}
+	function buildClassInfo(maskedText, m) {
+		const name = m[1];
+		const classStart = m.index;
+		const nameStart = classStart + m[0].length - name.length;
+		const nameEnd = nameStart + name.length;
+		const openBraceIdx = maskedText.indexOf("{", nameEnd);
+		if (openBraceIdx === -1) return null;
+		return {
+			name,
+			nameStart,
+			nameEnd,
+			classStart,
+			closeBraceIdx: findMatchingBrace(maskedText, openBraceIdx),
+			isPublic: isPublicClass(maskedText, classStart),
+		};
+	}
+	function findMainClassInfo(maskedText) {
+		const mainIndex =
+			/(?:\bpublic\s+static|\bstatic\s+public)\s+void\s+main\s*\(\s*String\s*(?:\[]|\.\.\.)/.exec(maskedText)
+				?.index ?? -1;
+		const classRegex = /\bclass\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
+		const candidates = [];
+		let m;
+		while ((m = classRegex.exec(maskedText)) !== null) {
+			const info = buildClassInfo(maskedText, m);
+			if (!info) continue;
+			candidates.push(info);
+			if (
+				mainIndex !== -1 &&
+				info.closeBraceIdx !== -1 &&
+				mainIndex > info.classStart &&
+				mainIndex < info.closeBraceIdx
+			) {
+				return info;
+			}
+		}
+		return candidates.find((c) => c.isPublic) ?? candidates[0] ?? null;
+	}
+	function removePackageDeclaration(maskedCode, currentCode) {
+		const m = /\bpackage\s+[A-Za-z_][A-Za-z0-9_.]*\s*;/.exec(maskedCode);
+		if (!m) return { code: currentCode, modified: false };
+		let end = m.index + m[0].length;
+		if (
+			currentCode[end] ===
+			`
+`
+		)
+			end++;
+		return {
+			code: currentCode.slice(0, m.index) + currentCode.slice(end),
+			modified: true,
+		};
+	}
+	function renameClassToMain(maskedCode, currentCode) {
+		const info = findMainClassInfo(maskedCode);
+		if (!info || info.name === "Main") return { code: currentCode, modified: false };
+		const escapedName = info.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		const refRegex = new RegExp(`\\b${escapedName}\\b`, "g");
+		const replacements = [];
+		let rm;
+		while ((rm = refRegex.exec(maskedCode)) !== null) {
+			replacements.push({ start: rm.index, end: rm.index + info.name.length });
+		}
+		replacements.sort((a, b) => b.start - a.start);
+		let code = currentCode;
+		for (const { start, end } of replacements) {
+			code = code.slice(0, start) + "Main" + code.slice(end);
+		}
+		return { code, modified: true };
+	}
+	function disableDebugStatements(maskedCode, currentCode) {
+		const debugRegex = /\bDEBUG\b\s*=\s*true\b/g;
+		const replacements = [];
+		let dm;
+		while ((dm = debugRegex.exec(maskedCode)) !== null) {
+			const trueIdx = dm.index + dm[0].lastIndexOf("true");
+			replacements.push({ start: trueIdx, end: trueIdx + 4 });
+		}
+		if (!replacements.length) return { code: currentCode, modified: false };
+		replacements.sort((a, b) => b.start - a.start);
+		let code = currentCode;
+		for (const { start, end } of replacements) {
+			code = code.slice(0, start) + "false" + code.slice(end);
+		}
+		return { code, modified: true };
+	}
+	function enableDebugStatements(maskedCode, currentCode) {
+		const debugRegex = /\bDEBUG\b\s*=\s*false\b/g;
+		const replacements = [];
+		let dm;
+		while ((dm = debugRegex.exec(maskedCode)) !== null) {
+			const falseIdx = dm.index + dm[0].lastIndexOf("false");
+			replacements.push({ start: falseIdx, end: falseIdx + 5 });
+		}
+		if (!replacements.length) return { code: currentCode, modified: false };
+		replacements.sort((a, b) => b.start - a.start);
+		let code = currentCode;
+		for (const { start, end } of replacements) {
+			code = code.slice(0, start) + "true" + code.slice(end);
+		}
+		return { code, modified: true };
+	}
+	function modifyJavaCode(originalCode, options) {
+		let currentCode = normalizeNewlines(originalCode);
+		let packageRemoved = false;
+		let classReplaced = false;
+		let debugReplaced = false;
+		if (options.removePackage) {
+			const result = removePackageDeclaration(createMaskedCode(currentCode), currentCode);
+			currentCode = result.code;
+			packageRemoved = result.modified;
+		}
+		if (options.renameClass) {
+			const result = renameClassToMain(createMaskedCode(currentCode), currentCode);
+			currentCode = result.code;
+			classReplaced = result.modified;
+		}
+		if (options.fixDebug) {
+			const result = disableDebugStatements(createMaskedCode(currentCode), currentCode);
+			currentCode = result.code;
+			debugReplaced = result.modified;
+		}
+		if (options.enableDebug) {
+			const result = enableDebugStatements(createMaskedCode(currentCode), currentCode);
+			currentCode = result.code;
+			debugReplaced = result.modified;
+		}
+		return { modified: currentCode, packageRemoved, classReplaced, debugReplaced };
+	}
 	// ../shared/src/json.ts
 	function safeJsonParse(text, fallback) {
 		if (typeof text !== "string") return fallback;
@@ -87,6 +317,9 @@
 	(function () {
 		const g = typeof unsafeWindow !== "undefined" && unsafeWindow ? unsafeWindow : window;
 		const DEFAULT_SETTINGS = {
+			removePackage: true,
+			renameClass: true,
+			fixDebug: true,
 			foldMainOnPaste: true,
 			logEnabled: false,
 			localRunnerURL: "http://127.0.0.1:8080",
@@ -200,13 +433,16 @@
 			}
 			throw new Error(errors.join(" | ") || "No LocalRunner transport is available");
 		}
-		function reportTransformFailure(error) {
+		function reportTransformFailure(error, fallbackApplied) {
 			const message = error instanceof Error ? error.message : String(error);
 			console.error(LOG_PREFIX, "LocalRunner transform failed:", error);
 			document.getElementById("java-code-submitter-error")?.remove();
 			const notice = document.createElement("div");
 			notice.id = "java-code-submitter-error";
-			notice.textContent = `Java Code Submitter: LocalRunner変換に失敗しました。コードは変更していません。
+			const action = fallbackApplied
+				? "自己完結コードとしてMain変換だけを適用しました。ライブラリのインライン化は行っていません。"
+				: "ライブラリを未展開のままにしないため、コードは変更していません。";
+			notice.textContent = `Java Code Submitter: LocalRunner変換に失敗しました。${action}
 ${message}`;
 			Object.assign(notice.style, {
 				position: "fixed",
@@ -235,8 +471,21 @@ ${message}`;
 				if (transformed.inlinedClasses.length) log("Bundled:", transformed.inlinedClasses.join(", "));
 				return { modified: transformed.sourceCode, didModify: transformed.sourceCode !== code };
 			} catch (error) {
-				reportTransformFailure(error);
-				return { modified: code, didModify: false };
+				if (/^\s*import\s+lib\./m.test(code)) {
+					reportTransformFailure(error, false);
+					return { modified: code, didModify: false };
+				}
+				const result = modifyJavaCode(code, {
+					removePackage: SETTINGS.removePackage,
+					renameClass: SETTINGS.renameClass,
+					fixDebug: SETTINGS.fixDebug,
+				});
+				const didModify = result.packageRemoved || result.classReplaced || result.debugReplaced;
+				reportTransformFailure(error, didModify);
+				return {
+					modified: result.modified,
+					didModify,
+				};
 			}
 		}
 		async function transformEditorSnapshot(getValue, setValue, onModified) {

@@ -1,7 +1,6 @@
 import {
 	buildLocalRunnerTransformRequest,
 	mergeWithDefaults,
-	modifyJavaCode,
 	safeJsonParse,
 	type LocalRunnerTransformResponse,
 } from "@atcoder-tools/shared";
@@ -15,18 +14,12 @@ import {
 
 	// --------------- Utilities ---------------
 	const DEFAULT_SETTINGS = {
-		// パッケージ宣言を削除するか
-		removePackage: true,
-		// Java のクラス名を Main に強制変更するか
-		renameClass: true,
-		// DEBUG = true を自動的に false に強制するか
-		fixDebug: true,
 		// 貼り付け後に Main とトップレベル final class を自動折りたたみするか
 		foldMainOnPaste: true,
 		// デバッグログを有効化するか
 		logEnabled: false,
 		// Java Compiler API を提供する LocalRunner
-		localRunnerURL: 'http://localhost:8080',
+		localRunnerURL: 'http://127.0.0.1:8080',
 	};
 
 	function loadSettings(): SubmitterSettings {
@@ -75,42 +68,84 @@ import {
 	/**
 	 * ペーストされたコードを自動修正する
 	 */
-	function requestLocalTransform(code: string): Promise<LocalRunnerTransformResponse> {
-		const body = JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false));
-		if (typeof GM_xmlhttpRequest === 'function') {
-			return new Promise((resolve, reject) => {
-				GM_xmlhttpRequest({
-					method: 'POST',
-					url: SETTINGS.localRunnerURL,
-					headers: {'Content-Type': 'application/json'},
-					data: body,
-					timeout: 30_000,
-					responseType: 'json',
-					onload: (response) => {
-						if (response.status < 200 || response.status >= 300) {
-							reject(new Error(`LocalRunner HTTP ${response.status}`));
-							return;
-						}
-						try {
-							resolve((response.response || JSON.parse(response.responseText)) as LocalRunnerTransformResponse);
-						} catch (error) {
-							reject(error);
-						}
-					},
-					onerror: (response) => reject(new Error(response.statusText || 'LocalRunner request failed')),
-					ontimeout: () => reject(new Error('LocalRunner request timed out')),
-				});
-			});
+	function localRunnerURLs(): string[] {
+		const urls = [SETTINGS.localRunnerURL];
+		try {
+			const alternate = new URL(SETTINGS.localRunnerURL);
+			if (alternate.hostname === 'localhost') alternate.hostname = '127.0.0.1';
+			else if (alternate.hostname === '127.0.0.1') alternate.hostname = 'localhost';
+			if (alternate.toString() !== SETTINGS.localRunnerURL) urls.push(alternate.toString());
+		} catch {
+			// Invalid custom URL is reported by the request attempts below.
 		}
-		return fetch(SETTINGS.localRunnerURL, {
-			method: 'POST',
-			mode: 'cors',
-			headers: {'Content-Type': 'application/json'},
-			body,
-		}).then(async (response) => {
-			if (!response.ok) throw new Error(`LocalRunner HTTP ${response.status}`);
-			return await response.json() as LocalRunnerTransformResponse;
+		return [...new Set(urls)];
+	}
+
+	function requestWithGM(url: string, body: string): Promise<LocalRunnerTransformResponse> {
+		return new Promise((resolve, reject) => {
+			GM_xmlhttpRequest({
+				method: 'POST', url,
+				headers: {'Content-Type': 'application/json'},
+				data: body,
+				timeout: 30_000,
+				responseType: 'json',
+				onload: (response) => {
+					if (response.status < 200 || response.status >= 300) {
+						reject(new Error(`${url}: HTTP ${response.status}`));
+						return;
+					}
+					try {
+						const parsed = response.response && typeof response.response === 'object'
+							? response.response : JSON.parse(response.responseText);
+						resolve(parsed as LocalRunnerTransformResponse);
+					} catch (error) {
+						reject(new Error(`${url}: invalid JSON (${String(error)})`));
+					}
+				},
+				onerror: (response) => reject(new Error(`${url}: ${response.statusText || 'request failed'}`)),
+				ontimeout: () => reject(new Error(`${url}: request timed out`)),
+			});
 		});
+	}
+
+	async function requestWithFetch(url: string, body: string): Promise<LocalRunnerTransformResponse> {
+		const response = await fetch(url, {
+			method: 'POST', mode: 'cors', headers: {'Content-Type': 'application/json'}, body,
+		});
+		if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
+		return await response.json() as LocalRunnerTransformResponse;
+	}
+
+	async function requestLocalTransform(code: string): Promise<LocalRunnerTransformResponse> {
+		const body = JSON.stringify(buildLocalRunnerTransformRequest(code, false, true, false));
+		const errors: string[] = [];
+		if (typeof GM_xmlhttpRequest === 'function') {
+			for (const url of localRunnerURLs()) {
+				try { return await requestWithGM(url, body); }
+				catch (error) { errors.push(String(error)); }
+			}
+		}
+		for (const url of localRunnerURLs()) {
+			try { return await requestWithFetch(url, body); }
+			catch (error) { errors.push(String(error)); }
+		}
+		throw new Error(errors.join(' | ') || 'No LocalRunner transport is available');
+	}
+
+	function reportTransformFailure(error: unknown): void {
+		const message = error instanceof Error ? error.message : String(error);
+		console.error(LOG_PREFIX, 'LocalRunner transform failed:', error);
+		document.getElementById('java-code-submitter-error')?.remove();
+		const notice = document.createElement('div');
+		notice.id = 'java-code-submitter-error';
+		notice.textContent = `Java Code Submitter: LocalRunner変換に失敗しました。コードは変更していません。\n${message}`;
+		Object.assign(notice.style, {
+			position: 'fixed', right: '16px', bottom: '16px', zIndex: '2147483647', maxWidth: '640px',
+			padding: '12px 16px', whiteSpace: 'pre-wrap', color: '#fff', background: '#b42318',
+			borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,.35)', fontSize: '13px',
+		});
+		document.body.appendChild(notice);
+		setTimeout(() => notice.remove(), 20_000);
 	}
 
 	async function modifyPastedCode(text: unknown): Promise<{ modified: string; didModify: boolean }> {
@@ -123,20 +158,9 @@ import {
 			if (transformed.inlinedClasses.length) log('Bundled:', transformed.inlinedClasses.join(', '));
 			return {modified: transformed.sourceCode, didModify: transformed.sourceCode !== code};
 		} catch (error) {
-			log('LocalRunner transform unavailable; using lexical fallback:', error);
+			reportTransformFailure(error);
+			return {modified: code, didModify: false};
 		}
-
-		const result = modifyJavaCode(code, {
-			removePackage: SETTINGS.removePackage,
-			renameClass: SETTINGS.renameClass,
-			fixDebug: SETTINGS.fixDebug,
-		});
-
-		const didModify = result.packageRemoved || result.classReplaced || result.debugReplaced;
-		if (result.classReplaced) log('Class renamed to Main');
-		if (result.debugReplaced) log('DEBUG flag disabled');
-
-		return {modified: result.modified, didModify};
 	}
 
 	async function transformEditorSnapshot(

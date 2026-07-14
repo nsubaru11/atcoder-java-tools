@@ -1,3 +1,6 @@
+import com.sun.source.tree.*;
+import com.sun.source.util.*;
+
 import java.io.*;
 import java.net.*;
 import java.nio.charset.*;
@@ -10,15 +13,13 @@ import javax.lang.model.element.*;
 import javax.lang.model.type.*;
 import javax.tools.*;
 
-import com.sun.source.tree.*;
-import com.sun.source.util.*;
-
 /**
  * javac の構文木・シンボル解決を正典として提出用 Java ソースを生成します。
  */
 final class JavaSourceTransformer {
 	private static final Charset UTF_8 = StandardCharsets.UTF_8;
 	private static final Pattern PUBLIC_TOKEN = Pattern.compile("\\bpublic\\s+");
+	private static final Pattern LEADING_BLANK_LINES = Pattern.compile("\\A(?:[\\t ]*\\n)+");
 	private final JavaCompiler compiler;
 	private Path cachedRoot;
 	private long cachedStamp = Long.MIN_VALUE;
@@ -299,7 +300,7 @@ final class JavaSourceTransformer {
 			firstLibraryImport = false;
 		}
 		addMainAndDebugEdits(source, analysis, debug, edits);
-		return applyEdits(source, edits);
+		return LEADING_BLANK_LINES.matcher(applyEdits(source, edits)).replaceFirst("");
 	}
 
 	private boolean isCoveredBySolutionImport(final String candidate, final List<? extends ImportTree> solutionImports) {

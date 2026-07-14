@@ -233,6 +233,7 @@ export function modifyJavaCode(originalCode: string, options: TransformOptions):
 		currentCode = result.code;
 		debugReplaced = result.modified;
 	}
+	currentCode = currentCode.replace(/^(?:[\t ]*\n)+/, "");
 
 	return {modified: currentCode, packageRemoved, classReplaced, debugReplaced};
 }

@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.2.7
+// @version        1.2.8
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -281,6 +281,7 @@
 			currentCode = result.code;
 			debugReplaced = result.modified;
 		}
+		currentCode = currentCode.replace(/^(?:[\t ]*\n)+/, "");
 		return { modified: currentCode, packageRemoved, classReplaced, debugReplaced };
 	}
 	// ../shared/src/json.ts
@@ -345,13 +346,14 @@
 			} catch {}
 		};
 		const isEnterKey = (e) => e.key === "Enter" || e.keyCode === 13;
-		const findTopLevelFinalClassLines = (source) =>
+		const foldableTypePattern = /^\s*(?:public\s+)?(?:final\s+class|interface|enum|record|@interface)\s+\w+\b/;
+		const findFoldStartLines = (source) =>
 			source
 				.split(
 					`
 `,
 				)
-				.map((line, index) => (/^\s*(?:public\s+)?final\s+class\s+\w+\b/.test(line) ? index : -1))
+				.map((line, index) => (foldableTypePattern.test(line) || /^\s*\/\*/.test(line) ? index : -1))
 				.filter((line) => line >= 0);
 		const clickElementRobust = (el) => {
 			if (!el) return;
@@ -503,28 +505,29 @@
 				const session = editor.getSession();
 				const lines = session.getValue().split(`
 `);
-				const classLines = findTopLevelFinalClassLines(session.getValue());
-				for (const classLine of classLines) {
-					const existingFold = (session.getAllFolds() || []).find((fold) => fold.start.row === classLine);
+				const foldLines = findFoldStartLines(session.getValue());
+				for (const foldLine of foldLines) {
+					const existingFold = (session.getAllFolds() || []).find((fold) => fold.start.row === foldLine);
 					if (existingFold) continue;
-					const range = session.getFoldWidget(classLine) ? session.getFoldWidgetRange(classLine) : null;
+					const range = session.getFoldWidget(foldLine) ? session.getFoldWidgetRange(foldLine) : null;
 					if (range) {
 						session.addFold("...", range);
 						continue;
 					}
+					if (!foldableTypePattern.test(lines[foldLine])) continue;
 					let brace = 0,
 						endLine = -1;
-					for (let i = classLine; i < lines.length; i++) {
+					for (let i = foldLine; i < lines.length; i++) {
 						brace += (lines[i].match(/\{/g) || []).length;
 						brace -= (lines[i].match(/}/g) || []).length;
-						if (i > classLine && brace === 0) {
+						if (i > foldLine && brace === 0) {
 							endLine = i;
 							break;
 						}
 					}
-					if (endLine > classLine) {
+					if (endLine > foldLine) {
 						const Range = ace.require("ace/range").Range;
-						session.addFold("...", new Range(classLine, lines[classLine].length, endLine, 0));
+						session.addFold("...", new Range(foldLine, lines[foldLine].length, endLine, 0));
 					}
 				}
 			}
@@ -583,13 +586,13 @@
 				if (!editor) return;
 				const model = editor.getModel();
 				if (!model) return;
-				const classLines = findTopLevelFinalClassLines(model.getValue()).map((line) => line + 1);
-				if (!classLines.length) return;
+				const foldLines = findFoldStartLines(model.getValue()).map((line) => line + 1);
+				if (!foldLines.length) return;
 				const position = editor.getPosition?.();
 				const action = editor.getAction && editor.getAction("editor.fold");
 				if (!action?.run) return;
 				(async () => {
-					for (const lineNumber of classLines) {
+					for (const lineNumber of foldLines) {
 						editor.setPosition({ lineNumber, column: 1 });
 						await action.run();
 					}

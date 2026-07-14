@@ -1,9 +1,9 @@
 import {
 	buildLocalRunnerTransformRequest,
+	type LocalRunnerTransformResponse,
 	mergeWithDefaults,
 	modifyJavaCode,
 	safeJsonParse,
-	type LocalRunnerTransformResponse,
 } from "@atcoder-tools/shared";
 
 (function () {
@@ -21,7 +21,7 @@ import {
 		renameClass: true,
 		// DEBUG = true を自動的に false に強制するか
 		fixDebug: true,
-		// 貼り付け後に Main とトップレベル final class を自動折りたたみするか
+		// 貼り付け後にトップレベル型と複数行コメントを自動折りたたみするか
 		foldMainOnPaste: true,
 		// デバッグログを有効化するか
 		logEnabled: false,
@@ -54,8 +54,9 @@ import {
 		}
 	};
 	const isEnterKey = (e: KeyboardEvent): boolean => e.key === 'Enter' || e.keyCode === 13;
-	const findTopLevelFinalClassLines = (source: string): number[] => source.split('\n')
-		.map((line, index) => /^\s*(?:public\s+)?final\s+class\s+\w+\b/.test(line) ? index : -1)
+	const foldableTypePattern = /^\s*(?:public\s+)?(?:final\s+class|interface|enum|record|@interface)\s+\w+\b/;
+	const findFoldStartLines = (source: string): number[] => source.split('\n')
+		.map((line, index) => foldableTypePattern.test(line) || /^\s*\/\*/.test(line) ? index : -1)
 		.filter((line) => line >= 0);
 	const clickElementRobust = (el: Element | null): void => {
 		if (!el) return;
@@ -208,7 +209,9 @@ import {
 				setTimeout(() => void transformEditorSnapshot(
 					() => session.getValue(),
 					(value) => session.setValue(value),
-					() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100); },
+					() => {
+						if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100);
+					},
 				), 0);
 			});
 			this.initialized = true;
@@ -222,27 +225,28 @@ import {
 			if (!ace || !editor) return;
 			const session = editor.getSession();
 			const lines = session.getValue().split('\n');
-			const classLines = findTopLevelFinalClassLines(session.getValue());
-			for (const classLine of classLines) {
-				const existingFold = (session.getAllFolds() || []).find((fold: any) => fold.start.row === classLine);
+			const foldLines = findFoldStartLines(session.getValue());
+			for (const foldLine of foldLines) {
+				const existingFold = (session.getAllFolds() || []).find((fold: any) => fold.start.row === foldLine);
 				if (existingFold) continue;
-				const range = session.getFoldWidget(classLine) ? session.getFoldWidgetRange(classLine) : null;
+				const range = session.getFoldWidget(foldLine) ? session.getFoldWidgetRange(foldLine) : null;
 				if (range) {
 					session.addFold('...', range);
 					continue;
 				}
+				if (!foldableTypePattern.test(lines[foldLine])) continue;
 				let brace = 0, endLine = -1;
-				for (let i = classLine; i < lines.length; i++) {
+				for (let i = foldLine; i < lines.length; i++) {
 					brace += (lines[i].match(/\{/g) || []).length;
 					brace -= (lines[i].match(/}/g) || []).length;
-					if (i > classLine && brace === 0) {
+					if (i > foldLine && brace === 0) {
 						endLine = i;
 						break;
 					}
 				}
-				if (endLine > classLine) {
+				if (endLine > foldLine) {
 					const Range = ace.require('ace/range').Range;
-					session.addFold('...', new Range(classLine, lines[classLine].length, endLine, 0));
+					session.addFold('...', new Range(foldLine, lines[foldLine].length, endLine, 0));
 				}
 			}
 		}
@@ -274,7 +278,9 @@ import {
 					void transformEditorSnapshot(
 						() => model.getValue(),
 						(value) => model.setValue(value),
-						() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100); },
+						() => {
+							if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100);
+						},
 					);
 				});
 			} catch (err) {
@@ -286,7 +292,9 @@ import {
 							void transformEditorSnapshot(
 								() => model.getValue(),
 								(value) => model.setValue(value),
-								() => { if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100); },
+								() => {
+									if (SETTINGS.foldMainOnPaste) setTimeout(() => this.foldClasses(), 100);
+								},
 							);
 						}
 					}
@@ -302,13 +310,13 @@ import {
 			if (!editor) return;
 			const model = editor.getModel();
 			if (!model) return;
-			const classLines = findTopLevelFinalClassLines(model.getValue()).map((line) => line + 1);
-			if (!classLines.length) return;
+			const foldLines = findFoldStartLines(model.getValue()).map((line) => line + 1);
+			if (!foldLines.length) return;
 			const position = editor.getPosition?.();
 			const action = editor.getAction && editor.getAction('editor.fold');
 			if (!action?.run) return;
 			void (async () => {
-				for (const lineNumber of classLines) {
+				for (const lineNumber of foldLines) {
 					editor.setPosition({lineNumber, column: 1});
 					await action.run();
 				}

@@ -40,21 +40,17 @@ public final class JavaSourceTransformerTest {
 			check(wildcard.exitCode() == 0, wildcard.diagnostics());
 			check(wildcard.inlinedClasses().equals(java.util.List.of("lib.ds.UnionFind")), wildcard.inlinedClasses().toString());
 			check(wildcard.sourceCode().contains("// import lib.ds.*;"), "wildcard import was not commented");
-			check(wildcard.sourceCode().contains("import java.util.*;\n\n// import lib.ds.*;"),
-					"library import comment was not separated from regular imports");
-			check(!wildcard.sourceCode().contains("import java.util.Arrays;"),
-					"explicit dependency import was not covered by solution wildcard import");
+			check(wildcard.sourceCode().contains("import java.util.*;\n\n// import lib.ds.*;"), "library import comment was not separated from regular imports");
+			check(!wildcard.sourceCode().contains("import java.util.Arrays;"), "explicit dependency import was not covered by solution wildcard import");
 			check(!wildcard.sourceCode().contains("UnusedTree"), "unused type was inlined");
 			check(wildcard.sourceCode().contains("\nfinal class UnionFind"), "public removal left leading whitespace");
 			check(!wildcard.sourceCode().contains("\n final class UnionFind"), "library class has a leading space");
 			check(wildcard.sourceCode().contains("class Main"), "main class was not renamed");
 			check(wildcard.sourceCode().contains("DEBUG = false"), "DEBUG was not disabled");
 
-			final SourceTransformResult unrelatedWildcard = transformer.transform(
-					wildcardSource.replace("import java.util.*;", "import java.util.concurrent.*;"), root, false, true);
+			final SourceTransformResult unrelatedWildcard = transformer.transform(wildcardSource.replace("import java.util.*;", "import java.util.concurrent.*;"), root, false, true);
 			check(unrelatedWildcard.exitCode() == 0, unrelatedWildcard.diagnostics());
-			check(unrelatedWildcard.sourceCode().contains("import java.util.Arrays;"),
-					"unrelated wildcard incorrectly covered dependency import");
+			check(unrelatedWildcard.sourceCode().contains("import java.util.Arrays;"), "unrelated wildcard incorrectly covered dependency import");
 
 			final SourceTransformResult transitive = transformer.transform("""
 					import lib.graph.Kruskal;
@@ -63,8 +59,7 @@ public final class JavaSourceTransformerTest {
 					}
 					""", root, false, true);
 			check(transitive.exitCode() == 0, transitive.diagnostics());
-			check(transitive.inlinedClasses().equals(java.util.List.of("lib.graph.Kruskal", "lib.ds.UnionFind")),
-					"transitive classpath dependency was not collected: " + transitive.inlinedClasses());
+			check(transitive.inlinedClasses().equals(java.util.List.of("lib.graph.Kruskal", "lib.ds.UnionFind")), "transitive classpath dependency was not collected: " + transitive.inlinedClasses());
 
 			final String implicitSource = wildcardSource.replace("import lib.ds.*;\n", "");
 			final SourceTransformResult implicit = transformer.transform(implicitSource, root, false, true);
@@ -91,15 +86,15 @@ public final class JavaSourceTransformerTest {
 			check(renamed.sourceCode().contains("new Main()"), "class reference was not renamed");
 			check(renamed.sourceCode().contains("String Solver ="), "unrelated identifier was renamed");
 
-			final SourceTransformResult broken = transformer.transform(
-					"public class Broken { MissingType value; }", root, false, true);
+			final SourceTransformResult broken = transformer.transform("public class Broken { MissingType value; }", root, false, true);
 			check(broken.exitCode() != 0, "broken source unexpectedly succeeded");
 			check(!broken.diagnosticItems().isEmpty(), "structured diagnostics are empty");
 			check(broken.diagnosticItems().getFirst().line() == 1, "diagnostic line is missing");
 			System.out.println("java source transformer smoke test: OK");
 		} finally {
 			try (var files = Files.walk(root)) {
-				for (final Path path : files.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(path);
+				for (final Path path : files.sorted(java.util.Comparator.reverseOrder()).toList())
+					Files.deleteIfExists(path);
 			}
 		}
 	}

@@ -1,5 +1,3 @@
-import com.sun.management.ThreadMXBean;
-
 import java.io.*;
 import java.lang.management.*;
 import java.lang.reflect.*;
@@ -8,6 +6,8 @@ import java.nio.charset.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.*;
+
+import com.sun.management.ThreadMXBean;
 
 /**
  * コンパイル済みクラスを実行する専任クラスです。
@@ -33,6 +33,17 @@ final class ProgramRunner {
 	 * 実行スレッドの累積アロケーション量を測る MXBean（HotSpot 拡張）。計測不可なら null（改善2）。
 	 */
 	private static final ThreadMXBean THREAD_MX = resolveThreadMx();
+	/**
+	 * 提出コードを実行する専用スレッドのスタックサイズ（バイト）。既定 256 MiB。
+	 * 競プロで多い深い再帰が、ユーザーが大スタックスレッドのイディオムを書かなくても通るようにする。
+	 * {@code LOCAL_RUNNER_RUN_STACK_BYTES} で上書き可能。
+	 */
+	private static final long RUN_THREAD_STACK_BYTES = resolveRunThreadStackBytes();
+	/**
+	 * 直近の実行で「join されずに残った非デーモンスレッド」が常駐 JVM に生き残ったか。
+	 * {@link Dispatcher} がこれを見て JVM の再生成（halt→再起動）を判断する。
+	 */
+	private static volatile boolean lastRunLeftoverThreads = false;
 
 	private static ThreadMXBean resolveThreadMx() {
 		final java.lang.management.ThreadMXBean bean = ManagementFactory.getThreadMXBean();
@@ -47,13 +58,6 @@ final class ProgramRunner {
 		return THREAD_MX != null ? THREAD_MX.getCurrentThreadAllocatedBytes() : -1L;
 	}
 
-	/**
-	 * 提出コードを実行する専用スレッドのスタックサイズ（バイト）。既定 256 MiB。
-	 * 競プロで多い深い再帰が、ユーザーが大スタックスレッドのイディオムを書かなくても通るようにする。
-	 * {@code LOCAL_RUNNER_RUN_STACK_BYTES} で上書き可能。
-	 */
-	private static final long RUN_THREAD_STACK_BYTES = resolveRunThreadStackBytes();
-
 	private static long resolveRunThreadStackBytes() {
 		final long defaultBytes = 256L * 1024 * 1024;
 		final String raw = System.getenv("LOCAL_RUNNER_RUN_STACK_BYTES");
@@ -67,19 +71,17 @@ final class ProgramRunner {
 	}
 
 	/**
-	 * 直近の実行で「join されずに残った非デーモンスレッド」が常駐 JVM に生き残ったか。
-	 * {@link Dispatcher} がこれを見て JVM の再生成（halt→再起動）を判断する。
+	 * 直近実行の残存スレッド有無を読み取り、フラグをクリアする（Dispatcher から実行後に一度だけ呼ぶ）。
 	 */
-	private static volatile boolean lastRunLeftoverThreads = false;
-
-	/** 直近実行の残存スレッド有無を読み取り、フラグをクリアする（Dispatcher から実行後に一度だけ呼ぶ）。 */
 	static boolean consumeLeftoverThreadFlag() {
 		final boolean value = lastRunLeftoverThreads;
 		lastRunLeftoverThreads = false;
 		return value;
 	}
 
-	/** 実行前スナップショットに無い、生存中の非デーモンスレッドがあれば true（＝残存スレッド）。 */
+	/**
+	 * 実行前スナップショットに無い、生存中の非デーモンスレッドがあれば true（＝残存スレッド）。
+	 */
 	private static boolean hasLeftoverNonDaemonThreads(final Set<Thread> baseline) {
 		for (final Thread thread : Thread.getAllStackTraces().keySet()) {
 			if (thread.isAlive() && !thread.isDaemon() && !baseline.contains(thread)) {
@@ -166,11 +168,7 @@ final class ProgramRunner {
 		final long[] allocSnapshot = {-1L, -1L};
 
 		final long startTime = System.nanoTime();
-		try (StandardStreamsGuard guard = new StandardStreamsGuard(standardInput, redirectedOut, redirectedErr, uncaughtError);
-		     URLClassLoader classLoader = new URLClassLoader(
-				     new URL[]{classDirectory.toUri().toURL()},
-				     ClassLoader.getSystemClassLoader()
-		     )) {
+		try (StandardStreamsGuard guard = new StandardStreamsGuard(standardInput, redirectedOut, redirectedErr, uncaughtError); URLClassLoader classLoader = new URLClassLoader(new URL[]{classDirectory.toUri().toURL()}, ClassLoader.getSystemClassLoader())) {
 			guard.setContextClassLoader(classLoader);
 			final Runnable body = () -> {
 				allocSnapshot[0] = currentThreadAllocatedBytes();
@@ -209,14 +207,6 @@ final class ProgramRunner {
 		redirectedOut.flush();
 		redirectedErr.flush();
 
-		return new ExecutionResult(
-				exitCode,
-				timeMillis,
-				stdoutBuffer.toByteArray(),
-				stderrBuffer.toByteArray(),
-				stdoutBuffer.isTruncated(),
-				stderrBuffer.isTruncated(),
-				memoryBytes
-		);
+		return new ExecutionResult(exitCode, timeMillis, stdoutBuffer.toByteArray(), stderrBuffer.toByteArray(), stdoutBuffer.isTruncated(), stderrBuffer.isTruncated(), memoryBytes);
 	}
 }

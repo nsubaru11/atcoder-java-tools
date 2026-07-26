@@ -25,8 +25,7 @@ final class StandardStreamsGuard implements AutoCloseable {
 	 * @param err           差し替える標準エラー（捕捉用）
 	 * @param uncaughtSink  実行対象スレッドが投げた未捕捉例外の格納先
 	 */
-	StandardStreamsGuard(final byte[] standardInput, final PrintStream out, final PrintStream err,
-	                     final AtomicReference<Throwable> uncaughtSink) {
+	StandardStreamsGuard(final byte[] standardInput, final PrintStream out, final PrintStream err, final AtomicReference<Throwable> uncaughtSink) {
 		Thread.setDefaultUncaughtExceptionHandler((ignoredThread, throwable) -> uncaughtSink.compareAndSet(null, throwable));
 		System.setIn(new ByteArrayInputStream(standardInput));
 		System.setOut(out);

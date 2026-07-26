@@ -1,6 +1,6 @@
-import com.sun.source.tree.*;
-import com.sun.source.util.*;
-
+import javax.lang.model.element.*;
+import javax.lang.model.type.*;
+import javax.tools.*;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.*;
@@ -9,9 +9,8 @@ import java.util.*;
 import java.util.regex.*;
 import java.util.stream.*;
 
-import javax.lang.model.element.*;
-import javax.lang.model.type.*;
-import javax.tools.*;
+import com.sun.source.tree.*;
+import com.sun.source.util.*;
 
 /**
  * javac の構文木・シンボル解決を正典として提出用 Java ソースを生成します。
@@ -30,13 +29,11 @@ final class JavaSourceTransformer {
 		if (compiler == null) throw new IllegalStateException("No system Java compiler is available (JDK required).");
 	}
 
-	SourceTransformResult transform(final String rawSource, final Path librarySourceRoot,
-	                                final boolean debug, final boolean autoImport) {
+	SourceTransformResult transform(final String rawSource, final Path librarySourceRoot, final boolean debug, final boolean autoImport) {
 		return transform(rawSource, librarySourceRoot, debug, autoImport, true);
 	}
 
-	SourceTransformResult transform(final String rawSource, final Path librarySourceRoot,
-	                                final boolean debug, final boolean autoImport, final boolean validate) {
+	SourceTransformResult transform(final String rawSource, final Path librarySourceRoot, final boolean debug, final boolean autoImport, final boolean validate) {
 		try {
 			final Path root = librarySourceRoot.toAbsolutePath().normalize();
 			if (!Files.isDirectory(root.resolve("lib"))) {
@@ -122,13 +119,9 @@ final class JavaSourceTransformer {
 		final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 		try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, Locale.ROOT, UTF_8)) {
 			final Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjectsFromPaths(sources);
-			final Boolean success = compiler.getTask(null, fileManager, diagnostics,
-					List.of("-encoding", "UTF-8", "-proc:none", "-implicit:none", "-d", classPath.toString()),
-					null, units).call();
+			final Boolean success = compiler.getTask(null, fileManager, diagnostics, List.of("-encoding", "UTF-8", "-proc:none", "-implicit:none", "-d", classPath.toString()), null, units).call();
 			if (!Boolean.TRUE.equals(success)) {
-				throw new IOException("library classpath compilation failed:\n" + diagnostics.getDiagnostics().stream()
-						.map(diagnostic -> diagnostic.getKind() + " " + diagnostic.getMessage(Locale.ROOT))
-						.collect(Collectors.joining("\n")));
+				throw new IOException("library classpath compilation failed:\n" + diagnostics.getDiagnostics().stream().map(diagnostic -> diagnostic.getKind() + " " + diagnostic.getMessage(Locale.ROOT)).collect(Collectors.joining("\n")));
 			}
 		}
 	}
@@ -138,34 +131,33 @@ final class JavaSourceTransformer {
 		for (final ImportTree importTree : analysis.solution().getImports()) {
 			existing.add(importTree.getQualifiedIdentifier().toString());
 		}
-		final Set<String> localTypes = analysis.solution().getTypeDecls().stream()
-				.filter(ClassTree.class::isInstance).map(ClassTree.class::cast)
-				.map(type -> type.getSimpleName().toString()).collect(Collectors.toSet());
+		final Set<String> localTypes = analysis.solution().getTypeDecls().stream().filter(ClassTree.class::isInstance).map(ClassTree.class::cast).map(type -> type.getSimpleName().toString()).collect(Collectors.toSet());
 		final Set<String> unresolved = new TreePathScanner<String, Void>() {
 			final Set<String> names = new TreeSet<>();
-			@Override public String visitIdentifier(final IdentifierTree node, final Void unused) {
+
+			@Override
+			public String visitIdentifier(final IdentifierTree node, final Void unused) {
 				final Element element = analysis.trees().getElement(getCurrentPath());
-				if (element == null || element.asType().getKind() == TypeKind.ERROR) names.add(node.getName().toString());
+				if (element == null || element.asType().getKind() == TypeKind.ERROR)
+					names.add(node.getName().toString());
 				return super.visitIdentifier(node, unused);
 			}
-			Set<String> scanNames() { scan(analysis.solution(), null); return names; }
+
+			Set<String> scanNames() {
+				scan(analysis.solution(), null);
+				return names;
+			}
 		}.scanNames();
 
 		final List<String> imports = new ArrayList<>();
 		for (final String name : unresolved) {
 			if (localTypes.contains(name)) continue;
 			final List<LibraryType> candidates = index.bySimpleName().getOrDefault(name, List.of());
-			final List<LibraryType> uncovered = candidates.stream().filter(candidate ->
-					!existing.contains(candidate.fqcn()) &&
-					!existing.contains(candidate.fqcn().substring(0, candidate.fqcn().lastIndexOf('.')) + ".*"))
-					.toList();
-			final int minimumDepth = uncovered.stream().mapToInt(candidate ->
-					candidate.fqcn().split("\\.").length).min().orElse(Integer.MAX_VALUE);
-			final List<LibraryType> preferred = uncovered.stream().filter(candidate ->
-					candidate.fqcn().split("\\.").length == minimumDepth).toList();
+			final List<LibraryType> uncovered = candidates.stream().filter(candidate -> !existing.contains(candidate.fqcn()) && !existing.contains(candidate.fqcn().substring(0, candidate.fqcn().lastIndexOf('.')) + ".*")).toList();
+			final int minimumDepth = uncovered.stream().mapToInt(candidate -> candidate.fqcn().split("\\.").length).min().orElse(Integer.MAX_VALUE);
+			final List<LibraryType> preferred = uncovered.stream().filter(candidate -> candidate.fqcn().split("\\.").length == minimumDepth).toList();
 			if (preferred.size() > 1) {
-				return new AutoImportResult(List.of(), "library type is ambiguous: " + name + " -> " +
-						preferred.stream().map(LibraryType::fqcn).collect(Collectors.joining(", ")));
+				return new AutoImportResult(List.of(), "library type is ambiguous: " + name + " -> " + preferred.stream().map(LibraryType::fqcn).collect(Collectors.joining(", ")));
 			}
 			if (preferred.size() == 1) {
 				final String fqcn = preferred.getFirst().fqcn();
@@ -185,15 +177,13 @@ final class JavaSourceTransformer {
 			insertion = packageSpan(source, analysis).end();
 		}
 		if (insertion < 0) insertion = 0;
-		final String block = imports.stream().map(name -> "import " + name + ";")
-				.collect(Collectors.joining("\n", insertion == 0 ? "" : "\n", "\n"));
+		final String block = imports.stream().map(name -> "import " + name + ";").collect(Collectors.joining("\n", insertion == 0 ? "" : "\n", "\n"));
 		return source.substring(0, (int) insertion) + block + source.substring((int) insertion);
 	}
 
 	private List<Path> collectDependencies(final Analysis analysis, final LibraryIndex index) throws IOException {
 		final LinkedHashSet<Path> ordered = new LinkedHashSet<>();
-		final ArrayDeque<Path> queue = new ArrayDeque<>(
-				referencedLibrarySources(analysis.solution(), analysis.trees(), index));
+		final ArrayDeque<Path> queue = new ArrayDeque<>(referencedLibrarySources(analysis.solution(), analysis.trees(), index));
 		while (!queue.isEmpty()) {
 			final Path path = queue.removeFirst();
 			if (!ordered.add(path)) continue;
@@ -208,18 +198,16 @@ final class JavaSourceTransformer {
 		final Set<Path> cached = index.dependencies().get(source);
 		if (cached != null) return cached;
 		final Analysis analysis = analyze(normalize(Files.readString(source, UTF_8)), index.classPath());
-		if (analysis.hasErrors()) throw new IOException("library dependency analysis failed: " + source + "\n" +
-				analysis.diagnostics());
-		final LinkedHashSet<Path> dependencies = new LinkedHashSet<>(
-				referencedLibrarySources(analysis.solution(), analysis.trees(), index));
+		if (analysis.hasErrors())
+			throw new IOException("library dependency analysis failed: " + source + "\n" + analysis.diagnostics());
+		final LinkedHashSet<Path> dependencies = new LinkedHashSet<>(referencedLibrarySources(analysis.solution(), analysis.trees(), index));
 		dependencies.remove(source);
 		final Set<Path> result = Collections.unmodifiableSet(dependencies);
 		index.dependencies().put(source, result);
 		return result;
 	}
 
-	private Set<Path> referencedLibrarySources(final CompilationUnitTree unit, final Trees trees,
-	                                           final LibraryIndex index) {
+	private Set<Path> referencedLibrarySources(final CompilationUnitTree unit, final Trees trees, final LibraryIndex index) {
 		final LinkedHashSet<Path> result = new LinkedHashSet<>();
 		new TreePathScanner<Void, Void>() {
 			private void collect() {
@@ -233,55 +221,60 @@ final class JavaSourceTransformer {
 				final LibraryType type = index.byFqcn().get(top.getQualifiedName().toString());
 				if (type != null) result.add(type.path());
 			}
-			@Override public Void visitIdentifier(final IdentifierTree node, final Void unused) {
-				collect(); return super.visitIdentifier(node, unused);
+
+			@Override
+			public Void visitIdentifier(final IdentifierTree node, final Void unused) {
+				collect();
+				return super.visitIdentifier(node, unused);
 			}
-			@Override public Void visitMemberSelect(final MemberSelectTree node, final Void unused) {
-				collect(); return super.visitMemberSelect(node, unused);
+
+			@Override
+			public Void visitMemberSelect(final MemberSelectTree node, final Void unused) {
+				collect();
+				return super.visitMemberSelect(node, unused);
 			}
-			@Override public Void visitNewClass(final NewClassTree node, final Void unused) {
-				collect(); return super.visitNewClass(node, unused);
+
+			@Override
+			public Void visitNewClass(final NewClassTree node, final Void unused) {
+				collect();
+				return super.visitNewClass(node, unused);
 			}
 		}.scan(unit, null);
 		return result;
 	}
 
-	private BundleOutput bundle(final String source, final Analysis analysis, final List<Path> dependencies,
-	                            final Path root, final boolean debug) throws IOException {
+	private BundleOutput bundle(final String source, final Analysis analysis, final List<Path> dependencies, final Path root, final boolean debug) throws IOException {
 		final LinkedHashSet<String> hoisted = new LinkedHashSet<>();
 		final List<String> parts = new ArrayList<>();
 		final List<String> inlined = new ArrayList<>();
-		final Set<String> typeNames = analysis.solution().getTypeDecls().stream()
-				.filter(ClassTree.class::isInstance).map(ClassTree.class::cast)
-				.map(type -> type.getSimpleName().toString()).collect(Collectors.toCollection(HashSet::new));
+		final Set<String> typeNames = analysis.solution().getTypeDecls().stream().filter(ClassTree.class::isInstance).map(ClassTree.class::cast).map(type -> type.getSimpleName().toString()).collect(Collectors.toCollection(HashSet::new));
 
 		for (final Path dependency : dependencies) {
 			final String code = normalize(Files.readString(dependency, UTF_8));
 			final Parsed parsed = parse(code, dependency.toUri());
 			for (final ImportTree importTree : parsed.unit().getImports()) {
 				final String name = importTree.getQualifiedIdentifier().toString();
-				if (!name.startsWith("lib.")) hoisted.add("import " + (importTree.isStatic() ? "static " : "") + name + ";");
+				if (!name.startsWith("lib."))
+					hoisted.add("import " + (importTree.isStatic() ? "static " : "") + name + ";");
 			}
 			for (final Tree declaration : parsed.unit().getTypeDecls()) {
 				if (!(declaration instanceof ClassTree type)) continue;
 				final String name = type.getSimpleName().toString();
 				if (!typeNames.add(name)) throw new IllegalStateException("top-level type name collision: " + name);
 			}
-			final String fqcn = root.relativize(dependency).toString().replace(File.separatorChar, '.')
-					.replaceAll("\\.java$", "");
+			final String fqcn = root.relativize(dependency).toString().replace(File.separatorChar, '.').replaceAll("\\.java$", "");
 			parts.add("// ===== inlined: " + fqcn + " =====\n" + transformLibraryUnit(code, parsed));
 			inlined.add(fqcn);
 		}
 		hoisted.removeIf(candidate -> isCoveredBySolutionImport(candidate, analysis.solution().getImports()));
 
 		String transformedSolution = transformSolution(source, analysis, debug, hoisted);
-		if (!parts.isEmpty()) transformedSolution = transformedSolution.stripTrailing() + "\n\n" +
-				String.join("\n\n", parts) + "\n";
+		if (!parts.isEmpty())
+			transformedSolution = transformedSolution.stripTrailing() + "\n\n" + String.join("\n\n", parts) + "\n";
 		return new BundleOutput(transformedSolution, List.copyOf(inlined));
 	}
 
-	private String transformSolution(final String source, final Analysis analysis, final boolean debug,
-	                                 final Set<String> hoisted) {
+	private String transformSolution(final String source, final Analysis analysis, final boolean debug, final Set<String> hoisted) {
 		final List<Edit> edits = new ArrayList<>();
 		if (analysis.solution().getPackageName() != null) {
 			final Span span = packageSpan(source, analysis);
@@ -294,8 +287,8 @@ final class JavaSourceTransformer {
 			final Span span = treeSpan(source, analysis.solution(), importTree, analysis.positions());
 			final String original = source.substring(span.start(), span.end()).stripTrailing();
 			String prefix = firstLibraryImport && !hoisted.isEmpty() ? String.join("\n", hoisted) + "\n\n" : "";
-			if (firstLibraryImport && prefix.isEmpty() && span.start() > 0 &&
-					!source.substring(0, span.start()).endsWith("\n\n")) prefix = "\n";
+			if (firstLibraryImport && prefix.isEmpty() && span.start() > 0 && !source.substring(0, span.start()).endsWith("\n\n"))
+				prefix = "\n";
 			edits.add(new Edit(span.start(), span.end(), prefix + "// " + original.stripLeading() + "\n"));
 			firstLibraryImport = false;
 		}
@@ -313,14 +306,13 @@ final class JavaSourceTransformer {
 			if (solutionName.equals(candidateName)) return true;
 			if (!solutionName.endsWith(".*")) continue;
 			final int separator = candidateName.lastIndexOf('.');
-			if (separator >= 0 && solutionName.substring(0, solutionName.length() - 1)
-					.equals(candidateName.substring(0, separator + 1))) return true;
+			if (separator >= 0 && solutionName.substring(0, solutionName.length() - 1).equals(candidateName.substring(0, separator + 1)))
+				return true;
 		}
 		return false;
 	}
 
-	private void addMainAndDebugEdits(final String source, final Analysis analysis, final boolean debug,
-	                                  final List<Edit> edits) {
+	private void addMainAndDebugEdits(final String source, final Analysis analysis, final boolean debug, final List<Edit> edits) {
 		final MainClass main = findMainClass(analysis);
 		if (main == null) return;
 		final String oldName = main.tree().getSimpleName().toString();
@@ -337,7 +329,8 @@ final class JavaSourceTransformer {
 				}
 			}
 			new TreePathScanner<Void, Void>() {
-				@Override public Void visitIdentifier(final IdentifierTree node, final Void unused) {
+				@Override
+				public Void visitIdentifier(final IdentifierTree node, final Void unused) {
 					if (analysis.trees().getElement(getCurrentPath()) == main.element()) {
 						final int start = (int) analysis.positions().getStartPosition(analysis.solution(), node);
 						spans.add(new Span(start, start + oldName.length()));
@@ -350,7 +343,8 @@ final class JavaSourceTransformer {
 
 		for (final Tree member : main.tree().getMembers()) {
 			if (!(member instanceof VariableTree variable) || !variable.getName().contentEquals("DEBUG")) continue;
-			if (!(variable.getInitializer() instanceof LiteralTree literal) || !(literal.getValue() instanceof Boolean value)) continue;
+			if (!(variable.getInitializer() instanceof LiteralTree literal) || !(literal.getValue() instanceof Boolean value))
+				continue;
 			if (value == debug) continue;
 			final int start = (int) analysis.positions().getStartPosition(analysis.solution(), variable.getInitializer());
 			final int end = (int) analysis.positions().getEndPosition(analysis.solution(), variable.getInitializer());
@@ -361,12 +355,14 @@ final class JavaSourceTransformer {
 	private MainClass findMainClass(final Analysis analysis) {
 		final MainClass[] found = {null};
 		new TreePathScanner<Void, Void>() {
-			@Override public Void visitClass(final ClassTree node, final Void unused) {
+			@Override
+			public Void visitClass(final ClassTree node, final Void unused) {
 				if (found[0] != null) return null;
 				for (final Tree member : node.getMembers()) {
 					if (!(member instanceof MethodTree method) || !method.getName().contentEquals("main")) continue;
 					final Set<Modifier> flags = method.getModifiers().getFlags();
-					if (!flags.contains(Modifier.PUBLIC) || !flags.contains(Modifier.STATIC) || method.getParameters().size() != 1) continue;
+					if (!flags.contains(Modifier.PUBLIC) || !flags.contains(Modifier.STATIC) || method.getParameters().size() != 1)
+						continue;
 					final Element element = analysis.trees().getElement(getCurrentPath());
 					if (element instanceof TypeElement type) found[0] = new MainClass(node, type);
 				}
@@ -387,7 +383,8 @@ final class JavaSourceTransformer {
 			edits.add(new Edit(span.start(), span.end(), ""));
 		}
 		for (final Tree declaration : parsed.unit().getTypeDecls()) {
-			if (!(declaration instanceof ClassTree type) || !type.getModifiers().getFlags().contains(Modifier.PUBLIC)) continue;
+			if (!(declaration instanceof ClassTree type) || !type.getModifiers().getFlags().contains(Modifier.PUBLIC))
+				continue;
 			final int start = (int) parsed.positions().getStartPosition(parsed.unit(), type);
 			final int name = source.indexOf(type.getSimpleName().toString(), start);
 			final Matcher matcher = PUBLIC_TOKEN.matcher(source).region(start, name < 0 ? start : name);
@@ -407,10 +404,14 @@ final class JavaSourceTransformer {
 			if (classPath != null) options.addAll(List.of("-classpath", classPath.toString()));
 			final JavacTask task = (JavacTask) compiler.getTask(output, fileManager, diagnostics, options, null, List.of(unit));
 			task.setTaskListener(new TaskListener() {
-				@Override public void started(final TaskEvent event) {
-					if (event.getKind() == TaskEvent.Kind.PARSE && event.getCompilationUnit() != null) units.add(event.getCompilationUnit());
+				@Override
+				public void started(final TaskEvent event) {
+					if (event.getKind() == TaskEvent.Kind.PARSE && event.getCompilationUnit() != null)
+						units.add(event.getCompilationUnit());
 				}
-				@Override public void finished(final TaskEvent event) { }
+
+				@Override
+				public void finished(final TaskEvent event) {}
 			});
 			final CompilationUnitTree solution = task.parse().iterator().next();
 			task.analyze();
@@ -427,8 +428,7 @@ final class JavaSourceTransformer {
 		final DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
 		try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, Locale.ROOT, UTF_8)) {
 			final MemorySource unit = new MemorySource(uri, source);
-			final JavacTask task = (JavacTask) compiler.getTask(null, fileManager, diagnostics,
-					List.of("-proc:none"), null, List.of(unit));
+			final JavacTask task = (JavacTask) compiler.getTask(null, fileManager, diagnostics, List.of("-proc:none"), null, List.of(unit));
 			final CompilationUnitTree tree = task.parse().iterator().next();
 			final Trees trees = Trees.instance(task);
 			return new Parsed(tree, trees.getSourcePositions());
@@ -439,28 +439,25 @@ final class JavaSourceTransformer {
 		try {
 			final Parsed parsed = parse(source, URI.create("string:///Submission.java"));
 			for (final Tree declaration : parsed.unit().getTypeDecls()) {
-				if (declaration instanceof ClassTree type && !type.getSimpleName().isEmpty()) return type.getSimpleName().toString();
+				if (declaration instanceof ClassTree type && !type.getSimpleName().isEmpty())
+					return type.getSimpleName().toString();
 			}
-		} catch (final Exception ignored) { }
+		} catch (final Exception ignored) {
+		}
 		return "Submission";
 	}
 
 	private String formatDiagnostics(final DiagnosticCollector<JavaFileObject> diagnostics, final StringWriter output) {
 		final StringBuilder builder = new StringBuilder();
 		for (final Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-			builder.append(diagnostic.getKind()).append(' ')
-					.append(diagnostic.getLineNumber()).append(':').append(diagnostic.getColumnNumber()).append(' ')
-					.append(diagnostic.getCode()).append(' ')
-					.append(diagnostic.getMessage(Locale.ROOT)).append('\n');
+			builder.append(diagnostic.getKind()).append(' ').append(diagnostic.getLineNumber()).append(':').append(diagnostic.getColumnNumber()).append(' ').append(diagnostic.getCode()).append(' ').append(diagnostic.getMessage(Locale.ROOT)).append('\n');
 		}
 		if (!output.toString().isBlank()) builder.append(output);
 		return builder.toString().stripTrailing();
 	}
 
 	private List<CompilerDiagnostic> diagnosticItems(final DiagnosticCollector<JavaFileObject> diagnostics) {
-		return diagnostics.getDiagnostics().stream().map(diagnostic -> new CompilerDiagnostic(
-				diagnostic.getKind().name(), diagnostic.getLineNumber(), diagnostic.getColumnNumber(),
-				diagnostic.getCode(), diagnostic.getMessage(Locale.ROOT))).toList();
+		return diagnostics.getDiagnostics().stream().map(diagnostic -> new CompilerDiagnostic(diagnostic.getKind().name(), diagnostic.getLineNumber(), diagnostic.getColumnNumber(), diagnostic.getCode(), diagnostic.getMessage(Locale.ROOT))).toList();
 	}
 
 	private Span packageSpan(final String source, final Analysis analysis) {
@@ -477,8 +474,7 @@ final class JavaSourceTransformer {
 		return new Span(start, extendNewline(source, end));
 	}
 
-	private Span treeSpan(final String source, final CompilationUnitTree unit, final Tree tree,
-	                     final SourcePositions positions) {
+	private Span treeSpan(final String source, final CompilationUnitTree unit, final Tree tree, final SourcePositions positions) {
 		final int start = (int) positions.getStartPosition(unit, tree);
 		final int end = (int) positions.getEndPosition(unit, tree);
 		return new Span(start, extendNewline(source, end));
@@ -497,8 +493,7 @@ final class JavaSourceTransformer {
 	}
 
 	private String applyEdits(final String source, final List<Edit> edits) {
-		final List<Edit> sorted = edits.stream().distinct()
-				.sorted(Comparator.comparingInt(Edit::start).reversed()).toList();
+		final List<Edit> sorted = edits.stream().distinct().sorted(Comparator.comparingInt(Edit::start).reversed()).toList();
 		String result = source;
 		int previousStart = source.length() + 1;
 		for (final Edit edit : sorted) {
@@ -514,28 +509,40 @@ final class JavaSourceTransformer {
 		return source.replace("\r\n", "\n").replace('\r', '\n');
 	}
 
-	private record LibraryType(String simpleName, String fqcn, Path path) { }
+	private record LibraryType(String simpleName, String fqcn, Path path) {}
+
 	private record LibraryIndex(Map<String, List<LibraryType>> bySimpleName, Map<String, LibraryType> byFqcn,
-	                            Path classPath, Map<Path, Set<Path>> dependencies) { }
-	private record AutoImportResult(List<String> imports, String error) { }
-	private record BundleOutput(String source, List<String> inlined) { }
-	private record Parsed(CompilationUnitTree unit, SourcePositions positions) { }
+	                            Path classPath, Map<Path, Set<Path>> dependencies) {}
+
+	private record AutoImportResult(List<String> imports, String error) {}
+
+	private record BundleOutput(String source, List<String> inlined) {}
+
+	private record Parsed(CompilationUnitTree unit, SourcePositions positions) {}
+
 	private record Analysis(CompilationUnitTree solution, List<CompilationUnitTree> units, Trees trees,
 	                        SourcePositions positions, String diagnostics, boolean hasErrors,
-	                        List<CompilerDiagnostic> diagnosticItems) { }
-	private record MainClass(ClassTree tree, TypeElement element) { }
-	private record Span(int start, int end) { }
-	private record Edit(int start, int end, String text) { }
+	                        List<CompilerDiagnostic> diagnosticItems) {}
+
+	private record MainClass(ClassTree tree, TypeElement element) {}
+
+	private record Span(int start, int end) {}
+
+	private record Edit(int start, int end, String text) {}
 
 	private static final class MemorySource extends SimpleJavaFileObject {
 		private final String source;
+
 		MemorySource(final String fileName, final String source) {
 			this(URI.create("string:///" + fileName), source);
 		}
+
 		MemorySource(final URI uri, final String source) {
 			super(uri, Kind.SOURCE);
 			this.source = source;
 		}
-		@Override public CharSequence getCharContent(final boolean ignoreEncodingErrors) { return source; }
+
+		@Override
+		public CharSequence getCharContent(final boolean ignoreEncodingErrors) {return source;}
 	}
 }

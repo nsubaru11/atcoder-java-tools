@@ -5,8 +5,7 @@ import java.util.*;
 /**
  * {@link ProtocolCodec#parse(String)} の結果です。正しい要求か、プロトコル違反かのいずれか。
  */
-sealed interface ParseOutcome permits ValidRequest, ProtocolError {
-}
+sealed interface ParseOutcome permits ValidRequest, ProtocolError {}
 
 /**
  * ワイヤ形式（PROTOCOL.md 2, 4）と型の相互変換を担います。
@@ -63,14 +62,7 @@ final class ProtocolCodec {
 			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed TRANSFORM command.");
 		}
 		try {
-			return new ValidRequest(new Transform(
-					parts[1],
-					decode(parts[2]),
-					Paths.get(decode(parts[3])),
-					"1".equals(parts[4]),
-					"1".equals(parts[5]),
-					parts.length < 7 || "1".equals(parts[6])
-			));
+			return new ValidRequest(new Transform(parts[1], decode(parts[2]), Paths.get(decode(parts[3])), "1".equals(parts[4]), "1".equals(parts[5]), parts.length < 7 || "1".equals(parts[6])));
 		} catch (final RuntimeException exception) {
 			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed TRANSFORM command.");
 		}
@@ -81,12 +73,7 @@ final class ProtocolCodec {
 			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed RUN command.");
 		}
 		try {
-			return new ValidRequest(new Run(
-					parts[1],
-					Paths.get(decode(parts[2])),
-					decode(parts[3]),
-					DECODER.decode(parts[4])
-			));
+			return new ValidRequest(new Run(parts[1], Paths.get(decode(parts[2])), decode(parts[3]), DECODER.decode(parts[4])));
 		} catch (final RuntimeException exception) {
 			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed RUN command.");
 		}
@@ -97,11 +84,7 @@ final class ProtocolCodec {
 			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed COMPILE command.");
 		}
 		try {
-			return new ValidRequest(new Compile(
-					parts[1],
-					Paths.get(decode(parts[2])),
-					Paths.get(decode(parts[3]))
-			));
+			return new ValidRequest(new Compile(parts[1], Paths.get(decode(parts[2])), Paths.get(decode(parts[3]))));
 		} catch (final RuntimeException exception) {
 			return new ProtocolError(PROTOCOL_ERROR_ID, "Malformed COMPILE command.");
 		}
@@ -119,43 +102,20 @@ final class ProtocolCodec {
 			case Pong ignored -> "PONG";
 			case RunAck ignored -> "RUN";
 			case Result result -> encodeResult(result);
-			case Compiled compiled -> String.join(SEPARATOR,
-					"COMPILED",
-					compiled.requestId(),
-					Integer.toString(compiled.result().exitCode()),
-					compiled.result().requiresIsolation() ? "1" : "0",
-					b64(compiled.result().diagnostics()),
-					b64(diagnosticsJson(compiled.result().diagnosticItems())));
+			case Compiled compiled ->
+					String.join(SEPARATOR, "COMPILED", compiled.requestId(), Integer.toString(compiled.result().exitCode()), compiled.result().requiresIsolation() ? "1" : "0", b64(compiled.result().diagnostics()), b64(diagnosticsJson(compiled.result().diagnosticItems())));
 			case Transformed transformed -> encodeTransformed(transformed);
-			case ErrorResponse error -> String.join(SEPARATOR,
-					"ERROR",
-					error.requestId(),
-					b64(error.message()));
+			case ErrorResponse error -> String.join(SEPARATOR, "ERROR", error.requestId(), b64(error.message()));
 		};
 	}
 
 	private static String encodeTransformed(final Transformed response) {
 		final SourceTransformResult result = response.result();
-		return new StringJoiner(SEPARATOR)
-				.add("TRANSFORMED")
-				.add(response.requestId())
-				.add(Integer.toString(result.exitCode()))
-				.add(b64(result.sourceCode()))
-				.add(b64(result.diagnostics()))
-				.add(b64(String.join("\n", result.inlinedClasses())))
-				.add(b64(String.join("\n", result.addedImports())))
-				.add(b64(diagnosticsJson(result.diagnosticItems())))
-				.toString();
+		return new StringJoiner(SEPARATOR).add("TRANSFORMED").add(response.requestId()).add(Integer.toString(result.exitCode())).add(b64(result.sourceCode())).add(b64(result.diagnostics())).add(b64(String.join("\n", result.inlinedClasses()))).add(b64(String.join("\n", result.addedImports()))).add(b64(diagnosticsJson(result.diagnosticItems()))).toString();
 	}
 
 	private static String diagnosticsJson(final List<CompilerDiagnostic> diagnostics) {
-		return diagnostics.stream().map(diagnostic -> "{" +
-				"\"kind\":\"" + jsonEscape(diagnostic.kind()) + "\"," +
-				"\"line\":" + diagnostic.line() + "," +
-				"\"column\":" + diagnostic.column() + "," +
-				"\"code\":\"" + jsonEscape(diagnostic.code()) + "\"," +
-				"\"message\":\"" + jsonEscape(diagnostic.message()) + "\"}")
-				.collect(java.util.stream.Collectors.joining(",", "[", "]"));
+		return diagnostics.stream().map(diagnostic -> "{" + "\"kind\":\"" + jsonEscape(diagnostic.kind()) + "\"," + "\"line\":" + diagnostic.line() + "," + "\"column\":" + diagnostic.column() + "," + "\"code\":\"" + jsonEscape(diagnostic.code()) + "\"," + "\"message\":\"" + jsonEscape(diagnostic.message()) + "\"}").collect(java.util.stream.Collectors.joining(",", "[", "]"));
 	}
 
 	private static String jsonEscape(final String value) {
@@ -179,17 +139,7 @@ final class ProtocolCodec {
 
 	private static String encodeResult(final Result response) {
 		final ExecutionResult result = response.result();
-		return new StringJoiner(SEPARATOR)
-				.add("RESULT")
-				.add(response.requestId())
-				.add(Integer.toString(result.exitCode()))
-				.add(Long.toString(result.timeMillis()))
-				.add(ENCODER.encodeToString(result.stdout()))
-				.add(ENCODER.encodeToString(result.stderr()))
-				.add(result.stdoutTruncated() ? "1" : "0")
-				.add(result.stderrTruncated() ? "1" : "0")
-				.add(Long.toString(result.memoryBytes()))
-				.toString();
+		return new StringJoiner(SEPARATOR).add("RESULT").add(response.requestId()).add(Integer.toString(result.exitCode())).add(Long.toString(result.timeMillis())).add(ENCODER.encodeToString(result.stdout())).add(ENCODER.encodeToString(result.stderr())).add(result.stdoutTruncated() ? "1" : "0").add(result.stderrTruncated() ? "1" : "0").add(Long.toString(result.memoryBytes())).toString();
 	}
 
 	private static String decode(final String base64) {
@@ -206,8 +156,7 @@ final class ProtocolCodec {
  *
  * @param request 受理した要求
  */
-record ValidRequest(Request request) implements ParseOutcome {
-}
+record ValidRequest(Request request) implements ParseOutcome {}
 
 /**
  * プロトコル違反です。{@link ErrorResponse} に変換されます。
@@ -215,5 +164,4 @@ record ValidRequest(Request request) implements ParseOutcome {
  * @param requestId 対象の要求ID（通常 {@code "protocol"}）
  * @param reason    違反理由
  */
-record ProtocolError(String requestId, String reason) implements ParseOutcome {
-}
+record ProtocolError(String requestId, String reason) implements ParseOutcome {}

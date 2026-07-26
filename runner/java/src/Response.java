@@ -8,26 +8,22 @@ import java.util.*;
  *
  * @see PROTOCOL.md 「3. メッセージ一覧」
  */
-sealed interface Response {
-}
+sealed interface Response {}
 
 /**
  * 起動完了通知です（PROTOCOL.md 3.1）。
  */
-record Ready() implements Response {
-}
+record Ready() implements Response {}
 
 /**
  * PING への応答です（PROTOCOL.md 3.2）。
  */
-record Pong() implements Response {
-}
+record Pong() implements Response {}
 
 /**
  * RUN の受理通知です。ワイヤ上は {@code "RUN"} の 1 行（PROTOCOL.md 3.3）。
  */
-record RunAck() implements Response {
-}
+record RunAck() implements Response {}
 
 /**
  * 実行結果です（PROTOCOL.md 3.3 RESULT）。
@@ -35,8 +31,7 @@ record RunAck() implements Response {
  * @param requestId 要求ID
  * @param result    実行結果の値オブジェクト
  */
-record Result(String requestId, ExecutionResult result) implements Response {
-}
+record Result(String requestId, ExecutionResult result) implements Response {}
 
 /**
  * コンパイル結果です（PROTOCOL.md 3.4 COMPILED）。
@@ -44,11 +39,9 @@ record Result(String requestId, ExecutionResult result) implements Response {
  * @param requestId 要求ID
  * @param result    コンパイル結果の値オブジェクト
  */
-record Compiled(String requestId, CompileResult result) implements Response {
-}
+record Compiled(String requestId, CompileResult result) implements Response {}
 
-record Transformed(String requestId, SourceTransformResult result) implements Response {
-}
+record Transformed(String requestId, SourceTransformResult result) implements Response {}
 
 /**
  * エラー応答です（PROTOCOL.md 3.5 ERROR）。
@@ -56,8 +49,7 @@ record Transformed(String requestId, SourceTransformResult result) implements Re
  * @param requestId 要求ID（プロトコル違反時は {@code "protocol"}）
  * @param message   エラーメッセージ
  */
-record ErrorResponse(String requestId, String message) implements Response {
-}
+record ErrorResponse(String requestId, String message) implements Response {}
 
 /**
  * 実行結果を保持する値オブジェクトです。
@@ -71,8 +63,7 @@ record ErrorResponse(String requestId, String message) implements Response {
  * @param memoryBytes     実行スレッドの累積アロケーション量（バイト）。近似値。計測不可なら {@code -1}。
  */
 record ExecutionResult(int exitCode, long timeMillis, byte[] stdout, byte[] stderr, boolean stdoutTruncated,
-                       boolean stderrTruncated, long memoryBytes) {
-}
+                       boolean stderrTruncated, long memoryBytes) {}
 
 /**
  * コンパイル結果を保持する値オブジェクトです。
@@ -82,13 +73,9 @@ record ExecutionResult(int exitCode, long timeMillis, byte[] stdout, byte[] stde
  * @param requiresIsolation 常駐 JVM 内で実行すると危険な API を参照しており、隔離実行が必要なら true
  */
 record CompileResult(int exitCode, String diagnostics, boolean requiresIsolation,
-                     List<CompilerDiagnostic> diagnosticItems) {
-}
+                     List<CompilerDiagnostic> diagnosticItems) {}
 
-record SourceTransformResult(int exitCode, String sourceCode, String diagnostics,
-                             List<String> inlinedClasses, List<String> addedImports,
-                             List<CompilerDiagnostic> diagnosticItems) {
-}
+record SourceTransformResult(int exitCode, String sourceCode, String diagnostics, List<String> inlinedClasses,
+                             List<String> addedImports, List<CompilerDiagnostic> diagnosticItems) {}
 
-record CompilerDiagnostic(String kind, long line, long column, String code, String message) {
-}
+record CompilerDiagnostic(String kind, long line, long column, String code, String message) {}

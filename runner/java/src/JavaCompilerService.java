@@ -1,9 +1,8 @@
+import javax.tools.*;
 import java.io.*;
 import java.nio.charset.*;
 import java.nio.file.*;
 import java.util.*;
-
-import javax.tools.*;
 
 /**
  * 常駐 JVM 内の Java コンパイラ（{@link ToolProvider} 経由）でコンパイルする専任クラスです。
@@ -36,20 +35,12 @@ final class JavaCompilerService {
 		try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, UTF_8)) {
 			Files.createDirectories(outputDirectory);
 			final Iterable<? extends JavaFileObject> units = fileManager.getJavaFileObjects(sourceFile.toFile());
-			final List<String> options = List.of(
-					"-encoding", "UTF-8", "-g:lines,source", "-proc:none", "-implicit:none",
-					"-d", outputDirectory.toString()
-			);
+			final List<String> options = List.of("-encoding", "UTF-8", "-g:lines,source", "-proc:none", "-implicit:none", "-d", outputDirectory.toString());
 			final boolean ok = compiler.getTask(additionalOutput, fileManager, diagnostics, options, null, units).call();
 			final StringBuilder message = new StringBuilder();
 			for (final Diagnostic<? extends JavaFileObject> diagnostic : diagnostics.getDiagnostics()) {
-				diagnosticItems.add(new CompilerDiagnostic(
-						diagnostic.getKind().name(), diagnostic.getLineNumber(), diagnostic.getColumnNumber(),
-						diagnostic.getCode(), diagnostic.getMessage(Locale.ROOT)));
-				message.append(diagnostic.getKind()).append(' ')
-						.append(diagnostic.getLineNumber()).append(':').append(diagnostic.getColumnNumber()).append(' ')
-						.append(diagnostic.getCode()).append(' ')
-						.append(diagnostic.getMessage(Locale.ROOT)).append('\n');
+				diagnosticItems.add(new CompilerDiagnostic(diagnostic.getKind().name(), diagnostic.getLineNumber(), diagnostic.getColumnNumber(), diagnostic.getCode(), diagnostic.getMessage(Locale.ROOT)));
+				message.append(diagnostic.getKind()).append(' ').append(diagnostic.getLineNumber()).append(':').append(diagnostic.getColumnNumber()).append(' ').append(diagnostic.getCode()).append(' ').append(diagnostic.getMessage(Locale.ROOT)).append('\n');
 			}
 			final String extra = additionalOutput.toString();
 			if (!extra.isBlank()) message.append(extra);

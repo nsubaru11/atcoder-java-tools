@@ -1,8 +1,7 @@
 import java.io.*;
 import java.nio.charset.*;
 
-import lib.io.FastPrinter;
-import lib.io.FastScanner;
+import lib.io.*;
 
 /**
  * LocalRunner起動時に、標準入出力ライブラリの変換・コンパイル経路を温めます。

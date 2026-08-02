@@ -2,7 +2,7 @@
 // @name           Java Code Submitter
 // @name:en        Java Code Submitter
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.2.8
+// @version        1.2.9
 // @description    Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
 // @description:en Automatically removes package declarations and renames classes to Main when submitting Java source code.
 // @description:ja Java のソースコードを提出する際に、パッケージ名の削除やクラス名の Main への変更を自動で行います。
@@ -346,7 +346,8 @@
 			} catch {}
 		};
 		const isEnterKey = (e) => e.key === "Enter" || e.keyCode === 13;
-		const foldableTypePattern = /^\s*(?:public\s+)?(?:final\s+class|interface|enum|record|@interface)\s+\w+\b/;
+		const foldableTypePattern =
+			/^\s*(?:(?:public|protected|private|abstract|final|static|sealed|non-sealed|strictfp)\s+)*(?:class|interface|enum|record|@interface)\b/;
 		const findFoldStartLines = (source) =>
 			source
 				.split(
@@ -503,31 +504,15 @@
 				const editor = this.getEditor();
 				if (!ace || !editor) return;
 				const session = editor.getSession();
-				const lines = session.getValue().split(`
-`);
 				const foldLines = findFoldStartLines(session.getValue());
 				for (const foldLine of foldLines) {
 					const existingFold = (session.getAllFolds() || []).find((fold) => fold.start.row === foldLine);
 					if (existingFold) continue;
-					const range = session.getFoldWidget(foldLine) ? session.getFoldWidgetRange(foldLine) : null;
-					if (range) {
-						session.addFold("...", range);
-						continue;
-					}
-					if (!foldableTypePattern.test(lines[foldLine])) continue;
-					let brace = 0,
-						endLine = -1;
-					for (let i = foldLine; i < lines.length; i++) {
-						brace += (lines[i].match(/\{/g) || []).length;
-						brace -= (lines[i].match(/}/g) || []).length;
-						if (i > foldLine && brace === 0) {
-							endLine = i;
-							break;
-						}
-					}
-					if (endLine > foldLine) {
-						const Range = ace.require("ace/range").Range;
-						session.addFold("...", new Range(foldLine, lines[foldLine].length, endLine, 0));
+					try {
+						const range = session.getFoldWidget(foldLine) ? session.getFoldWidgetRange(foldLine) : null;
+						if (range) session.addFold("...", range);
+					} catch (error) {
+						log("Ace fold skipped:", error);
 					}
 				}
 			}

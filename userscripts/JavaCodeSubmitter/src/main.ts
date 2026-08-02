@@ -54,7 +54,7 @@ import {
 		}
 	};
 	const isEnterKey = (e: KeyboardEvent): boolean => e.key === 'Enter' || e.keyCode === 13;
-	const foldableTypePattern = /^\s*(?:public\s+)?(?:final\s+class|interface|enum|record|@interface)\s+\w+\b/;
+	const foldableTypePattern = /^\s*(?:(?:public|protected|private|abstract|final|static|sealed|non-sealed|strictfp)\s+)*(?:class|interface|enum|record|@interface)\b/;
 	const findFoldStartLines = (source: string): number[] => source.split('\n')
 		.map((line, index) => foldableTypePattern.test(line) || /^\s*\/\*/.test(line) ? index : -1)
 		.filter((line) => line >= 0);
@@ -224,29 +224,15 @@ import {
 			const editor = this.getEditor();
 			if (!ace || !editor) return;
 			const session = editor.getSession();
-			const lines = session.getValue().split('\n');
 			const foldLines = findFoldStartLines(session.getValue());
 			for (const foldLine of foldLines) {
 				const existingFold = (session.getAllFolds() || []).find((fold: any) => fold.start.row === foldLine);
 				if (existingFold) continue;
-				const range = session.getFoldWidget(foldLine) ? session.getFoldWidgetRange(foldLine) : null;
-				if (range) {
-					session.addFold('...', range);
-					continue;
-				}
-				if (!foldableTypePattern.test(lines[foldLine])) continue;
-				let brace = 0, endLine = -1;
-				for (let i = foldLine; i < lines.length; i++) {
-					brace += (lines[i].match(/\{/g) || []).length;
-					brace -= (lines[i].match(/}/g) || []).length;
-					if (i > foldLine && brace === 0) {
-						endLine = i;
-						break;
-					}
-				}
-				if (endLine > foldLine) {
-					const Range = ace.require('ace/range').Range;
-					session.addFold('...', new Range(foldLine, lines[foldLine].length, endLine, 0));
+				try {
+					const range = session.getFoldWidget(foldLine) ? session.getFoldWidgetRange(foldLine) : null;
+					if (range) session.addFold('...', range);
+				} catch (error) {
+					log('Ace fold skipped:', error);
 				}
 			}
 		}

@@ -1,13 +1,17 @@
 {
 	"name": "AtCoder Widen Container",
 	"name:en": "AtCoder Widen Container",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"description": "AtCoderのページ幅を広げるユーザースクリプト",
 	"description:ja": "AtCoderのページ幅を広げるユーザースクリプト",
 	"description:en": "Widens the container width on AtCoder pages.",
 	"author": "nsubaru",
 	"match": [
 		"https://atcoder.jp/*"
+	],
+	"exclude": [
+		"https://atcoder.jp/",
+		"https://atcoder.jp/?*"
 	],
 	"grant": [
 		"GM_addStyle",

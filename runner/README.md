@@ -166,9 +166,9 @@ PATH 登録済みなら任意ディレクトリから `test` / `localtest` / `ru
 
 ```powershell
 cd tools
-bun --cwd runner run serve
-bun --cwd runner run test abc448_d D.java
-bun --cwd runner run localtest D.java
+bun run --cwd runner serve
+bun run --cwd runner test abc448_d D.java
+bun run --cwd runner localtest D.java
 ```
 
 ## 環境変数

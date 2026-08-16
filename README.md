@@ -37,20 +37,19 @@ TypeScript で開発し、Bun で Tampermonkey 用の単一 `.user.js`
 
 ```powershell
 cd atcoder-java-tools
-bun --cwd userscripts run typecheck
-bun --cwd userscripts run build
-bun --cwd userscripts run watch
+bun run --cwd userscripts typecheck
+bun run --cwd userscripts build
+bun run --cwd userscripts watch
 ```
 
 ## runner
 
-サンプルケースのローカル実行 (`test`) と提出 (`submit`) を行う CLI と、常駐 Local Runner HTTP
-サーバーです。詳細は [runner/README.md](./runner/README.md) を参照してください。
+サンプルケースのローカル実行 (`test`) と提出 (`submit`) を行う CLI と、常駐 Local Runner HTTP サーバーです。詳細は [runner/README.md](./runner/README.md) を参照してください。
 
 ```powershell
 cd atcoder-java-tools
-bun --cwd runner run typecheck
-bun --cwd runner run test abc001_a A.java
+bun run --cwd runner typecheck
+bun run --cwd runner test abc001_a A.java
 ```
 
 ## TypeScript の方針
@@ -65,7 +64,7 @@ bun --cwd runner run test abc001_a A.java
 ```powershell
 cd atcoder-java-tools
 bun install
-bun --cwd userscripts run typecheck
-bun --cwd userscripts run build
-bun --cwd runner run typecheck
+bun run --cwd userscripts typecheck
+bun run --cwd userscripts build
+bun run --cwd runner typecheck
 ```

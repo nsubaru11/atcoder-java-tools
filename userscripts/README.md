@@ -23,15 +23,15 @@ AtCoder 関連の UserScript を TypeScript で開発し、[Tampermonkey](https:
 ```powershell
 cd tools
 bun install
-bun --cwd userscripts run typecheck
-bun --cwd userscripts run build
-bun --cwd userscripts run watch
+bun run --cwd userscripts typecheck
+bun run --cwd userscripts build
+bun run --cwd userscripts watch
 ```
 
 特定スクリプトのみビルド:
 
 ```powershell
-bun --cwd userscripts ./build.ts AtCoderHighlighter
+bun run --cwd userscripts ./build.ts AtCoderHighlighter
 ```
 
 ## 型定義
@@ -79,6 +79,11 @@ AtCoder の問題文を Markdown 形式でコピーする機能を追加しま�
 
 - [インストール](https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderPerformanceOverlay/dist/AtCoderPerformanceOverlay.user.js)
 
+### AtCoder Widen Container
+
+AtCoder のページ中央コンテナを指定した幅に広げます。設定は Tampermonkey のユーザースクリプトメニューから変更できます。
+
+- [インストール](https://raw.githubusercontent.com/nsubaru11/atcoder-java-tools/main/userscripts/AtCoderWidenContainer/dist/AtCoderWidenContainer.user.js)
 
 ### Java Code Submitter
 
@@ -94,9 +99,9 @@ Java 提出の補助（Compiler APIによるMain/DEBUG/library変換、折りた
 
 ## shared との関係
 
-| スクリプト                           | shared の主な利用                          |
-|---------------------------------|---------------------------------------|
-| AtCoderEasyTestForJava          | Local Runner API、ジャッジ、query、JSON      |
-| AtCoderCustomDefaultSubmissions | `parseAtCoderTaskUrl`、提出一覧クエリ、設定 JSON |
+| スクリプト                      | shared の主な利用                                          |
+|---------------------------------|------------------------------------------------------------|
+| AtCoderEasyTestForJava          | Local Runner API、ジャッジ、query、JSON                    |
+| AtCoderCustomDefaultSubmissions | `parseAtCoderTaskUrl`、提出一覧クエリ、設定 JSON           |
 | JavaCodeSubmitter               | LocalRunner `transform` API、フォールバック変換、設定 JSON |
-| その他                             | DOM 専用のため shared 未使用のものあり             |
+| その他                          | DOM 専用のため shared 未使用のものあり                     |

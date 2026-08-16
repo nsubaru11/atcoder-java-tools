@@ -2,7 +2,7 @@
 // @name           AtCoder Widen Container
 // @name:en        AtCoder Widen Container
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.0.0
+// @version        1.0.1
 // @description    AtCoderのページ幅を広げるユーザースクリプト
 // @description:en Widens the container width on AtCoder pages.
 // @description:ja AtCoderのページ幅を広げるユーザースクリプト
@@ -36,12 +36,24 @@
 		return isValidWidth(storedWidth) ? storedWidth.trim() : DEFAULT_WIDTH;
 	}
 	var currentWidth = readWidth();
-	GM_addStyle(`
+	var hideStyle = document.createElement("style");
+	hideStyle.textContent = `html { display: none !important; }`;
+	document.documentElement.appendChild(hideStyle);
+	var style = document.createElement("style");
+	style.textContent = `
 	#main-container {
 		width: ${currentWidth} !important;
 		max-width: 100% !important;
+		transition: none !important;
 	}
-`);
+`;
+	document.documentElement.appendChild(style);
+	window.addEventListener("DOMContentLoaded", () => {
+		if (document.documentElement.contains(hideStyle)) hideStyle.remove();
+	});
+	setTimeout(() => {
+		if (document.documentElement.contains(hideStyle)) hideStyle.remove();
+	}, 500);
 	GM_registerMenuCommand("最大幅設定の変更", () => {
 		const inputWidth = window.prompt("新しい幅設定を入力してください（例: 50%, 1200px）", currentWidth);
 		if (inputWidth === null) return;

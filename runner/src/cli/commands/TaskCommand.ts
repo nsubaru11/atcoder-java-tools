@@ -3,7 +3,7 @@ import path from "node:path";
 import type {Task} from "../../types";
 import {httpGetText, toCookieHeader} from "../atcoder";
 import {extractSamples, extractTimeLimitMs} from "../parser";
-import {parseTask} from "../task";
+import {createTask, parseTask} from "../task";
 import {ensureLocalRunnerReady} from "../ensureServer";
 import {runAndReportSamples, type SampleDisplayOptions} from "../sampleJudge";
 import {type CachedTaskData, readCachedSamples, writeCachedSamples} from "../sampleCache";
@@ -13,22 +13,41 @@ import {prepareSource} from "./source";
 
 // 短縮タスク指定（例: d, e, ex, d1）。AtCoder の問題記号は A〜H と Ex のみ。末尾の数字はファイル変種（D1.java 等）。
 const SHORT_TASK_PATTERN = /^(ex|[a-z])\d*$/i;
-// コンテストフォルダに見える名前（例: ABC463, typical90）。範囲フォルダ ABC451~475 や "src" は弾く。
-const CONTEST_DIR_PATTERN = /^[A-Za-z]+\d+$/;
+// 通常は問題IDの接頭辞にもなるコンテスト名（例: ABC463, typical90）。
+const CONVENTIONAL_CONTEST_DIR_PATTERN = /^[A-Za-z]+\d+$/;
+// AtCoder のコンテストURLに使えるフォルダ名。`src` の親に限って採用し、範囲フォルダ等は弾く。
+const CONTEST_SLUG_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
+// コンテストIDと問題IDの接頭辞が異なる並行開催コンテスト。
+const TASK_PREFIX_BY_CONTEST_ID: Readonly<Record<string, string>> = {
+	"jsc2025advance-final": "abc422",
+	"jsc2026advance-final": "abc474",
+};
 
-/** cwd から上方向に辿り、コンテストID（abcNNN 等）に見えるフォルダ名を小文字で返す。 */
-function detectContestId(startDir: string): string {
-	let dir = startDir;
+/** cwd から上方向に辿り、原則として `src` の親フォルダ名をコンテストIDとして返す。 */
+export function detectContestId(startDir: string): string {
+	let dir = path.resolve(startDir);
 	for (; ;) {
-		if (CONTEST_DIR_PATTERN.test(path.basename(dir))) return path.basename(dir).toLowerCase();
+		const name = path.basename(dir);
+		if (name.toLowerCase() === "src") {
+			const candidate = path.basename(path.dirname(dir));
+			if (CONTEST_SLUG_PATTERN.test(candidate)) return candidate.toLowerCase();
+		}
+		// 従来どおり、コンテスト直下で実行した場合も ABC463 等は認識する。
+		if (CONVENTIONAL_CONTEST_DIR_PATTERN.test(name)) return name.toLowerCase();
 		const parent = path.dirname(dir);
 		if (parent === dir) break;
 		dir = parent;
 	}
 	throw new Error(
-		`短縮表記のコンテスト名をフォルダ階層から特定できませんでした（abc463 のようなフォルダが見つからない）。\n` +
+		`短縮表記のコンテスト名をフォルダ階層から特定できませんでした（src の親にコンテストフォルダが見つからない）。\n` +
 		`  フル指定してください: test <contestId>_<task> <File.java>`,
 	);
+}
+
+/** 別名コンテストでは、固定対応した問題IDの接頭辞を使う。 */
+export function resolveShortTask(contestId: string, taskLetter: string): Task {
+	const taskPrefix = TASK_PREFIX_BY_CONTEST_ID[contestId] ?? contestId;
+	return createTask(contestId, `${taskPrefix}_${taskLetter}`);
 }
 
 /** cwd 内で <token>.java を大小無視で探し、実ファイル名（絶対パス）を返す。無ければ大文字版（相対）を返す。 */
@@ -53,11 +72,12 @@ export function resolveShortSourceArg(token: string): string {
 
 /**
  * 短縮タスク指定（例: "d", "ex", "d1"）を {taskScreenName, sourceFilePath} に展開する。
- * - コンテストID: cwd から上の階層にある ABC463 等のフォルダ名を小文字化（URL はほぼ小文字なので統一）。
+ * - コンテストID: 原則として cwd から上の階層にある src の親フォルダ名を小文字化。
+ * - 問題ID: 通常はコンテストIDと記号を連結。並行開催コンテストは固定対応した接頭辞を使う。
  * - タスク記号: 末尾の数字を除いた英字部分（"d1" → "d"）。サンプル取得・提出はこの記号で行う。
  * - ソースファイル: 入力どおりのトークン（数字込み）で cwd 内を大小無視検索（"d" → D.java, "d1" → D1.java）。
  */
-export function expandShortTaskArg(token: string): { taskScreenName: string; sourceFilePath: string } {
+export function expandShortTaskArg(token: string): { task: Task; sourceFilePath: string } {
 	if (!SHORT_TASK_PATTERN.test(token)) {
 		throw new Error(`短縮タスク指定が不正です: "${token}"（例: d, e, ex, d1）。フル指定なら2引数で。`);
 	}
@@ -65,7 +85,7 @@ export function expandShortTaskArg(token: string): { taskScreenName: string; sou
 	const contestId = detectContestId(cwd);
 	const taskLetter = token.replace(/\d+$/, "").toLowerCase(); // 問題記号（末尾の数字は落とす）
 	return {
-		taskScreenName: `${contestId}_${taskLetter}`,
+		task: resolveShortTask(contestId, taskLetter),
 		sourceFilePath: resolveShortSourceFile(token, cwd),
 	};
 }
@@ -161,18 +181,20 @@ export abstract class TaskCommand implements Command {
 			positionals.push(arg);
 		}
 
-		let taskScreenName: string | undefined;
+		let task: Task | undefined;
 		let sourceFilePath: string | undefined;
 		if (positionals.length === 1) {
 			// 短縮表記: test d → フォルダからコンテストを推定し test abc463_d D.java 相当へ展開
-			({taskScreenName, sourceFilePath} = expandShortTaskArg(positionals[0]));
+			({task, sourceFilePath} = expandShortTaskArg(positionals[0]));
 		} else {
+			let taskScreenName: string | undefined;
 			[taskScreenName, sourceFilePath] = positionals;
+			if (taskScreenName) task = parseTask(taskScreenName);
 		}
-		if (!taskScreenName || !sourceFilePath) {
+		if (!task || !sourceFilePath) {
 			throw new CliUsageError();
 		}
-		return {task: parseTask(taskScreenName), sourceFilePath, force, debug, display};
+		return {task, sourceFilePath, force, debug, display};
 	}
 
 	async execute(args: readonly string[]): Promise<number> {

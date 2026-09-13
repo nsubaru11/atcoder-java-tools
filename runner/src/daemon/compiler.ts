@@ -103,6 +103,10 @@ function hashCode(sourceCode: string) {
 	return `${sourceCode.length.toString(16)}-${digest}`;
 }
 
+export function getProgramId(sourceCode: string) {
+	return hashCode(sourceCode);
+}
+
 function cleanupOldCache() {
 	if (compileCache.size <= RUNNER_CONFIG.maxCacheSize) {
 		return;
@@ -125,7 +129,7 @@ function cleanupOldCache() {
 export function runProcessCommand(
 	command: string,
 	args: string[],
-	options: { cwd?: string; env?: NodeJS.ProcessEnv; input?: string; timeoutMs?: number } = {},
+	options: {cwd?: string; env?: NodeJS.ProcessEnv; input?: string; timeoutMs?: number} = {},
 ) {
 	return new Promise<ProcessResult>((resolve) => {
 		const proc = spawn(command, args, {
@@ -138,7 +142,7 @@ export function runProcessCommand(
 		// さらに上限（常駐経路と同じ CAPTURE_LIMIT）で切り詰め、隔離実行や巨大診断で
 		// daemon 側メモリが際限なく膨らむのを防ぐ。
 		const captureLimit = Math.max(1, RUNNER_CONFIG.dispatcherCaptureLimitBytes);
-		type OutputSink = { chunks: Buffer[]; length: number; truncated: boolean };
+		type OutputSink = {chunks: Buffer[]; length: number; truncated: boolean};
 		const createSink = (): OutputSink => ({chunks: [], length: 0, truncated: false});
 		const stdoutSink = createSink();
 		const stderrSink = createSink();
@@ -376,6 +380,22 @@ export function getCompiledEntry(sourceCode: string) {
 	compileCache.set(hash, entryPromise);
 	cleanupOldCache();
 	return entryPromise;
+}
+
+/** programId だけの run 用。メモリキャッシュ、次にディスクキャッシュから解決する。 */
+export async function getCompiledEntryByProgramId(programId: string): Promise<CompileEntry | null> {
+	const cached = compileCache.get(programId);
+	if (cached) return await cached;
+	if (!/^[0-9a-f]+-[0-9a-f]{32}$/.test(programId)) return null;
+
+	const sourceFile = path.join(RUNNER_CONFIG.compileRootDir, programId, "Main.java");
+	try {
+		const sourceCode = fs.readFileSync(sourceFile, "utf8");
+		if (hashCode(sourceCode) !== programId) return null;
+		return await getCompiledEntry(sourceCode);
+	} catch {
+		return null;
+	}
 }
 
 export async function runCodeInIsolatedJvm(entry: CompileEntry, standardInput: string): Promise<LocalRunnerRunResponse> {

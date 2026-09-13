@@ -1,4 +1,3 @@
-import {ensureLocalRunnerReady} from "../ensureServer";
 import {loadLocalSamples} from "../localSamples";
 import {runAndReportSamples, type SampleDisplayOptions} from "../sampleJudge";
 import {CliUsageError, type Command} from "./Command";
@@ -53,11 +52,18 @@ export class LocalTestCommand implements Command {
 			resolvedSourcePath,
 			transformed,
 			originalFileName,
-			originalClassName
-		} = await prepareSource(sourceFilePath, debug);
-		await ensureLocalRunnerReady();
+			originalClassName,
+			programId,
+		} = await prepareSource(sourceFilePath, debug, {compile: true, validate: false});
 		const samples = loadLocalSamples(resolvedSourcePath, testDir);
-		const allAccepted = await runAndReportSamples(transformed, samples, originalClassName, originalFileName, display);
+		const allAccepted = await runAndReportSamples(
+			transformed,
+			samples,
+			originalClassName,
+			originalFileName,
+			display,
+			programId,
+		);
 		return allAccepted ? 0 : 5;
 	}
 }

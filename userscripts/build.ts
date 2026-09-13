@@ -209,7 +209,7 @@ function scriptPaths(name: string) {
 // endregion
 
 // region ビルドオプション
-type BuildOptions = { watch: boolean; names: string[] };
+type BuildOptions = {watch: boolean; names: string[]};
 
 function assertBunRuntime(): void {
 	if (typeof Bun === "undefined") {

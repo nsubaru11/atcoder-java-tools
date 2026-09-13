@@ -19,6 +19,18 @@ import {
 	parseSubmissionStatusJson,
 } from "./parser";
 
+const AUTH_ERROR_MESSAGE = [
+	"[auth] Checking AtCoder session...",
+	"[auth] ERROR: REVEL_SESSION is missing, expired, or has been replaced.",
+	"",
+	"Update it with:",
+	"  .\\tools\\runner\\bin\\set-atcoder-session.ps1",
+].join("\n");
+
+function ensureNotLoginPage(body: string) {
+	if (isAtCoderLoginPage(body)) throw new Error(AUTH_ERROR_MESSAGE);
+}
+
 export function toCookieHeader() {
 	if (process.env.ATCODER_COOKIE && process.env.ATCODER_COOKIE.trim()) {
 		return process.env.ATCODER_COOKIE.trim();
@@ -64,7 +76,9 @@ export async function httpGetText(url: string, cookieHeader = "") {
 	if (!res.ok) {
 		throw new Error(`GET failed (${res.status}) for ${url}`);
 	}
-	return await res.text();
+	const body = await res.text();
+	ensureNotLoginPage(body);
+	return body;
 }
 
 async function httpGetTextWith429Retry(url: string, cookieHeader = "", maxAttempts = 4) {
@@ -77,7 +91,9 @@ async function httpGetTextWith429Retry(url: string, cookieHeader = "", maxAttemp
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		const res = await fetch(url, {headers, redirect: "follow"});
 		if (res.ok) {
-			return await res.text();
+			const body = await res.text();
+			ensureNotLoginPage(body);
+			return body;
 		}
 		if (res.status !== 429) {
 			throw new Error(`GET failed (${res.status}) for ${url}`);
@@ -144,12 +160,9 @@ async function postSubmitWithRetry(url: string, headers: Record<string, string>,
 
 export async function submitToAtCoder(task: Task, sourceCode: string, cookieHeader: string): Promise<SubmitResult> {
 	if (!cookieHeader) {
-		throw new Error("Authentication is required for submit. Set ATCODER_COOKIE or ATCODER_SESSION.");
+		throw new Error(AUTH_ERROR_MESSAGE);
 	}
 	const submitPage = await httpGetText(task.submitUrl, cookieHeader);
-	if (isAtCoderLoginPage(submitPage)) {
-		throw new Error("Authentication is required for submit. Your REVEL_SESSION may be missing or expired.");
-	}
 	const csrfToken = extractCsrfToken(submitPage);
 	const submitForm = extractSubmitForm(submitPage, task);
 	const fixedLanguageId = CLI_CONFIG.defaultLanguageId;
@@ -202,6 +215,7 @@ export async function submitToAtCoder(task: Task, sourceCode: string, cookieHead
 			continue;
 		}
 		const html = await res.text();
+		ensureNotLoginPage(html);
 		const urlFromRedirect = res.url || "";
 		const redirectMatch = urlFromRedirect.match(/\/submissions\/(\d+)/);
 		if (redirectMatch) {

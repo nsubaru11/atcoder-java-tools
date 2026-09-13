@@ -24,7 +24,7 @@ export async function main(rawArgs = process.argv.slice(2)): Promise<number> {
 			return 1;
 		}
 		const message = error instanceof Error ? error.message : String(error);
-		console.error(`Error: ${message}`);
+		console.error(message.startsWith("[auth] ") ? message : `Error: ${message}`);
 		return 1;
 	}
 }

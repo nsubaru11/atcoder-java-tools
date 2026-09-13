@@ -101,7 +101,7 @@ export function writeCachedSamples(task: Task, samples: SamplePair[], timeLimitM
 function pruneIfNeeded(dir: string): void {
 	const max = CLI_CONFIG.sampleCacheMaxEntries;
 	if (!Number.isFinite(max) || max <= 0) return;
-	let entries: Array<{ file: string; mtimeMs: number }>;
+	let entries: Array<{file: string; mtimeMs: number}>;
 	try {
 		entries = fs.readdirSync(dir)
 			.filter((name) => name.endsWith(".json"))

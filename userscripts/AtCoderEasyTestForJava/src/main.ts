@@ -1,12 +1,14 @@
 import {
 	buildLocalRunnerKey,
 	buildLocalRunnerListRequest,
-	buildLocalRunnerPrecompileRequest,
+	buildLocalRunnerPrepareRequest,
+	buildLocalRunnerProgramRunRequest,
 	buildLocalRunnerRunRequest,
 	buildQueryString as buildParams,
 	evaluateEasyTestOutput,
 	isHttpUrl,
 	type LocalRunnerCompilerInfo,
+	type LocalRunnerPrepareResponse,
 	type LocalRunnerRunResponse,
 	safeJsonParse,
 	sleep,
@@ -69,7 +71,7 @@ type TestCase = {
 };
 type LanguageMap = Record<string, string>;
 type Pair<T> = [T, T];
-type ResultPair = [Promise<RunnerResult>, Promise<{ show(): void; close(): void; color: string }>];
+type ResultPair = [Promise<RunnerResult>, Promise<{show(): void; close(): void; color: string}>];
 type WandboxCompiler = {
 	name: string;
 	language: string;
@@ -191,13 +193,14 @@ type WandboxRequest = Record<string, unknown> & {
 	};
 
 	class ObservableValue<T> {
-		_value: T;
 		_listeners: Set<(value: T) => void>;
 
 		constructor(value: T) {
 			this._value = value;
 			this._listeners = new Set();
 		}
+
+		_value: T;
 
 		get value(): T {
 			return this._value;
@@ -557,14 +560,14 @@ type WandboxRequest = Record<string, unknown> & {
 	}
 
 	class CodeRunner {
+		constructor(label: string, site: string) {
+			this._label = `${label} [${site}]`;
+		}
+
 		_label: string;
 
 		get label(): string {
 			return this._label;
-		}
-
-		constructor(label: string, site: string) {
-			this._label = `${label} [${site}]`;
 		}
 
 		async run(_sourceCode: string, input: string, _options: RunnerOptions = {}): Promise<RunnerResult> {
@@ -766,7 +769,7 @@ type WandboxRequest = Record<string, unknown> & {
 		const script = await fetch("https://cdn.jsdelivr.net/pyodide/v0.24.0/full/pyodide.js").then((res) => res.text());
 		(globalThis.Function as FunctionConstructor)(script)();
 		const loadPyodide = (unsafeWindow as Window & {
-			loadPyodide: (options: { indexURL: string }) => Promise<any>
+			loadPyodide: (options: {indexURL: string}) => Promise<any>
 		}).loadPyodide;
 		const pyodide: any = await loadPyodide({
 			indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.0/full/",
@@ -1163,7 +1166,7 @@ def __run():
 			state: "loading";
 			promise: Promise<void>;
 			controller: AbortController
-		} | { state: "loaded"; testcases: TestCase[] } | { state: "error"; error: unknown }> = {};
+		} | {state: "loaded"; testcases: TestCase[]} | {state: "error"; error: unknown}> = {};
 		let activeTestcaseFetchController: AbortController | null = null;
 		if (taskSelector) {
 			const doFetchTestCases = () => {
@@ -1438,14 +1441,14 @@ def __run():
 	}
 
 	class Editor {
-		_element: HTMLTextAreaElement;
-
 		constructor(_lang: string) {
 			this._element = document.createElement("textarea");
 			this._element.style.fontFamily = "monospace";
 			this._element.style.width = "100%";
 			this._element.style.minHeight = "5em";
 		}
+
+		_element: HTMLTextAreaElement;
 
 		get element(): HTMLTextAreaElement {
 			return this._element;
@@ -1528,7 +1531,7 @@ def __run():
 		const eButtons = newElement("span");
 		doc.querySelector(".submitForm")?.appendChild(eButtons);
 		await loadScript("https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js");
-		const jQuery = (unsafeWindow as Window & { jQuery?: UserScriptJQuery }).jQuery?.noConflict?.();
+		const jQuery = (unsafeWindow as Window & {jQuery?: UserScriptJQuery}).jQuery?.noConflict?.();
 		if (!jQuery) throw new Error("jQuery was not loaded.");
 		const codeforcesWindow = unsafeWindow as Window & {
 			jQuery?: UserScriptJQuery;
@@ -1556,7 +1559,7 @@ def __run():
 					editor.sourceCode = _sourceCode;
 			}
 		});
-		let editor: { element?: HTMLElement; sourceCode: string; setLanguage(lang: string): void } | null = null;
+		let editor: {element?: HTMLElement; sourceCode: string; setLanguage(lang: string): void} | null = null;
 		let waitCfFastSubmitCount = 0;
 		const waitCfFastSubmit = setInterval(() => {
 			if (document.getElementById("editor")) {
@@ -1960,7 +1963,7 @@ def __run():
 				}
 			};
 			await includeHeader(sourceCode);
-			const codes: Array<{ file: string; code: string | null }> = [];
+			const codes: Array<{file: string; code: string | null}> = [];
 			for (const [file, code] of files) {
 				codes.push({file, code,});
 			}
@@ -2020,9 +2023,43 @@ def __run():
 	const currentLocalRunners: string[] = [];
 	let localRunnerCacheURL = "";
 	let localRunnerCacheSignature = "";
+	let preparedLocalProgram: {
+		apiURL: string;
+		sourceCode: string;
+		promise: Promise<LocalRunnerPrepareResponse>;
+	} | null = null;
+
+	function clearPreparedLocalProgram(sourceCode?: string) {
+		if (!sourceCode || preparedLocalProgram?.sourceCode === sourceCode) preparedLocalProgram = null;
+	}
+
+	function prepareLocalProgram(apiURL: string, sourceCode: string): Promise<LocalRunnerPrepareResponse> {
+		if (preparedLocalProgram?.apiURL === apiURL && preparedLocalProgram.sourceCode === sourceCode) {
+			return preparedLocalProgram.promise;
+		}
+		const promise = fetch(apiURL, {
+			method: "POST",
+			mode: "cors",
+			headers: {"Content-Type": "application/json"},
+			body: JSON.stringify(buildLocalRunnerPrepareRequest(sourceCode, true, true, false)),
+		}).then(async response => {
+			if (!response.ok) throw new Error(`LocalRunner prepare failed: ${response.status}`);
+			return await response.json() as LocalRunnerPrepareResponse;
+		});
+		preparedLocalProgram = {apiURL, sourceCode, promise};
+		promise.catch(() => {
+			if (preparedLocalProgram?.promise === promise) preparedLocalProgram = null;
+		});
+		return promise;
+	}
 
 	class LocalRunner extends CodeRunner {
 		compilerName: string;
+
+		constructor(compilerName: string, label: string) {
+			super(label, "Local");
+			this.compilerName = compilerName;
+		}
 
 		static setRunners(_runners: RunnerMap) {
 			runners$1 = _runners;
@@ -2040,9 +2077,11 @@ def __run():
 				currentLocalRunners.length = 0;
 				localRunnerCacheURL = "";
 				localRunnerCacheSignature = "";
+				clearPreparedLocalProgram();
 				return true;
 			}
 			if (!isHttpUrl(apiURL)) throw "LocalRunner: invalid localRunnerURL";
+			if (localRunnerCacheURL && localRunnerCacheURL !== apiURL) clearPreparedLocalProgram();
 			try {
 				const res = await fetch(apiURL, {
 					method: "POST",
@@ -2078,32 +2117,48 @@ def __run():
 			}
 		}
 
-		constructor(compilerName: string, label: string) {
-			super(label, "Local");
-			this.compilerName = compilerName;
-		}
-
 		async run(sourceCode: string, input: string, _options: RunnerOptions = {}): Promise<RunnerResult> {
 			const apiURL = config.getString("codeRunner.localRunnerURL", "");
 			if (!isHttpUrl(apiURL)) {
 				throw "LocalRunner: invalid localRunnerURL";
 			}
 			let res: LocalRunnerRunResponse;
+			const runLegacy = () => fetch(apiURL, {
+				method: "POST",
+				mode: "cors",
+				headers: {"Content-Type": "application/json"},
+				body: JSON.stringify(buildLocalRunnerRunRequest(sourceCode, input, this.compilerName)),
+			}).then(r => r.json()) as Promise<LocalRunnerRunResponse>;
 			try {
-				res = await fetch(apiURL, {
+				let prepared = await prepareLocalProgram(apiURL, sourceCode);
+				if (prepared.status !== "success" || !prepared.programId) {
+					return {status: "CE", input, error: prepared.diagnostics || "LocalRunner prepare failed."};
+				}
+				const runPrepared = (programId: string) => fetch(apiURL, {
 					method: "POST",
 					mode: "cors",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify(buildLocalRunnerRunRequest(sourceCode, input, this.compilerName)),
-				}).then(r => r.json()) as LocalRunnerRunResponse;
+					headers: {"Content-Type": "application/json"},
+					body: JSON.stringify(buildLocalRunnerProgramRunRequest(programId, input, this.compilerName)),
+				}).then(r => r.json()) as Promise<LocalRunnerRunResponse>;
+				res = await runPrepared(prepared.programId);
+				if (res.status === "badRequest" && res.stderr?.startsWith("Prepared program is unavailable:")) {
+					clearPreparedLocalProgram(sourceCode);
+					prepared = await prepareLocalProgram(apiURL, sourceCode);
+					if (prepared.status !== "success" || !prepared.programId) {
+						return {status: "CE", input, error: prepared.diagnostics || "LocalRunner prepare failed."};
+					}
+					res = await runPrepared(prepared.programId);
+				}
 			} catch (error) {
-				return {
-					status: "IE",
-					input,
-					error: String(error),
-				};
+				if (String(error).includes("LocalRunner prepare failed: 400")) {
+					try {
+						res = await runLegacy();
+					} catch (legacyError) {
+						return {status: "IE", input, error: String(legacyError)};
+					}
+				} else {
+					return {status: "IE", input, error: String(error)};
+				}
 			}
 			return {
 				status: toEasyTestStatus(res.status, res.exitCode),
@@ -2204,13 +2259,9 @@ def __run():
 
 	let precompileTimeout: ReturnType<typeof setTimeout> | null = null;
 	let lastPrecompiledCode = '';
-	let isPrecompiling = false;
 	const PRECOMPILE_DELAY_MS = 180;
 
 	async function triggerPrecompile() {
-		if (isPrecompiling) return;
-		isPrecompiling = true;
-
 		try {
 			const apiURL = config.getString("codeRunner.localRunnerURL", "");
 			if (!apiURL || !isHttpUrl(apiURL)) return;
@@ -2224,19 +2275,11 @@ def __run():
 			if (!sourceCode || sourceCode === lastPrecompiledCode) return;
 			lastPrecompiledCode = sourceCode;
 
-			fetch(apiURL, {
-				method: "POST",
-				mode: "cors",
-				headers: {"Content-Type": "application/json"},
-				body: JSON.stringify(buildLocalRunnerPrecompileRequest(sourceCode))
-			}).catch(() => {
-			});
-
-			log.debug("[LocalRunner] Precompile triggered");
+			const prepared = await prepareLocalProgram(apiURL, sourceCode);
+			if (prepared.status === "success") log.debug("[LocalRunner] Precompile completed", prepared.programId);
+			else log.debug("[LocalRunner] Precompile failed", prepared.diagnostics);
 		} catch (e) {
 			log.error("[LocalRunner] Precompile error:", e);
-		} finally {
-			isPrecompiling = false;
 		}
 	}
 
@@ -2364,7 +2407,7 @@ def __run():
 		}
 		// メニューのリサイズ
 		{
-			let resizeStart: { y: number; height: number } | null = null;
+			let resizeStart: {y: number; height: number} | null = null;
 			const onStart = (event: MouseEvent): void => {
 				const target = event.target as HTMLElement;
 				const pageY = event.pageY;
@@ -2483,8 +2526,7 @@ def __run():
 	const hRowTemplate = "<div class=\"atcoder-easy-test-cases-row alert alert-dismissible\">\n  <button type=\"button\" class=\"close\" data-dismiss=\"alert\" aria-label=\"close\">\n    <span aria-hidden=\"true\">×</span>\n  </button>\n  <div class=\"progress\">\n    <div class=\"progress-bar\" style=\"width: 0;\">0 / 0</div>\n  </div>\n  <div class=\"atcoder-easy-test-cases-row-date\" style=\"font-family: monospace; text-align: right; position: absolute; right: 1em;\"></div>\n</div>";
 
 	class ResultRow {
-		_tabs: Array<Promise<{ close(): void }>>;
-		_element: HTMLElement;
+		_tabs: Array<Promise<{close(): void}>>;
 		_promise: Promise<void[]>;
 
 		constructor(pairs: ResultPair[]) {
@@ -2538,6 +2580,8 @@ def __run():
 			}));
 		}
 
+		_element: HTMLElement;
+
 		get element(): HTMLElement {
 			return this._element;
 		}
@@ -2548,7 +2592,7 @@ def __run():
 
 		remove(): void {
 			for (const pTab of this._tabs)
-				pTab.then((tab: { close(): void }) => tab.close());
+				pTab.then((tab: {close(): void}) => tab.close());
 			const parent = this._element.parentElement;
 			if (parent)
 				parent.removeChild(this._element);
@@ -2582,16 +2626,39 @@ def __run():
 	}
 
 	class ResultTabContent {
-		_title = "";
-		_uid: string;
-		_element: HTMLElement;
-		_result: RunnerResult | null;
-
 		constructor() {
 			this._uid = Date.now().toString(16) + Math.floor(Math.random() * 256).toString(16);
 			this._result = null;
 			this._element = html2element(hTabTemplate);
 			this._element.id = `atcoder-easy-test-result-${this._uid}`;
+		}
+
+		_title = "";
+
+		get title(): string {
+			return this._title;
+		}
+
+		set title(title: string) {
+			this._title = title;
+		}
+
+		_uid: string;
+
+		get uid(): string {
+			return this._uid;
+		}
+
+		_element: HTMLElement;
+
+		get element(): HTMLElement {
+			return this._element;
+		}
+
+		_result: RunnerResult | null;
+
+		get result(): RunnerResult | null {
+			return this._result;
 		}
 
 		set result(result: RunnerResult) {
@@ -2613,26 +2680,6 @@ def __run():
 				this.output = result.output;
 			if (result.error)
 				this.error = result.error;
-		}
-
-		get result(): RunnerResult | null {
-			return this._result;
-		}
-
-		get uid(): string {
-			return this._uid;
-		}
-
-		get element(): HTMLElement {
-			return this._element;
-		}
-
-		set title(title: string) {
-			this._title = title;
-		}
-
-		get title(): string {
-			return this._title;
 		}
 
 		set input(input: string) {

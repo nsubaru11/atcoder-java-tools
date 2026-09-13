@@ -132,7 +132,7 @@ function findMainClassInfo(maskedText: string): ClassInfo | null {
 		}
 	}
 
-	return candidates.find((c: { isPublic: any; }) => c.isPublic) ?? candidates[0] ?? null;
+	return candidates.find((c: {isPublic: any;}) => c.isPublic) ?? candidates[0] ?? null;
 }
 
 function removePackageDeclaration(maskedCode: string, currentCode: string): ModifyResult {
@@ -153,7 +153,7 @@ function renameClassToMain(maskedCode: string, currentCode: string): ModifyResul
 	const escapedName = info.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 	const refRegex = new RegExp(`\\b${escapedName}\\b`, "g");
 
-	const replacements: Array<{ start: number; end: number }> = [];
+	const replacements: Array<{start: number; end: number}> = [];
 	let rm: RegExpExecArray | null;
 	while ((rm = refRegex.exec(maskedCode)) !== null) {
 		replacements.push({start: rm.index, end: rm.index + info.name.length});
@@ -169,7 +169,7 @@ function renameClassToMain(maskedCode: string, currentCode: string): ModifyResul
 
 function disableDebugStatements(maskedCode: string, currentCode: string): ModifyResult {
 	const debugRegex = /\bDEBUG\b\s*=\s*true\b/g;
-	const replacements: Array<{ start: number; end: number }> = [];
+	const replacements: Array<{start: number; end: number}> = [];
 	let dm: RegExpExecArray | null;
 	while ((dm = debugRegex.exec(maskedCode)) !== null) {
 		const trueIdx = dm.index + dm[0].lastIndexOf("true");
@@ -186,7 +186,7 @@ function disableDebugStatements(maskedCode: string, currentCode: string): Modify
 
 function enableDebugStatements(maskedCode: string, currentCode: string): ModifyResult {
 	const debugRegex = /\bDEBUG\b\s*=\s*false\b/g;
-	const replacements: Array<{ start: number; end: number }> = [];
+	const replacements: Array<{start: number; end: number}> = [];
 	let dm: RegExpExecArray | null;
 	while ((dm = debugRegex.exec(maskedCode)) !== null) {
 		const falseIdx = dm.index + dm[0].lastIndexOf("false");

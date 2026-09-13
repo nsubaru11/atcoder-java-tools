@@ -1,4 +1,5 @@
 import {
+	buildLocalRunnerProgramRunRequest,
 	buildLocalRunnerRunRequest,
 	type EasyTestRunResult,
 	type LocalRunnerRunResponse,
@@ -32,16 +33,28 @@ export function judgeByLines(expected: string, actual: string): boolean {
 	return true;
 }
 
-export async function postLocalRunner(sourceCode: string, stdinText: string): Promise<LocalRunnerRunResponse> {
-	const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
-		method: "POST",
-		headers: {"Content-Type": "application/json"},
-		body: JSON.stringify(buildLocalRunnerRunRequest(sourceCode, stdinText, undefined, true)),
-	});
-	if (!res.ok) {
-		throw new Error(`Local runner request failed: ${res.status}`);
+export async function postLocalRunner(
+	sourceCode: string,
+	stdinText: string,
+	programId?: string,
+): Promise<LocalRunnerRunResponse> {
+	const request = async (body: unknown) => {
+		const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
+			method: "POST",
+			headers: {"Content-Type": "application/json"},
+			body: JSON.stringify(body),
+		});
+		if (!res.ok) throw new Error(`Local runner request failed: ${res.status}`);
+		return await res.json() as LocalRunnerRunResponse;
+	};
+	if (!programId) return await request(buildLocalRunnerRunRequest(sourceCode, stdinText, undefined, true));
+
+	const result = await request(buildLocalRunnerProgramRunRequest(programId, stdinText));
+	if (result.status !== "badRequest" || !result.stderr?.startsWith("Prepared program is unavailable:")) {
+		return result;
 	}
-	return await res.json() as LocalRunnerRunResponse;
+	// daemon再起動・キャッシュ追い出し時だけ、従来の全文送信で自己回復する。
+	return await request(buildLocalRunnerRunRequest(sourceCode, stdinText, undefined, true));
 }
 
 /**
@@ -55,8 +68,9 @@ export async function evaluateRun(
 	index: number,
 	input: string,
 	expectedOutput?: string,
+	programId?: string,
 ): Promise<SampleResult> {
-	const runnerRaw = await postLocalRunner(sourceCode, input);
+	const runnerRaw = await postLocalRunner(sourceCode, input, programId);
 	const easyLikeRun: EasyTestRunResult = {
 		status: toEasyTestStatus(runnerRaw.status, runnerRaw.exitCode),
 		output: runnerRaw.stdout || "",
@@ -90,8 +104,8 @@ export async function evaluateRun(
 }
 
 /** サンプル1件をローカル実行してジャッジし、1件分の結果を返す（test/localtest/submit 用の薄いラッパー）。 */
-async function evaluateSample(sourceCode: string, sample: SamplePair): Promise<SampleResult> {
-	return evaluateRun(sourceCode, sample.index, sample.input, sample.expectedOutput);
+async function evaluateSample(sourceCode: string, sample: SamplePair, programId?: string): Promise<SampleResult> {
+	return evaluateRun(sourceCode, sample.index, sample.input, sample.expectedOutput, programId);
 }
 
 /** test / localtest / submit の表示制御オプション。 */
@@ -159,7 +173,7 @@ function formatWaDiff(expected: string, actual: string, options: SampleDisplayOp
 }
 
 /** WA の不一致行数と全行数を返す。formatWaDiff と同じ行整形ルールで判定する。 */
-function getWaMismatchStats(expected: string, actual: string): { mismatch: number; total: number } {
+function getWaMismatchStats(expected: string, actual: string): {mismatch: number; total: number} {
 	const exp = toComparableLines(expected);
 	const act = toComparableLines(actual);
 	const total = Math.max(exp.length, act.length);
@@ -244,10 +258,11 @@ export async function runAndReportSamples(
 	originalClassName: string,
 	originalFileName: string,
 	display: SampleDisplayOptions = {},
+	programId?: string,
 ): Promise<boolean> {
 	const results: SampleResult[] = [];
 	for (const sample of samplePairs) {
-		const result = await evaluateSample(sourceCode, sample);
+		const result = await evaluateSample(sourceCode, sample, programId);
 		printSampleResult(result, originalClassName, originalFileName, display);
 		results.push(result);
 	}

@@ -223,7 +223,7 @@
 		element: Node,
 		keyword: string,
 		className: string,
-		options: { numberOnly?: boolean; numberClass?: string } = {}
+		options: {numberOnly?: boolean; numberClass?: string} = {}
 	): void {
 		const walker = document.createTreeWalker(
 			element,
@@ -296,7 +296,7 @@
 		const root = document.getElementById('main-container') || document.body;
 		if (!root) return;
 
-		const configs: Array<{ keywords: string[]; cls: string; numCls: string }> = [
+		const configs: Array<{keywords: string[]; cls: string; numCls: string}> = [
 			{keywords: TIME_LIMIT_KEYWORDS, cls: 'time-limit-value', numCls: 'time-limit-value-number'},
 			{keywords: MEMORY_LIMIT_KEYWORDS, cls: 'memory-limit-value', numCls: 'memory-limit-value-number'}
 		];
@@ -304,7 +304,7 @@
 		const candidates = root.querySelectorAll('p, dt, dd, th, td, div, li');
 		candidates.forEach((el: Element) => {
 			const text = el.textContent || '';
-			configs.forEach(({keywords, cls, numCls}: { keywords: string[]; cls: string; numCls: string }) => {
+			configs.forEach(({keywords, cls, numCls}: {keywords: string[]; cls: string; numCls: string}) => {
 				if (keywords.some((kw: string) => text.includes(kw)) && !el.querySelector(`.${numCls}`)) {
 					keywords.forEach((kw: string) => wrapLimitValue(el, kw, cls, {
 						numberOnly: true,

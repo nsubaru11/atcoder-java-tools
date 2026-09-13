@@ -198,10 +198,10 @@
 				}
 				let trans = this.database.transaction(storeName, 'readonly');
 				let getRequest = trans.objectStore(storeName).get(key);
-				getRequest.onerror = (event: { target: { error: any; }; }) => {
+				getRequest.onerror = (event: {target: {error: any;};}) => {
 					reject(`Failed to get data. (${event.target.error})`);
 				};
-				getRequest.onsuccess = (event: { target: { result: unknown; }; }) => {
+				getRequest.onsuccess = (event: {target: {result: unknown;};}) => {
 					if (event.target.result) resolve(event.target.result);
 					else resolve(null);
 				};
@@ -216,10 +216,10 @@
 				let trans = this.database.transaction(storeName, 'readonly');
 				let cursorRequest = trans.objectStore(storeName).openCursor();
 				let res: any[] = [];
-				cursorRequest.onerror = (event: { target: { error: any; }; }) => {
+				cursorRequest.onerror = (event: {target: {error: any;};}) => {
 					reject(`Failed to get cursor. (${event.target.error})`);
 				};
-				cursorRequest.onsuccess = (event: { target: { result: any; }; }) => {
+				cursorRequest.onsuccess = (event: {target: {result: any;};}) => {
 					let cursor = event.target.result;
 					if (cursor) {
 						if (filter(cursor.value)) res.push(cursor.value);
@@ -236,7 +236,7 @@
 				}
 				let trans = this.database.transaction(storeName, 'readwrite');
 				let setRequest = trans.objectStore(storeName).put(data);
-				setRequest.onerror = (event: { target: { error: any; }; }) => {
+				setRequest.onerror = (event: {target: {error: any;};}) => {
 					reject(`Failed to set data. (${event.target.error})`);
 				};
 				setRequest.onsuccess = () => {
@@ -252,7 +252,7 @@
 				}
 				let trans = this.database.transaction(storeName, 'readwrite');
 				let deleteRequest = trans.objectStore(storeName).delete(key);
-				deleteRequest.onerror = (event: { target: { error: any; }; }) => {
+				deleteRequest.onerror = (event: {target: {error: any;};}) => {
 					reject(`Failed to delete data. (${event.target.error})`);
 				};
 				deleteRequest.onsuccess = () => {
@@ -424,7 +424,7 @@
 				return;
 			}
 			//最終アクセスが現在時刻より一定以上前の問題リストを削除する
-			let oldData = await this.db.getAllMatchedData(STORE_NAME.problemList, (data: { lastAccess: number; }) => {
+			let oldData = await this.db.getAllMatchedData(STORE_NAME.problemList, (data: {lastAccess: number;}) => {
 				return now - data.lastAccess >= REMOVE_BASE;
 			});
 			if (oldData.length !== 0) {
@@ -582,7 +582,7 @@
 			let checkbox = $('<input>', {type: 'checkbox', class: `${PRE}-checkbox`});
 			//チェックボックスはチェック状態をストレージと同期
 			checkbox.prop('checked', this.setting.newTab);
-			checkbox.on('click', (e: { currentTarget: { checked: any; }; }) => {
+			checkbox.on('click', (e: {currentTarget: {checked: any;};}) => {
 				this.setting.newTab = e.currentTarget.checked;
 				if (this.setting.dbExists) {
 					this.setting.saveData('newTab', this.setting.newTab);
@@ -592,7 +592,7 @@
 			label.append(document.createTextNode(' ' + TEXT.newTab[this.setting.lang]));
 			dropdown_menu.prepend($('<li>').append(label));
 			//チェックボックスが押された場合はドロップダウンリストを非表示にしない
-			dropdown_menu.on('click', (e: { target: any; stopPropagation: () => void; }) => {
+			dropdown_menu.on('click', (e: {target: any; stopPropagation: () => void;}) => {
 				if (e.target === label[0]) {
 					e.stopPropagation();
 				}
@@ -616,7 +616,7 @@
 				dropdown_menu.append($('<li>').append(a));
 			}
 		},
-		changeNewTabAttr: function (e: { currentTarget: any; }) {
+		changeNewTabAttr: function (e: {currentTarget: any;}) {
 			let a = e.currentTarget;
 			if (this.setting.newTab) {
 				a.target = '_blank';
@@ -680,7 +680,7 @@
 			});
 			begin_button.append($('<span>', {class: `caret ${PRE}-caret`}));
 			let begin_list = $('<ul>', {class: `dropdown-menu ${PRE}-list`});
-			$.each(this.setting.problemList, (idx: any, data: { diff: any; name: any; }) => {
+			$.each(this.setting.problemList, (idx: any, data: {diff: any; name: any;}) => {
 				begin_list.append($('<li>').append($('<a>', {
 					text: `${data.diff} - ${data.name}`,
 					'data-index': (idx).toString()
@@ -757,7 +757,7 @@
 			let label_reverse = $('<label>');
 			let check_reverse = $('<input>', {type: 'checkbox', name: 'reverse'});
 			check_reverse.prop('checked', this.setting.reverse);
-			check_reverse.on('click', (e: { currentTarget: { checked: any; }; }) => {
+			check_reverse.on('click', (e: {currentTarget: {checked: any;};}) => {
 				this.setting.reverse = e.currentTarget.checked;
 			});
 			label_reverse.append(check_reverse, document.createTextNode(TEXT.reverse[this.setting.lang]));
@@ -835,7 +835,7 @@
 			modal.append(dialog.append(content));
 			$('#main-div').before(modal);
 		},
-		changeRange: function (e: { target: { tagName: string; }; }) {
+		changeRange: function (e: {target: {tagName: string;};}) {
 			if (e.target.tagName !== 'A') {
 				return;
 			}
@@ -860,9 +860,9 @@
 			this.that.setModalInfo(this.modalInfo, this.that.setting, this.that.isAll);
 		},
 		changeSelect: function (that: {
-			setting: { problemList: any; atOnce: any; };
+			setting: {problemList: any; atOnce: any;};
 			dropdownList: any;
-			listChanged: { begin: boolean; end: boolean; };
+			listChanged: {begin: boolean; end: boolean;};
 		}, button: {
 			html: (arg0: string) => void;
 		}, idx: string | number, isBegin: any) {
@@ -882,10 +882,10 @@
 			}
 			button.html(`${problemList[idx].diff}<span class="caret ${PRE}-caret"></span>`);
 		},
-		setModalInfo: function (modalInfo: { text: (arg0: string) => void; }, setting: {
+		setModalInfo: function (modalInfo: {text: (arg0: string) => void;}, setting: {
 			problemList: string | any[];
 			lang: string | number;
-			atOnce: { end: number; begin: number; };
+			atOnce: {end: number; begin: number;};
 		}, isAll: any) {
 			let text = '';
 			if (isAll) {

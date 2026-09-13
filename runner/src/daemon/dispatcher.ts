@@ -479,8 +479,14 @@ export function queueDispatcherTransform(
 					if (dispatcherState.currentRequest?.id === requestId) dispatcherState.currentRequest = null;
 					stopDispatcher();
 					finishResolve({
-						kind: "transform", exitCode: 1, sourceCode, inlinedClasses: [], addedImports: [], diagnosticItems: [],
-						diagnostics: `Transformation timed out after ${timeoutMs}ms.`, timedOut: true,
+						kind: "transform",
+						exitCode: 1,
+						sourceCode,
+						inlinedClasses: [],
+						addedImports: [],
+						diagnosticItems: [],
+						diagnostics: `Transformation timed out after ${timeoutMs}ms.`,
+						timedOut: true,
 					});
 				}, timeoutMs);
 				const command = [

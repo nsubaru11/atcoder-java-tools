@@ -7,10 +7,10 @@ Java と TypeScript の 2 実装が同じ約束に従う必要があり、両者
 
 通信は、daemon が起動した Java 子プロセス（`Dispatcher`）の標準ストリーム上で行われます。
 
-| ストリーム          | 向き           | 用途                                                  |
-|----------------|--------------|-----------------------------------------------------|
-| 標準入力 (stdin)   | daemon → JVM | 要求（Request）                                         |
-| 標準出力 (stdout)  | JVM → daemon | 応答（Response）                                        |
+| ストリーム          | 向き         | 用途                                                                            |
+|---------------------|--------------|---------------------------------------------------------------------------------|
+| 標準入力 (stdin)    | daemon → JVM | 要求（Request）                                                                 |
+| 標準出力 (stdout)   | JVM → daemon | 応答（Response）                                                                |
 | 標準エラー (stderr) | JVM → daemon | ログのみ。daemon は `[Dispatcher]` を付けて素通しする。プロトコルの一部ではない |
 
 要求と応答はこの 1 本の双方向チャネルを共有します。
@@ -71,11 +71,11 @@ PONG
 RUN \t <id> \t b64(classDir) \t b64(mainClass) \t b64(stdin)
 ```
 
-| フィールド       | 内容                         |
-|-------------|----------------------------|
+| フィールド  | 内容                                        |
+|-------------|---------------------------------------------|
 | `classDir`  | `.class` を含むクラスディレクトリの絶対パス |
-| `mainClass` | 実行する完全修飾クラス名（例: `Main`）    |
-| `stdin`     | 実行対象へ与える標準入力の全内容           |
+| `mainClass` | 実行する完全修飾クラス名（例: `Main`）      |
+| `stdin`     | 実行対象へ与える標準入力の全内容            |
 
 JVM はまず**受理通知**として次の 1 行を即座に返す（daemon はこの行を無視する）。
 
@@ -89,12 +89,12 @@ RUN
 RESULT \t <id> \t <exitCode> \t <timeMillis> \t b64(stdout) \t b64(stderr) \t <stdoutTruncated> \t <stderrTruncated> \t <memory>
 ```
 
-| フィールド                                 | 内容                                                         |
-|---------------------------------------|------------------------------------------------------------|
-| `exitCode`                            | `0` = 正常終了 / `1` = 実行中に捕捉されない例外が発生                         |
-| `timeMillis`                          | 実行に要した時間（ミリ秒）                                              |
-| `stdout` / `stderr`                   | 実行対象が出力した標準出力・標準エラー                                        |
-| `stdoutTruncated` / `stderrTruncated` | 出力が上限超過で切り詰められたら `1`、そうでなければ `0`                           |
+| フィールド                            | 内容                                                                                                    |
+|---------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `exitCode`                            | `0` = 正常終了 / `1` = 実行中に捕捉されない例外が発生                                                   |
+| `timeMillis`                          | 実行に要した時間（ミリ秒）                                                                              |
+| `stdout` / `stderr`                   | 実行対象が出力した標準出力・標準エラー                                                                  |
+| `stdoutTruncated` / `stderrTruncated` | 出力が上限超過で切り詰められたら `1`、そうでなければ `0`                                                |
 | `memory`                              | 実行スレッドの累積アロケーション量（バイト・十進）。**ピークではなく近似値**。計測不可なら `-1`（§6.1） |
 
 ### 3.4 `COMPILE`：ソースのコンパイル
@@ -107,9 +107,9 @@ RESULT \t <id> \t <exitCode> \t <timeMillis> \t b64(stdout) \t b64(stderr) \t <s
 COMPILE \t <id> \t b64(sourceFile) \t b64(outDir)
 ```
 
-| フィールド        | 内容                             |
-|--------------|--------------------------------|
-| `sourceFile` | コンパイル対象 `.java` の絶対パス          |
+| フィールド   | 内容                                                |
+|--------------|-----------------------------------------------------|
+| `sourceFile` | コンパイル対象 `.java` の絶対パス                   |
 | `outDir`     | `.class` の出力先ディレクトリ（無ければ作成される） |
 
 応答:
@@ -118,12 +118,12 @@ COMPILE \t <id> \t b64(sourceFile) \t b64(outDir)
 COMPILED \t <id> \t <exitCode> \t <requiresIsolation> \t b64(diagnostics) \t b64(diagnosticItemsJson)
 ```
 
-| フィールド               | 内容                                                    |
-|---------------------|-------------------------------------------------------|
-| `exitCode`          | `0` = 成功 / `1` = 失敗                                   |
-| `requiresIsolation` | 危険 API を参照し隔離実行が必要なら `1`、そうでなければ `0`（成功時のみ意味を持つ。§6.2） |
-| `diagnostics`       | コンパイラ診断（エラー・警告）を連結したテキスト。成功時は空のこともある                  |
-| `diagnosticItemsJson` | `kind`・`line`・`column`・javac `code`・`message`を持つJSON配列             |
+| フィールド            | 内容                                                                                      |
+|-----------------------|-------------------------------------------------------------------------------------------|
+| `exitCode`            | `0` = 成功 / `1` = 失敗                                                                   |
+| `requiresIsolation`   | 危険 API を参照し隔離実行が必要なら `1`、そうでなければ `0`（成功時のみ意味を持つ。§6.2） |
+| `diagnostics`         | コンパイラ診断（エラー・警告）を連結したテキスト。成功時は空のこともある                  |
+| `diagnosticItemsJson` | `kind`・`line`・`column`・javac `code`・`message`を持つJSON配列                           |
 
 ### 3.5 `TRANSFORM`：Compiler APIによる提出ソース変換
 
@@ -220,11 +220,11 @@ join しない残存スレッドという稀なリスクは受容する。
 
 以下はワイヤ上のメッセージではなく、daemon 側の運用ルール。
 
-| 対象             | 既定タイムアウト | 超過時の挙動                                                       |
-|----------------|----------|--------------------------------------------------------------|
-| 起動（`READY` まで） | 10 秒     | JVM を SIGKILL し起動失敗                                          |
-| `RUN`          | 10 秒     | JVM を SIGKILL し、当該要求を `timeLimitExceeded` 扱い。次の要求時に JVM を再起動 |
-| `COMPILE` / `TRANSFORM` | 30 秒 | 同上（コンパイル・変換のタイムアウト）                                      |
+| 対象                    | 既定タイムアウト | 超過時の挙動                                                                      |
+|-------------------------|------------------|-----------------------------------------------------------------------------------|
+| 起動（`READY` まで）    | 10 秒            | JVM を SIGKILL し起動失敗                                                         |
+| `RUN`                   | 10 秒            | JVM を SIGKILL し、当該要求を `timeLimitExceeded` 扱い。次の要求時に JVM を再起動 |
+| `COMPILE` / `TRANSFORM` | 30 秒            | 同上（コンパイル・変換のタイムアウト）                                            |
 
 無限ループ等で停止しない実行対象は、同一 JVM 内のスレッドとして動くため、daemon がプロセスごと強制終了する。
 
@@ -271,12 +271,12 @@ COMPILED	1	0	0		W10=
 
 ## 9. 実装上の対応箇所
 
-| 役割      | Java（`Dispatcher.java`）                   | TypeScript（`dispatcher.ts`） |
-|---------|-------------------------------------------|-----------------------------|
-| 起動通知    | `writeReady`（`READY` 出力）                  | 起動時に `READY` 行を待機           |
-| 要求の符号化  | —                                         | `encodeField`（Base64）＋タブ連結  |
-| 要求の解析   | `ProtocolParser` / `handleCompileCommand` | —                           |
-| 応答の組み立て | `ProtocolWriter`（`writeResult` 等）         | —                           |
-| ソース変換   | `JavaSourceTransformer`                    | `queueDispatcherTransform`  |
-| 応答の解析   | —                                         | `handleDispatcherResponse`  |
-| 相関 ID   | 受信した `id` をそのまま応答へ                        | `nextRequestId` を採番         |
+| 役割           | Java（`Dispatcher.java`）                 | TypeScript（`dispatcher.ts`）     |
+|----------------|-------------------------------------------|-----------------------------------|
+| 起動通知       | `writeReady`（`READY` 出力）              | 起動時に `READY` 行を待機         |
+| 要求の符号化   | —                                         | `encodeField`（Base64）＋タブ連結 |
+| 要求の解析     | `ProtocolParser` / `handleCompileCommand` | —                                 |
+| 応答の組み立て | `ProtocolWriter`（`writeResult` 等）      | —                                 |
+| ソース変換     | `JavaSourceTransformer`                   | `queueDispatcherTransform`        |
+| 応答の解析     | —                                         | `handleDispatcherResponse`        |
+| 相関 ID        | 受信した `id` をそのまま応答へ            | `nextRequestId` を採番            |

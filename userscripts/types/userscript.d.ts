@@ -2,11 +2,11 @@ type UserScriptAnyFunction = (...args: any[]) => any;
 type UserScriptAnyObject = Record<string, any>;
 
 interface UserScriptJQuery {
-	(...args: any[]): any;
-
 	fn?: UserScriptAnyObject;
 	each: UserScriptAnyFunction;
 	noConflict: () => UserScriptJQuery;
+
+	(...args: any[]): any;
 }
 
 interface UserScriptAce {
@@ -54,7 +54,7 @@ declare var unsafeWindow: Window;
 declare var GM_getValue: <T>(key: string, defaultValue?: T) => T;
 declare var GM_setValue: (key: string, value: unknown) => void;
 declare var GM_addStyle: (css: string) => HTMLStyleElement;
-declare var GM_setClipboard: (data: string, info?: string | { type?: string, minibar?: boolean }) => void;
+declare var GM_setClipboard: (data: string, info?: string | {type?: string, minibar?: boolean}) => void;
 declare var GM_registerMenuCommand: (name: string, fn: () => void, accessKey?: string) => void;
 declare var GM_xmlhttpRequest: (details: {
 	method: string;
@@ -63,10 +63,10 @@ declare var GM_xmlhttpRequest: (details: {
 	data?: string;
 	timeout?: number;
 	responseType?: "json" | "text";
-	onload?: (response: { status: number; statusText: string; response: unknown; responseText: string }) => void;
-	onerror?: (response: { statusText?: string }) => void;
+	onload?: (response: {status: number; statusText: string; response: unknown; responseText: string}) => void;
+	onerror?: (response: {statusText?: string}) => void;
 	ontimeout?: () => void;
-}) => { abort: () => void };
+}) => {abort: () => void};
 declare const GM: {
 	getValue: <T>(key: string, defaultValue?: T) => Promise<T>;
 	setValue: (key: string, value: unknown) => Promise<void>;

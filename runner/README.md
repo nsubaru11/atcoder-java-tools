@@ -29,19 +29,19 @@ userscript の AtCoder Easy Test for Java と同じ `evaluateEasyTestOutput` で
 
 ## コマンド
 
-| コマンド                                                           | 説明                                                                                                  |
-|----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `test <taskScreenName> <sourceFile>`                           | AtCoder のサンプルをローカル実行し AC/WA 判定（**DEBUG 既定 true**）                                                   |
-| `test <task>` / `submit [-f] <task>`                           | **短縮表記**。フォルダからコンテストを推定（例: `test d` → `abc463_d D.java`）                                            |
-| `submit [-f] <taskScreenName> <sourceFile>`                    | 全サンプル AC 後に提出（`-f` で強制提出。提出は **DEBUG=false**）                                                       |
-| `localtest <sourceFile> [testDir]`                             | `.in`/`.out` を自動検出しオフライン実行・判定（**DEBUG 既定 true**）                                                    |
-| `run <sourceFile> [inputFile]`                                 | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG 既定 true**）                                             |
+| コマンド                                                       | 説明                                                                                                                                                            |
+|----------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `test <taskScreenName> <sourceFile>`                           | AtCoder のサンプルをローカル実行し AC/WA 判定（**DEBUG 既定 true**）                                                                                            |
+| `test <task>` / `submit [-f] <task>`                           | **短縮表記**。フォルダからコンテストを推定（例: `test d` → `abc463_d D.java`）                                                                                  |
+| `submit [-f] <taskScreenName> <sourceFile>`                    | 全サンプル AC 後に提出（`-f` で強制提出。提出は **DEBUG=false**）                                                                                               |
+| `localtest <sourceFile> [testDir]`                             | `.in`/`.out` を自動検出しオフライン実行・判定（**DEBUG 既定 true**）                                                                                            |
+| `run <sourceFile> [inputFile]`                                 | 1 回だけ実行して出力表示（期待出力なし・`inputFile` 省略可・**DEBUG 既定 true**）                                                                               |
 | `crosscheck <actualSourceFile> <expectedSourceFile> [testDir]` | `.in` を入力に2つのコードを実行し標準出力を突き合わせ（`.out` は不要。testDir は actual 側から自動探索。expected 側が異常終了したケースは比較せずそのまま報告） |
-| `tomain <sourceFile> [outFile]`                                | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き）                                                |
-| `toclip <sourceFile>` / `toclip <task>`                        | 提出用ソースをクリップボードへコピー（**DEBUG=false**。短縮例: `toclip d` → `D.java`）                                  |
-| `serve`                                                        | Local Runner サーバーだけ先に起動して ready まで待つ                                                                |
-| `stop`                                                         | Local Runner サーバーを停止（graceful shutdown）                                                             |
-| `status`                                                       | Local Runner サーバーの稼働状況を表示（uptime・Java・dispatcher・キャッシュ等。稼働中=0/停止中=1。auto-start はしない）                |
+| `tomain <sourceFile> [outFile]`                                | 提出用 `Main.java` に変換して書き出し（**DEBUG=false**。`-f` で上書き）                                                                                         |
+| `toclip <sourceFile>` / `toclip <task>`                        | 提出用ソースをクリップボードへコピー（**DEBUG=false**。短縮例: `toclip d` → `D.java`）                                                                          |
+| `serve`                                                        | Local Runner サーバーだけ先に起動して ready まで待つ                                                                                                            |
+| `stop`                                                         | Local Runner サーバーを停止（graceful shutdown）                                                                                                                |
+| `status`                                                       | Local Runner サーバーの稼働状況を表示（uptime・Java・dispatcher・キャッシュ等。稼働中=0/停止中=1。auto-start はしない）                                         |
 
 `taskScreenName` は URL の `/tasks/` 以降そのまま（例: `abc448_d`）。`contestId` は最後の `_` より前から自動解決します。
 
@@ -88,24 +88,24 @@ toclip D.java  # ファイルを明示
 - ソースは**カレントディレクトリ**から探します（例の構成では `ABC463/src` で実行）。
 - `toclip`はコンテストIDを必要とせず、短縮記号からソースだけを解決します（`toclip d1` → `D1.java`）。
 
-`test` / `submit` / `localtest` / `run` は、Local Runnerサーバーが未起動ならWSL上へ自動起動します。起動時にライブラリソースを`/dev/shm`へ同期して一度だけclass化し、解答のCompiler API解析はそのclasspathを使用します。提出用本文だけを同期済みsourceから取得するため、コンパイル・実行環境をWSLへ統一したままNTFS境界の反復コストを避けます。`serve`で事前に温めておくと初回が速くなります。ライブラリを編集した場合は`stop`→`serve`で同期し直してください。
+`test` / `submit` / `localtest` / `run` は、Local Runnerサーバーが未起動ならWSL上へ自動起動します。起動時にライブラリソースを`/dev/shm`へ同期して一度だけclass化し、解答のCompiler API解析はそのclasspathを使用します。提出用本文だけを同期済みsourceから取得するため、コンパイル・実行環境をWSLへ統一したままNTFS境界の反復コストを避けます。実行時はソースを一度だけ`prepare`して変換・コンパイルし、以降の各サンプルは`programId`と標準入力だけを送ります。`serve`で事前に温めておくと初回が速くなります。ライブラリを編集した場合は`stop`→`serve`で同期し直してください。
 
 ほぼすべての解答で使う`lib.io.FastScanner`と`lib.io.FastPrinter`は、最小構成の`WarmUp.java`から通常どおりimportします。起動時にこのファイルを提出変換してからコンパイルし、メモリ入力と破棄出力で`nextInt`・`nextLong`・`println(long)`を実行することで、class解決・依存解析・インライン・javac・I/OのJIT経路を一度に温めます。標準入出力への副作用や、アルゴリズム・データ構造の私有コピーはありません。
 
-EasyTestの`precompile`要求は即座に`accepted`を返し、最後のエディタ変更から1.5秒のアイドル後に非同期実行します。連続変更はデバウンスされるため、JavaCodeSubmitterの貼り付け変換を常駐Dispatcherキュー上でブロックしません。
+EasyTestは最後のエディタ変更から180ms後に`prepare`し、得られた`programId`を同じソースのテストで再利用します。貼り付け直後にテストした場合も、進行中のprepareを全サンプルで共有します。旧クライアント向けの`precompile`要求は即座に`accepted`を返し、サーバー側150msのデバウンス後に同じprepare経路を使います。実runが先に届いた場合は待機中の同一precompileを取り消します。
 
 ### オプション
 
 オプションは位置引数の前後どちらに置いても構いません（各コマンドが自前で解釈します）。
 
-| オプション                         | 対象コマンド                                         | 説明                                                               |
-|-------------------------------|------------------------------------------------|------------------------------------------------------------------|
-| `-f`, `--force`               | `submit` / `tomain`                            | submit: サンプルが非 AC でも提出する / tomain: 既存の出力ファイルを上書きする               |
-| `-d`, `--debug[=true\|false]` | `test` / `localtest` / `run`                   | ソースの DEBUG ブロックの有効/無効を上書き（既定は有効）。`-d` だけなら有効、`--debug=false` で無効 |
-| `--full`                      | `test` / `localtest` / `submit` / `crosscheck` | WA 差分を行数で折りたたまず**全行表示**する（`--max-lines` より優先）                    |
-| `--wa-only`                   | `test` / `localtest` / `submit` / `crosscheck` | WA 差分のうち**不一致行（×）だけ**を抽出して表示する（行番号は元のまま保持）                       |
-| `--max-lines=N`               | `test` / `localtest` / `submit` / `crosscheck` | WA 差分の折りたたみ行数を `N` に変更する（既定 20）                                  |
-| `--time-limit=N`              | `localtest` / `run` / `crosscheck`             | 実行時間警告のしきい値に使う制限(ms)。80%超で黄、制限以上で赤（既定 2000。表示のみで実行は打ち切らない）       |
+| オプション                    | 対象コマンド                                   | 説明                                                                                                     |
+|-------------------------------|------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| `-f`, `--force`               | `submit` / `tomain`                            | submit: サンプルが非 AC でも提出する / tomain: 既存の出力ファイルを上書きする                            |
+| `-d`, `--debug[=true\|false]` | `test` / `localtest` / `run`                   | ソースの DEBUG ブロックの有効/無効を上書き（既定は有効）。`-d` だけなら有効、`--debug=false` で無効      |
+| `--full`                      | `test` / `localtest` / `submit` / `crosscheck` | WA 差分を行数で折りたたまず**全行表示**する（`--max-lines` より優先）                                    |
+| `--wa-only`                   | `test` / `localtest` / `submit` / `crosscheck` | WA 差分のうち**不一致行（×）だけ**を抽出して表示する（行番号は元のまま保持）                             |
+| `--max-lines=N`               | `test` / `localtest` / `submit` / `crosscheck` | WA 差分の折りたたみ行数を `N` に変更する（既定 20）                                                      |
+| `--time-limit=N`              | `localtest` / `run` / `crosscheck`             | 実行時間警告のしきい値に使う制限(ms)。80%超で黄、制限以上で赤（既定 2000。表示のみで実行は打ち切らない） |
 
 ```powershell
 # DEBUG を切って（提出と同じ条件で）ローカル実行
@@ -173,22 +173,22 @@ bun run --cwd runner localtest D.java
 
 ## 環境変数
 
-| 変数                               | 説明                               | 既定値                      |
-|----------------------------------|----------------------------------|--------------------------|
-| `LOCAL_RUNNER_URL`               | Local Runner API                 | `http://localhost:8080`  |
-| `LOCAL_RUNNER_PORT`              | 待受ポート                            | `8080`                   |
-| `LOCAL_RUNNER_INPROCESS_COMPILE` | `0` で常駐javacを無効化し外部javacにフォールバック | 有効                       |
-| `LOCAL_RUNNER_START_TIMEOUT_MS`  | auto-start の ready 待ちタイムアウト(ms)  | `60000`                  |
-| `LOCAL_RUNNER_BACKEND`           | Windowsで`native`を明示する診断用上書き        | `wsl`                    |
-| `LOCAL_RUNNER_BUN`               | native起動に使うBunコマンド                  | `bun`                    |
-| `ATCODER_RUNNER_AUTOSTART`       | `0` で auto-start を無効化（常駐運用に切替時）  | 有効                       |
-| `ATCODER_JAVA_VER`               | auto-start で渡す Java バージョン        | `24`                     |
-| `ATCODER_WSL_DISTRO`             | auto-start で使う WSL ディストリ         | 既定ディストリ                  |
-| `ATCODER_RUNNER_DIR_WSL`         | WSL内の `tools/runner` パス（明示時）     | wslpath で自動導出            |
-| `ATCODER_LIB_SRC`                | 競プロライブラリの`src`ディレクトリ          | 上位階層の`library/src`を探索    |
-| `ATCODER_COOKIE`                 | 提出用 Cookie 全体                    | —                        |
-| `ATCODER_SESSION`                | `REVEL_SESSION` の値のみ             | —                        |
-| `ATCODER_SESSION_FILE`           | セッションファイル                        | `~/.atcoder/session.txt` |
+| 変数                             | 説明                                               | 既定値                        |
+|----------------------------------|----------------------------------------------------|-------------------------------|
+| `LOCAL_RUNNER_URL`               | Local Runner API                                   | `http://localhost:8080`       |
+| `LOCAL_RUNNER_PORT`              | 待受ポート                                         | `8080`                        |
+| `LOCAL_RUNNER_INPROCESS_COMPILE` | `0` で常駐javacを無効化し外部javacにフォールバック | 有効                          |
+| `LOCAL_RUNNER_START_TIMEOUT_MS`  | auto-start の ready 待ちタイムアウト(ms)           | `60000`                       |
+| `LOCAL_RUNNER_BACKEND`           | Windowsで`native`を明示する診断用上書き            | `wsl`                         |
+| `LOCAL_RUNNER_BUN`               | native起動に使うBunコマンド                        | `bun`                         |
+| `ATCODER_RUNNER_AUTOSTART`       | `0` で auto-start を無効化（常駐運用に切替時）     | 有効                          |
+| `ATCODER_JAVA_VER`               | auto-start で渡す Java バージョン                  | `24`                          |
+| `ATCODER_WSL_DISTRO`             | auto-start で使う WSL ディストリ                   | 既定ディストリ                |
+| `ATCODER_RUNNER_DIR_WSL`         | WSL内の `tools/runner` パス（明示時）              | wslpath で自動導出            |
+| `ATCODER_LIB_SRC`                | 競プロライブラリの`src`ディレクトリ                | 上位階層の`library/src`を探索 |
+| `ATCODER_COOKIE`                 | 提出用 Cookie 全体                                 | —                             |
+| `ATCODER_SESSION`                | `REVEL_SESSION` の値のみ                           | —                             |
+| `ATCODER_SESSION_FILE`           | セッションファイル                                 | `~/.atcoder/session.txt`      |
 
 ## セッションファイル例
 

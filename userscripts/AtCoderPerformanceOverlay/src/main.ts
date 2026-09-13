@@ -82,23 +82,23 @@ let panel_shape: {
 		beginFill: (arg0: string) => {
 			(): any;
 			new(): any;
-			rect: { (arg0: number, arg1: number, arg2: number, arg3: number): void; new(): any; };
+			rect: {(arg0: number, arg1: number, arg2: number, arg3: number): void; new(): any;};
 		};
 	};
 }, border_shape: {
 	x: number;
 	y: number;
 	graphics: {
-		beginStroke: (arg0: string) => { (): any; new(): any; setStrokeStyle: { (arg0: number): void; new(): any; }; };
+		beginStroke: (arg0: string) => {(): any; new(): any; setStrokeStyle: {(arg0: number): void; new(): any;};};
 		moveTo: (arg0: number, arg1: number) => {
 			(): any;
 			new(): any;
-			lineTo: { (arg0: number, arg1: number): void; new(): any; };
+			lineTo: {(arg0: number, arg1: number): void; new(): any;};
 		};
 		mt: (arg0: number, arg1: number) => {
 			(): any;
 			new(): any;
-			lt: { (arg0: number, arg1: number): void; new(): any; };
+			lt: {(arg0: number, arg1: number): void; new(): any;};
 		};
 		s: (arg0: string) => {
 			(): any;
@@ -107,16 +107,16 @@ let panel_shape: {
 				(arg0: number): {
 					(): any;
 					new(): any;
-					rr: { (arg0: number, arg1: number, arg2: number, arg3: number, arg4: number): void; new(): any; };
+					rr: {(arg0: number, arg1: number, arg2: number, arg3: number, arg4: number): void; new(): any;};
 				};
 				new(): any;
 			};
 		};
 	};
 };
-let chart_container: { shadow: any; }, line_shape: {
+let chart_container: {shadow: any;}, line_shape: {
 	graphics: {
-		s: (arg0: string) => { (): any; new(): any; ss: { (arg0: number): void; new(): any; }; };
+		s: (arg0: string) => {(): any; new(): any; ss: {(arg0: number): void; new(): any;};};
 		mt: (arg0: any, arg1: any) => void;
 		lt: (arg0: any, arg1: any) => void;
 	};
@@ -126,29 +126,29 @@ let chart_container: { shadow: any; }, line_shape: {
 			(): any;
 			new(): any;
 			mt: {
-				(arg0: any, arg1: any): { (): any; new(): any; lt: { (arg0: any, arg1: number): void; new(): any; }; };
+				(arg0: any, arg1: any): {(): any; new(): any; lt: {(arg0: any, arg1: number): void; new(): any;};};
 				new(): any;
 			};
 			f: {
 				(arg0: string): {
 					(): any;
 					new(): any;
-					rr: { (arg0: number, arg1: number, arg2: number, arg3: number, arg4: number): void; new(): any; };
+					rr: {(arg0: number, arg1: number, arg2: number, arg3: number, arg4: number): void; new(): any;};
 				};
 				new(): any;
 			};
 		};
 	};
 	i: number;
-	addEventListener: (arg0: string, arg1: { (e: any): void; (e: any): void; }) => void;
+	addEventListener: (arg0: string, arg1: {(e: any): void; (e: any): void;}) => void;
 };
 let n: number, x_min: number, x_max: number, y_min: number, y_max: number;
 
 //performance graph - グローバルスコープで明示的に定義
 let perf_panel_shape: any, perf_border_shape: any;
-let perf_chart_container: { shadow: any; visible: boolean; }, perf_line_shape: {
+let perf_chart_container: {shadow: any; visible: boolean;}, perf_line_shape: {
 	graphics: {
-		s: (arg0: string) => { (): any; new(): any; ss: { (arg0: number): void; new(): any; }; };
+		s: (arg0: string) => {(): any; new(): any; ss: {(arg0: number): void; new(): any;};};
 		mt: (arg0: any, arg1: any) => void;
 		lt: (arg0: any, arg1: any) => void;
 	};
@@ -158,21 +158,21 @@ let perf_chart_container: { shadow: any; visible: boolean; }, perf_line_shape: {
 			(): any;
 			new(): any;
 			mt: {
-				(arg0: any, arg1: any): { (): any; new(): any; lt: { (arg0: any, arg1: number): void; new(): any; }; };
+				(arg0: any, arg1: any): {(): any; new(): any; lt: {(arg0: any, arg1: number): void; new(): any;};};
 				new(): any;
 			};
 			f: {
 				(arg0: string): {
 					(): any;
 					new(): any;
-					rr: { (arg0: number, arg1: number, arg2: number, arg3: number, arg4: number): void; new(): any; };
+					rr: {(arg0: number, arg1: number, arg2: number, arg3: number, arg4: number): void; new(): any;};
 				};
 				new(): any;
 			};
 		};
 	};
 	i: number;
-	addEventListener: (arg0: string, arg1: { (e: any): void; (e: any): void; }) => void;
+	addEventListener: (arg0: string, arg1: {(e: any): void; (e: any): void;}) => void;
 };
 let perf_n: number, perf_x_min: number, perf_x_max: number, perf_y_min: number, perf_y_max: number;
 // windowオブジェクトに格納してグローバルアクセスを保証
@@ -237,7 +237,7 @@ function prepareCanvases(): void {
 }
 
 // キャンバスサイズなど設定
-function initStage(stage: any, canvas: HTMLCanvasElement): { cssWidth: number; cssHeight: number } {
+function initStage(stage: any, canvas: HTMLCanvasElement): {cssWidth: number; cssHeight: number} {
 	const rect = canvas.getBoundingClientRect();
 	const attrWidth = Number(canvas.getAttribute('width')) || canvas.width || DEFAULT_WIDTH;
 	const attrHeight = Number(canvas.getAttribute('height')) || canvas.height || 0;

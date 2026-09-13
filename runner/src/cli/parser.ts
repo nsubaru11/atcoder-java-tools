@@ -112,7 +112,7 @@ export function extractLanguageOptionsFromSubmitPage(html: string) {
 	const selectMatch = html.match(/<select[^>]*name=["']data\.LanguageId["'][^>]*>([\s\S]*?)<\/select>/i);
 	if (!selectMatch) return [];
 	const optionRegex = /<option\s+value=["']([^"']+)["'][^>]*>([\s\S]*?)<\/option>/gi;
-	const options: Array<{ value: string; label: string }> = [];
+	const options: Array<{value: string; label: string}> = [];
 	let m: RegExpExecArray | null;
 	while ((m = optionRegex.exec(selectMatch[1])) !== null) {
 		options.push({
@@ -123,7 +123,7 @@ export function extractLanguageOptionsFromSubmitPage(html: string) {
 	return options;
 }
 
-export function chooseJavaLanguageIdFromOptions(options: Array<{ value: string; label: string }>) {
+export function chooseJavaLanguageIdFromOptions(options: Array<{value: string; label: string}>) {
 	if (!options.length) return "";
 	const normalized = options.map((o) => ({...o, lower: o.label.toLowerCase()}));
 	const priority = [
@@ -237,7 +237,7 @@ function parseStatusLabelFromSnippet(html: string): string {
 }
 
 /** Html スニペット中の text-right な td を順に読み、[実行時間, メモリ] を取り出す。 */
-function parseExecAndMemoryFromSnippet(html: string): { execTime: string; memory: string } {
+function parseExecAndMemoryFromSnippet(html: string): {execTime: string; memory: string} {
 	const values: string[] = [];
 	const regex = /<td[^>]*class=["'][^"']*text-right[^"']*["'][^>]*>([\s\S]*?)<\/td>/gi;
 	let m: RegExpExecArray | null;

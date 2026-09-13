@@ -8,7 +8,6 @@ import {
 	supportsCliColor,
 	thresholdsFromTimeLimit,
 } from "../../utils";
-import {ensureLocalRunnerReady} from "../ensureServer";
 import {postLocalRunner} from "../sampleJudge";
 import {CliUsageError, type Command} from "./Command";
 import {parseBoolFlag, parseIntFlag} from "./options";
@@ -61,12 +60,15 @@ export class RunCommand implements Command {
 		const [sourceFilePath, inputFile] = positionals;
 		if (!sourceFilePath) throw new CliUsageError();
 
-		const {transformed, originalFileName, originalClassName} = await prepareSource(sourceFilePath, debug);
-		await ensureLocalRunnerReady();
+		const {transformed, originalFileName, originalClassName, programId} = await prepareSource(
+			sourceFilePath,
+			debug,
+			{compile: true, validate: false},
+		);
 		const stdin = inputFile
 			? normalizeNewlines(fs.readFileSync(path.resolve(inputFile), "utf8"))
 			: "";
-		const result = await postLocalRunner(transformed, stdin);
+		const result = await postLocalRunner(transformed, stdin, programId);
 
 		// ステータスは「OK / RE / CE / TLE / IE」に集約。OK=緑、エラー=色付き。遅い実行は time が黄色。
 		const label = runStatusLabel(result.status);

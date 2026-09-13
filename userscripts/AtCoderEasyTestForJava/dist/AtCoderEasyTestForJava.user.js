@@ -2,7 +2,7 @@
 // @name           AtCoder Easy Test for Java
 // @name:en        AtCoder Easy Test for Java
 // @namespace      https://github.com/nsubaru11/atcoder-java-tools/tree/main/userscripts
-// @version        1.7.2
+// @version        1.8.0
 // @description    AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。
 // @description:en Automates sample testing on AtCoder, yukicoder, and Codeforces. Optimized for Java.
 // @description:ja AtCoder, yukicoder, Codeforces でのサンプルテストを自動化します。Java 向けに最適化されています。
@@ -134,11 +134,8 @@
 	function buildLocalRunnerListRequest() {
 		return { mode: "list" };
 	}
-	function buildLocalRunnerPrecompileRequest(sourceCode) {
-		return {
-			mode: "precompile",
-			sourceCode,
-		};
+	function buildLocalRunnerPrepareRequest(sourceCode, debug = false, autoImport = true, validate = false) {
+		return { mode: "prepare", sourceCode, debug, autoImport, validate };
 	}
 	function buildLocalRunnerRunRequest(sourceCode, stdin, compilerName, prepared = false) {
 		return {
@@ -147,6 +144,14 @@
 			sourceCode,
 			stdin,
 			prepared,
+		};
+	}
+	function buildLocalRunnerProgramRunRequest(programId, stdin, compilerName) {
+		return {
+			mode: "run",
+			compilerName,
+			programId,
+			stdin,
 		};
 	}
 	function toEasyTestStatus(status, exitCode = 0) {
@@ -258,12 +263,12 @@
 		};
 
 		class ObservableValue {
-			_value;
 			_listeners;
 			constructor(value) {
 				this._value = value;
 				this._listeners = new Set();
 			}
+			_value;
 			get value() {
 				return this._value;
 			}
@@ -624,12 +629,12 @@
 		}
 
 		class CodeRunner {
+			constructor(label, site2) {
+				this._label = `${label} [${site2}]`;
+			}
 			_label;
 			get label() {
 				return this._label;
-			}
-			constructor(label, site2) {
-				this._label = `${label} [${site2}]`;
 			}
 			async run(_sourceCode, input, _options = {}) {
 				return { status: "IE", input };
@@ -1491,13 +1496,13 @@ def __run():
 		}
 
 		class Editor {
-			_element;
 			constructor(_lang) {
 				this._element = document.createElement("textarea");
 				this._element.style.fontFamily = "monospace";
 				this._element.style.width = "100%";
 				this._element.style.minHeight = "5em";
 			}
+			_element;
 			get element() {
 				return this._element;
 			}
@@ -2062,9 +2067,36 @@ def __run():
 		const currentLocalRunners = [];
 		let localRunnerCacheURL = "";
 		let localRunnerCacheSignature = "";
+		let preparedLocalProgram = null;
+		function clearPreparedLocalProgram(sourceCode) {
+			if (!sourceCode || preparedLocalProgram?.sourceCode === sourceCode) preparedLocalProgram = null;
+		}
+		function prepareLocalProgram(apiURL, sourceCode) {
+			if (preparedLocalProgram?.apiURL === apiURL && preparedLocalProgram.sourceCode === sourceCode) {
+				return preparedLocalProgram.promise;
+			}
+			const promise = fetch(apiURL, {
+				method: "POST",
+				mode: "cors",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(buildLocalRunnerPrepareRequest(sourceCode, true, true, false)),
+			}).then(async (response) => {
+				if (!response.ok) throw new Error(`LocalRunner prepare failed: ${response.status}`);
+				return await response.json();
+			});
+			preparedLocalProgram = { apiURL, sourceCode, promise };
+			promise.catch(() => {
+				if (preparedLocalProgram?.promise === promise) preparedLocalProgram = null;
+			});
+			return promise;
+		}
 
 		class LocalRunner extends CodeRunner {
 			compilerName;
+			constructor(compilerName, label) {
+				super(label, "Local");
+				this.compilerName = compilerName;
+			}
 			static setRunners(_runners) {
 				runners$1 = _runners;
 			}
@@ -2080,9 +2112,11 @@ def __run():
 					currentLocalRunners.length = 0;
 					localRunnerCacheURL = "";
 					localRunnerCacheSignature = "";
+					clearPreparedLocalProgram();
 					return true;
 				}
 				if (!isHttpUrl(apiURL)) throw "LocalRunner: invalid localRunnerURL";
+				if (localRunnerCacheURL && localRunnerCacheURL !== apiURL) clearPreparedLocalProgram();
 				try {
 					const res = await fetch(apiURL, {
 						method: "POST",
@@ -2118,31 +2152,56 @@ def __run():
 					return false;
 				}
 			}
-			constructor(compilerName, label) {
-				super(label, "Local");
-				this.compilerName = compilerName;
-			}
 			async run(sourceCode, input, _options = {}) {
 				const apiURL = config.getString("codeRunner.localRunnerURL", "");
 				if (!isHttpUrl(apiURL)) {
 					throw "LocalRunner: invalid localRunnerURL";
 				}
 				let res;
-				try {
-					res = await fetch(apiURL, {
+				const runLegacy = () =>
+					fetch(apiURL, {
 						method: "POST",
 						mode: "cors",
-						headers: {
-							"Content-Type": "application/json",
-						},
+						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify(buildLocalRunnerRunRequest(sourceCode, input, this.compilerName)),
 					}).then((r) => r.json());
+				try {
+					let prepared = await prepareLocalProgram(apiURL, sourceCode);
+					if (prepared.status !== "success" || !prepared.programId) {
+						return { status: "CE", input, error: prepared.diagnostics || "LocalRunner prepare failed." };
+					}
+					const runPrepared = (programId) =>
+						fetch(apiURL, {
+							method: "POST",
+							mode: "cors",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify(
+								buildLocalRunnerProgramRunRequest(programId, input, this.compilerName),
+							),
+						}).then((r) => r.json());
+					res = await runPrepared(prepared.programId);
+					if (res.status === "badRequest" && res.stderr?.startsWith("Prepared program is unavailable:")) {
+						clearPreparedLocalProgram(sourceCode);
+						prepared = await prepareLocalProgram(apiURL, sourceCode);
+						if (prepared.status !== "success" || !prepared.programId) {
+							return {
+								status: "CE",
+								input,
+								error: prepared.diagnostics || "LocalRunner prepare failed.",
+							};
+						}
+						res = await runPrepared(prepared.programId);
+					}
 				} catch (error) {
-					return {
-						status: "IE",
-						input,
-						error: String(error),
-					};
+					if (String(error).includes("LocalRunner prepare failed: 400")) {
+						try {
+							res = await runLegacy();
+						} catch (legacyError) {
+							return { status: "IE", input, error: String(legacyError) };
+						}
+					} else {
+						return { status: "IE", input, error: String(error) };
+					}
 				}
 				return {
 					status: toEasyTestStatus(res.status, res.exitCode),
@@ -2228,11 +2287,8 @@ def __run():
 		config.registerFlag("codeRunner.precompile.enable", true, "Enable LocalRunner precompile on editor changes");
 		let precompileTimeout = null;
 		let lastPrecompiledCode = "";
-		let isPrecompiling = false;
 		const PRECOMPILE_DELAY_MS = 180;
 		async function triggerPrecompile() {
-			if (isPrecompiling) return;
-			isPrecompiling = true;
 			try {
 				const apiURL = config.getString("codeRunner.localRunnerURL", "");
 				if (!apiURL || !isHttpUrl(apiURL)) return;
@@ -2241,17 +2297,11 @@ def __run():
 				const sourceCode = currentSite.sourceCode;
 				if (!sourceCode || sourceCode === lastPrecompiledCode) return;
 				lastPrecompiledCode = sourceCode;
-				fetch(apiURL, {
-					method: "POST",
-					mode: "cors",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(buildLocalRunnerPrecompileRequest(sourceCode)),
-				}).catch(() => {});
-				log.debug("[LocalRunner] Precompile triggered");
+				const prepared = await prepareLocalProgram(apiURL, sourceCode);
+				if (prepared.status === "success") log.debug("[LocalRunner] Precompile completed", prepared.programId);
+				else log.debug("[LocalRunner] Precompile failed", prepared.diagnostics);
 			} catch (e) {
 				log.error("[LocalRunner] Precompile error:", e);
-			} finally {
-				isPrecompiling = false;
 			}
 		}
 		function schedulePrecompile() {
@@ -2580,7 +2630,6 @@ def __run():
 
 		class ResultRow {
 			_tabs;
-			_element;
 			_promise;
 			constructor(pairs2) {
 				this._tabs = pairs2.map(([_pResult, tab]) => tab);
@@ -2632,6 +2681,7 @@ def __run():
 					}),
 				);
 			}
+			_element;
 			get element() {
 				return this._element;
 			}
@@ -2731,15 +2781,30 @@ def __run():
 		}
 
 		class ResultTabContent {
-			_title = "";
-			_uid;
-			_element;
-			_result;
 			constructor() {
 				this._uid = Date.now().toString(16) + Math.floor(Math.random() * 256).toString(16);
 				this._result = null;
 				this._element = html2element(hTabTemplate);
 				this._element.id = `atcoder-easy-test-result-${this._uid}`;
+			}
+			_title = "";
+			get title() {
+				return this._title;
+			}
+			set title(title) {
+				this._title = title;
+			}
+			_uid;
+			get uid() {
+				return this._uid;
+			}
+			_element;
+			get element() {
+				return this._element;
+			}
+			_result;
+			get result() {
+				return this._result;
 			}
 			set result(result) {
 				this._result = result;
@@ -2755,21 +2820,6 @@ def __run():
 				if ("memory" in result) this.memory = `${result.memory} KB`;
 				if ("output" in result) this.output = result.output;
 				if (result.error) this.error = result.error;
-			}
-			get result() {
-				return this._result;
-			}
-			get uid() {
-				return this._uid;
-			}
-			get element() {
-				return this._element;
-			}
-			set title(title) {
-				this._title = title;
-			}
-			get title() {
-				return this._title;
 			}
 			set input(input) {
 				this._get("input").value = input;

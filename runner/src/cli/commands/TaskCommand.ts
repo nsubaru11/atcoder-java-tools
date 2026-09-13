@@ -4,7 +4,6 @@ import type {Task} from "../../types";
 import {httpGetText, toCookieHeader} from "../atcoder";
 import {extractSamples, extractTimeLimitMs} from "../parser";
 import {createTask, parseTask} from "../task";
-import {ensureLocalRunnerReady} from "../ensureServer";
 import {runAndReportSamples, type SampleDisplayOptions} from "../sampleJudge";
 import {type CachedTaskData, readCachedSamples, writeCachedSamples} from "../sampleCache";
 import {CliUsageError, type Command} from "./Command";
@@ -77,7 +76,7 @@ export function resolveShortSourceArg(token: string): string {
  * - タスク記号: 末尾の数字を除いた英字部分（"d1" → "d"）。サンプル取得・提出はこの記号で行う。
  * - ソースファイル: 入力どおりのトークン（数字込み）で cwd 内を大小無視検索（"d" → D.java, "d1" → D1.java）。
  */
-export function expandShortTaskArg(token: string): { task: Task; sourceFilePath: string } {
+export function expandShortTaskArg(token: string): {task: Task; sourceFilePath: string} {
 	if (!SHORT_TASK_PATTERN.test(token)) {
 		throw new Error(`短縮タスク指定が不正です: "${token}"（例: d, e, ex, d1）。フル指定なら2引数で。`);
 	}
@@ -128,6 +127,33 @@ export abstract class TaskCommand implements Command {
 	protected readonly supportsDebugOption: boolean = false;
 	/** --full / --wa-only の表示オプションを受け付けるか（test のみ true）。 */
 	protected readonly supportsDisplayOptions: boolean = false;
+
+	async execute(args: readonly string[]): Promise<number> {
+		const {task, sourceFilePath, force, debug, display} = this.validate(args);
+		const {transformed, originalFileName, originalClassName, programId} = await prepareSource(
+			sourceFilePath,
+			debug,
+			{compile: true, validate: false},
+		);
+
+		const cookieHeader = toCookieHeader();
+		const {samples, timeLimitMs} = await getSamplesWithCache(task, cookieHeader);
+		// 問題の実行時間制限が分かれば、exec 表示の警告しきい値（80%で黄、100%で赤）に使う。
+		if (timeLimitMs) {
+			display.timeLimitMs = timeLimitMs;
+			console.log(`Time limit: ${timeLimitMs}ms`);
+		}
+		const allAccepted = await runAndReportSamples(
+			transformed,
+			samples,
+			originalClassName,
+			originalFileName,
+			display,
+			programId,
+		);
+
+		return this.onSamplesComplete({task, transformed, allAccepted, force});
+	}
 
 	/** サンプル実行後の処理。終了コードを返す。 */
 	protected abstract onSamplesComplete(ctx: TaskRunContext): Promise<number> | number;
@@ -195,22 +221,5 @@ export abstract class TaskCommand implements Command {
 			throw new CliUsageError();
 		}
 		return {task, sourceFilePath, force, debug, display};
-	}
-
-	async execute(args: readonly string[]): Promise<number> {
-		const {task, sourceFilePath, force, debug, display} = this.validate(args);
-		const {transformed, originalFileName, originalClassName} = await prepareSource(sourceFilePath, debug);
-
-		const cookieHeader = toCookieHeader();
-		const {samples, timeLimitMs} = await getSamplesWithCache(task, cookieHeader);
-		// 問題の実行時間制限が分かれば、exec 表示の警告しきい値（80%で黄、100%で赤）に使う。
-		if (timeLimitMs) {
-			display.timeLimitMs = timeLimitMs;
-			console.log(`Time limit: ${timeLimitMs}ms`);
-		}
-		await ensureLocalRunnerReady();
-		const allAccepted = await runAndReportSamples(transformed, samples, originalClassName, originalFileName, display);
-
-		return this.onSamplesComplete({task, transformed, allAccepted, force});
 	}
 }

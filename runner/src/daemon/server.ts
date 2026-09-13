@@ -1,13 +1,26 @@
+import crypto from "node:crypto";
 import http from "node:http";
 import {pathToFileURL} from "node:url";
-import type {LocalRunnerCompilerInfo, LocalRunnerRunResponse} from "@atcoder-tools/shared";
-import type {LocalRunnerTransformResponse} from "@atcoder-tools/shared";
+import type {
+	LocalRunnerCompilerInfo,
+	LocalRunnerPrepareResponse,
+	LocalRunnerRunResponse,
+	LocalRunnerTransformResponse,
+} from "@atcoder-tools/shared";
 import type {RunnerStatusInfo} from "../types";
-import {LOG_FILE_PATH, prepareLibrarySourceRoot, resolveLibrarySourceRoot, RUNNER_CONFIG, WARMUP_REPEAT_COUNT} from "../config";
+import {
+	LOG_FILE_PATH,
+	prepareLibrarySourceRoot,
+	resolveLibrarySourceRoot,
+	RUNNER_CONFIG,
+	WARMUP_REPEAT_COUNT
+} from "../config";
 import {ensureDirectory, formatRunSummary, logError, logInfo, logWarn,} from "../utils";
 import {
 	getCompileCacheSize,
 	getCompiledEntry,
+	getCompiledEntryByProgramId,
+	getProgramId,
 	JAVA_VERSION,
 	runCodeInIsolatedJvm,
 	RUNNER_LABEL,
@@ -24,8 +37,11 @@ import {
 } from "./dispatcher";
 
 const serverStartedAt = Date.now();
-const PRECOMPILE_IDLE_DELAY_MS = 1500;
+const PRECOMPILE_IDLE_DELAY_MS = 150;
+const PREPARE_CACHE_MAX = 10;
 let precompileTimer: NodeJS.Timeout | null = null;
+let scheduledPrecompileSource = "";
+const prepareCache = new Map<string, Promise<LocalRunnerPrepareResponse>>();
 
 // ローカルランナーを利用するユーザースクリプトが動作するジャッジサイト（EasyTest の @match と一致）。
 // これらのホスト（およびサブドメイン）からのブラウザ要求のみ許可する。
@@ -53,7 +69,7 @@ function isAllowedOrigin(origin: string | undefined): boolean {
 }
 
 async function transformCode(sourceCode: string, debug: boolean, autoImport = true,
-	validate = true): Promise<LocalRunnerTransformResponse> {
+							 validate = true): Promise<LocalRunnerTransformResponse> {
 	const result = await queueDispatcherTransform(sourceCode, resolveLibrarySourceRoot(), debug, autoImport, validate);
 	return {
 		status: result.exitCode === 0 ? "success" : "compileError",
@@ -65,9 +81,74 @@ async function transformCode(sourceCode: string, debug: boolean, autoImport = tr
 	};
 }
 
-async function runCode({sourceCode, stdin, prepared}: { sourceCode: string; stdin?: string; prepared?: boolean }): Promise<LocalRunnerRunResponse> {
+function prepareCacheKey(sourceCode: string, debug: boolean, autoImport: boolean, validate: boolean) {
+	const digest = crypto.createHash("md5").update(sourceCode).digest("hex");
+	return `${debug ? 1 : 0}:${autoImport ? 1 : 0}:${validate ? 1 : 0}:${digest}`;
+}
+
+async function prepareCode(
+	sourceCode: string,
+	debug: boolean,
+	autoImport = true,
+	validate = false,
+): Promise<LocalRunnerPrepareResponse> {
+	const transformed = await transformCode(sourceCode, debug, autoImport, validate);
+	if (transformed.status !== "success") return transformed;
+
+	const entry = await getCompiledEntry(transformed.sourceCode);
+	if (entry.status === "error") {
+		return {
+			...transformed,
+			status: "compileError",
+			diagnostics: entry.error || "Java compilation failed.",
+		};
+	}
+	return {...transformed, programId: getProgramId(transformed.sourceCode)};
+}
+
+function prepareCodeCached(sourceCode: string, debug: boolean, autoImport = true, validate = false) {
+	const key = prepareCacheKey(sourceCode, debug, autoImport, validate);
+	const cached = prepareCache.get(key);
+	if (cached) return cached;
+
+	const promise = prepareCode(sourceCode, debug, autoImport, validate);
+	prepareCache.set(key, promise);
+	void promise.finally(() => {
+		if (prepareCache.get(key) === promise) prepareCache.delete(key);
+	}).catch(() => null);
+	while (prepareCache.size > PREPARE_CACHE_MAX) {
+		const oldest = prepareCache.keys().next().value;
+		if (!oldest) break;
+		prepareCache.delete(oldest);
+	}
+	return promise;
+}
+
+function missingProgramResponse(programId: string): LocalRunnerRunResponse {
+	return {
+		status: "badRequest",
+		exitCode: -1,
+		stdout: "",
+		stderr: `Prepared program is unavailable: ${programId}`,
+		time: 0,
+		stdoutTruncated: false,
+		stderrTruncated: false,
+		memory: 0,
+	};
+}
+
+async function runCode({sourceCode, programId, stdin, prepared}: {
+	sourceCode?: string;
+	programId?: string;
+	stdin?: string;
+	prepared?: boolean;
+}): Promise<LocalRunnerRunResponse> {
 	const overallStart = Date.now();
-	if (!prepared) {
+	let entry;
+	if (programId) {
+		entry = await getCompiledEntryByProgramId(programId);
+		if (!entry) return missingProgramResponse(programId);
+	} else if (typeof sourceCode === "string" && !prepared) {
 		const transformed = await transformCode(sourceCode, true, true);
 		if (transformed.status !== "success") {
 			return {
@@ -76,8 +157,12 @@ async function runCode({sourceCode, stdin, prepared}: { sourceCode: string; stdi
 			};
 		}
 		sourceCode = transformed.sourceCode;
+		entry = await getCompiledEntry(sourceCode);
+	} else if (typeof sourceCode === "string") {
+		entry = await getCompiledEntry(sourceCode);
+	} else {
+		return missingProgramResponse("(missing)");
 	}
-	const entry = await getCompiledEntry(sourceCode);
 	const waitTime = Date.now() - overallStart;
 
 	if (entry.status === "error") {
@@ -159,17 +244,26 @@ async function runCode({sourceCode, stdin, prepared}: { sourceCode: string; stdi
 
 function schedulePrecompile(sourceCode: string): void {
 	if (precompileTimer) clearTimeout(precompileTimer);
+	scheduledPrecompileSource = sourceCode;
 	precompileTimer = setTimeout(() => {
 		precompileTimer = null;
+		const scheduledSource = scheduledPrecompileSource;
+		scheduledPrecompileSource = "";
 		void (async () => {
 			try {
-				const transformed = await transformCode(sourceCode, true, true);
-				if (transformed.status === "success") await getCompiledEntry(transformed.sourceCode);
+				await prepareCodeCached(scheduledSource, true, true, false);
 			} catch (error) {
 				logWarn(`[Precompile] ${error instanceof Error ? error.message : String(error)}`);
 			}
 		})();
 	}, PRECOMPILE_IDLE_DELAY_MS);
+}
+
+function cancelMatchingPrecompile(sourceCode: string): void {
+	if (!precompileTimer || scheduledPrecompileSource !== sourceCode) return;
+	clearTimeout(precompileTimer);
+	precompileTimer = null;
+	scheduledPrecompileSource = "";
 }
 
 const server = http.createServer(async (req, res) => {
@@ -219,10 +313,12 @@ const server = http.createServer(async (req, res) => {
 		body += buffer.toString("utf8");
 	}
 
-	let request: { mode?: string; sourceCode?: string; stdin?: string; prepared?: boolean; debug?: boolean;
-		autoImport?: boolean; validate?: boolean };
+	let request: {
+		mode?: string; sourceCode?: string; programId?: string; stdin?: string; prepared?: boolean; debug?: boolean;
+		autoImport?: boolean; validate?: boolean
+	};
 	try {
-		request = JSON.parse(body) as { mode?: string; sourceCode?: string; stdin?: string };
+		request = JSON.parse(body) as {mode?: string; sourceCode?: string; stdin?: string};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		res.writeHead(400, {"Content-Type": "application/json"});
@@ -252,9 +348,16 @@ const server = http.createServer(async (req, res) => {
 		} else if (request.mode === "transform" && typeof request.sourceCode === "string") {
 			response = await transformCode(request.sourceCode, !!request.debug, request.autoImport !== false,
 				request.validate !== false);
-		} else if (request.mode === "run" && typeof request.sourceCode === "string") {
+		} else if (request.mode === "prepare" && typeof request.sourceCode === "string") {
+			cancelMatchingPrecompile(request.sourceCode);
+			response = await prepareCodeCached(request.sourceCode, !!request.debug, request.autoImport !== false,
+				request.validate === true);
+		} else if (request.mode === "run" &&
+			(typeof request.sourceCode === "string" || typeof request.programId === "string")) {
+			if (typeof request.sourceCode === "string") cancelMatchingPrecompile(request.sourceCode);
 			response = await runCode({
 				sourceCode: request.sourceCode,
+				programId: request.programId,
 				stdin: request.stdin,
 				prepared: request.prepared,
 			});

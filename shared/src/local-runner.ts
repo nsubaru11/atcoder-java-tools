@@ -31,10 +31,19 @@ export type LocalRunnerTransformRequest = {
 	validate?: boolean;
 };
 
+export type LocalRunnerPrepareRequest = {
+	mode: "prepare";
+	sourceCode: string;
+	debug?: boolean;
+	autoImport?: boolean;
+	validate?: boolean;
+};
+
 export type LocalRunnerRunRequest = {
 	mode: "run";
 	compilerName?: string;
-	sourceCode: string;
+	sourceCode?: string;
+	programId?: string;
 	stdin?: string;
 	prepared?: boolean;
 };
@@ -43,6 +52,7 @@ export type LocalRunnerRequest =
 	| LocalRunnerListRequest
 	| LocalRunnerPrecompileRequest
 	| LocalRunnerTransformRequest
+	| LocalRunnerPrepareRequest
 	| LocalRunnerRunRequest;
 
 export type LocalRunnerTransformResponse = {
@@ -52,6 +62,10 @@ export type LocalRunnerTransformResponse = {
 	inlinedClasses: string[];
 	addedImports: string[];
 	diagnosticItems: CompilerDiagnostic[];
+};
+
+export type LocalRunnerPrepareResponse = LocalRunnerTransformResponse & {
+	programId?: string;
 };
 
 export type CompilerDiagnostic = {
@@ -110,6 +124,15 @@ export function buildLocalRunnerTransformRequest(
 	return {mode: "transform", sourceCode, debug, autoImport, validate};
 }
 
+export function buildLocalRunnerPrepareRequest(
+	sourceCode: string,
+	debug = false,
+	autoImport = true,
+	validate = false,
+): LocalRunnerPrepareRequest {
+	return {mode: "prepare", sourceCode, debug, autoImport, validate};
+}
+
 export function buildLocalRunnerRunRequest(
 	sourceCode: string,
 	stdin: string,
@@ -122,6 +145,19 @@ export function buildLocalRunnerRunRequest(
 		sourceCode,
 		stdin,
 		prepared,
+	};
+}
+
+export function buildLocalRunnerProgramRunRequest(
+	programId: string,
+	stdin: string,
+	compilerName?: string,
+): LocalRunnerRunRequest {
+	return {
+		mode: "run",
+		compilerName,
+		programId,
+		stdin,
 	};
 }
 

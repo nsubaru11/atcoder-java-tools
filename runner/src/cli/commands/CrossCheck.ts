@@ -2,7 +2,6 @@ import {CliUsageError, Command} from "./Command";
 import {parseBoolFlag, parseIntFlag} from "./options";
 import {evaluateRun, printSampleResult, printSampleSummary, type SampleDisplayOptions} from "../sampleJudge";
 import {prepareSource} from "./source";
-import {ensureLocalRunnerReady} from "../ensureServer";
 import {loadLocalSamples} from "../localSamples";
 import type {SampleResult} from "../../types";
 
@@ -54,9 +53,8 @@ export class CrossCheck implements Command {
 		const [actualSourceFile, expectedSourceFile, testDir] = positionals;
 		if (!actualSourceFile || !expectedSourceFile) throw new CliUsageError();
 
-		const actual = await prepareSource(actualSourceFile);
-		const expected = await prepareSource(expectedSourceFile);
-		await ensureLocalRunnerReady();
+		const actual = await prepareSource(actualSourceFile, false, {compile: true, validate: false});
+		const expected = await prepareSource(expectedSourceFile, false, {compile: true, validate: false});
 		// テストケース（.in）はテスト対象である actual 側のソースの近傍/指定 testDir から探す。
 		// .out は無視する（あっても比較対象は「もう一方の実行結果」であって .out ではない）。
 		const samples = loadLocalSamples(actual.resolvedSourcePath, testDir);
@@ -66,7 +64,13 @@ export class CrossCheck implements Command {
 		const results: SampleResult[] = [];
 		for (const sample of samples) {
 			// まず expected 側を「判定なし」で実行し、その標準出力を今回の正解とする。
-			const expectedRun = await evaluateRun(expected.transformed, sample.index, sample.input);
+			const expectedRun = await evaluateRun(
+				expected.transformed,
+				sample.index,
+				sample.input,
+				undefined,
+				expected.programId,
+			);
 			if (expectedRun.status !== "OK") {
 				// expected 側が正常終了しなかった場合は比較のしようがないので、
 				// そのケースはスキップし、expected 側の異常終了自体を結果として報告する。
@@ -76,7 +80,13 @@ export class CrossCheck implements Command {
 			}
 			// actual 側を、expected の出力を expectedOutput として渡して実行・判定する。
 			// これにより AC = 出力一致 / WA = 出力不一致 として test/localtest と同じ表示が使える。
-			const compared = await evaluateRun(actual.transformed, sample.index, sample.input, expectedRun.actualOutput);
+			const compared = await evaluateRun(
+				actual.transformed,
+				sample.index,
+				sample.input,
+				expectedRun.actualOutput,
+				actual.programId,
+			);
 			printSampleResult(compared, actual.originalClassName, actual.originalFileName, display);
 			results.push(compared);
 		}

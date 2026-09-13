@@ -116,7 +116,7 @@ import {
 		});
 	}
 
-	async function modifyPastedCode(text: unknown): Promise<{ modified: string; didModify: boolean }> {
+	async function modifyPastedCode(text: unknown): Promise<{modified: string; didModify: boolean}> {
 		const code = (typeof text === 'string') ? text : '';
 		if (!code) return {modified: '', didModify: false};
 		try {

@@ -1,5 +1,5 @@
 import type {IndexedBlock, SamplePair, SubmitForm, Task} from "../types";
-import {normalizeNewlines} from "../utils";
+import * as shared from "@atcoder-tools/shared";
 
 export function decodeHtmlEntities(text: string) {
 	const named: Record<string, string> = {
@@ -45,8 +45,8 @@ export function extractSamples(taskHtml: string): SamplePair[] {
 	for (let i = 0; i < len; i++) {
 		pairs.push({
 			index: i + 1,
-			input: normalizeNewlines(uniqueInputs[i].text),
-			expectedOutput: normalizeNewlines(uniqueOutputs[i].text),
+			input: shared.normalizeNewlines(uniqueInputs[i].text),
+			expectedOutput: shared.normalizeNewlines(uniqueOutputs[i].text),
 		});
 	}
 	return dedupeSamplePairs(pairs);
@@ -56,7 +56,7 @@ function dedupeIndexedBlocks(blocks: IndexedBlock[]) {
 	const set = new Set<string>();
 	const result: IndexedBlock[] = [];
 	for (const block of blocks) {
-		const key = `${block.idx}\u0000${normalizeNewlines(block.text)}`;
+		const key = `${block.idx}\u0000${shared.normalizeNewlines(block.text)}`;
 		if (set.has(key)) continue;
 		set.add(key);
 		result.push(block);

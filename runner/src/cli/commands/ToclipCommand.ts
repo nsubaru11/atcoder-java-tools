@@ -1,7 +1,7 @@
 import {CliUsageError, type Command} from "./Command";
-import {copyToClipboard} from "../clipboard";
-import {resolveShortSourceArg} from "./TaskCommand";
-import {prepareSource} from "./source";
+import * as clipboard from "../clipboard";
+import * as taskCommand from "./TaskCommand";
+import * as source from "./source";
 
 /** 提出用に変換したソースを、ファイルを介さずクリップボードへコピーする。 */
 export class ToclipCommand implements Command {
@@ -14,10 +14,10 @@ export class ToclipCommand implements Command {
 	async execute(args: readonly string[]): Promise<number> {
 		if (args.length !== 1 || args[0].startsWith("-")) throw new CliUsageError();
 		const sourceArg = /^(ex|[a-z])\d*$/i.test(args[0])
-			? resolveShortSourceArg(args[0])
+			? taskCommand.resolveShortSourceArg(args[0])
 			: args[0];
-		const {resolvedSourcePath, transformed} = await prepareSource(sourceArg);
-		copyToClipboard(transformed);
+		const {resolvedSourcePath, transformed} = await source.prepareSource(sourceArg);
+		clipboard.copyToClipboard(transformed);
 		console.log(`Copied submission source to clipboard: ${resolvedSourcePath}`);
 		return 0;
 	}

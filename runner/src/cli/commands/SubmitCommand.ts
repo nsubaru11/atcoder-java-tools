@@ -1,12 +1,6 @@
-import {buildAtCoderSubmissionUrl} from "@atcoder-tools/shared";
-import {colorizeStatus} from "../../utils";
-import {
-	fetchLatestSubmissionId,
-	formatMetricValue,
-	pollSubmissionFinal,
-	submitToAtCoder,
-	toCookieHeader,
-} from "../atcoder";
+import * as shared from "@atcoder-tools/shared";
+import * as color from "../../utils/color";
+import * as atcoder from "../atcoder";
 import {TaskCommand, type TaskRunContext} from "./TaskCommand";
 
 /** サンプルが全 AC なら（-f 指定時は非 AC でも）AtCoder へ提出し、結果をポーリング表示する。 */
@@ -30,26 +24,26 @@ export class SubmitCommand extends TaskCommand {
 			console.log("Warning: forcing submit despite non-AC sample results (-f/--force).");
 		}
 
-		const cookieHeader = toCookieHeader();
-		const submitResult = await submitToAtCoder(task, transformed, cookieHeader);
+		const cookieHeader = atcoder.toCookieHeader();
+		const submitResult = await atcoder.submitToAtCoder(task, transformed, cookieHeader);
 
 		let submissionId = submitResult.submissionId;
 		let submissionUrl = submitResult.submissionUrl;
 		if (submitResult.trackingUnavailable) {
-			const latestId = await fetchLatestSubmissionId(task, cookieHeader);
+			const latestId = await atcoder.fetchLatestSubmissionId(task, cookieHeader);
 			if (!latestId) {
 				throw new Error("Submission tracking failed: could not resolve latest submission ID.");
 			}
 			submissionId = latestId;
-			submissionUrl = buildAtCoderSubmissionUrl(task.contestId, latestId);
+			submissionUrl = shared.buildAtCoderSubmissionUrl(task.contestId, latestId);
 		}
 
 		// ここまで来れば提出自体は成功している。以降の結果ポーリングが失敗しても
 		// 「提出は成功」を明示し、提出 ID/URL を必ず表示して専用終了コードで返す。
 		try {
-			const finalResult = await pollSubmissionFinal(task.contestId, submissionId, cookieHeader);
+			const finalResult = await atcoder.pollSubmissionFinal(task.contestId, submissionId, cookieHeader);
 			console.log(
-				`Result: ${colorizeStatus(finalResult.status)} | ID: ${submissionId} | Exec: ${formatMetricValue(finalResult.execTime)} | Memory: ${formatMetricValue(finalResult.memory)} | URL: ${submissionUrl}`,
+				`Result: ${color.colorizeStatus(finalResult.status)} | ID: ${submissionId} | Exec: ${atcoder.formatMetricValue(finalResult.execTime)} | Memory: ${atcoder.formatMetricValue(finalResult.memory)} | URL: ${submissionUrl}`,
 			);
 			return finalResult.status === "AC" ? 0 : 8;
 		} catch (error) {

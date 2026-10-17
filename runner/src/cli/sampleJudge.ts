@@ -1,13 +1,8 @@
-import {
-	buildLocalRunnerProgramRunRequest,
-	buildLocalRunnerRunRequest,
-	type EasyTestRunResult,
-	type LocalRunnerRunResponse,
-	toEasyTestStatus,
-} from "@atcoder-tools/shared";
+import * as shared from "@atcoder-tools/shared";
 import type {SamplePair, SampleResult} from "../types";
 import {CLI_CONFIG} from "../config";
-import {ANSI, colorizeStatus, formatExecTime, supportsCliColor, thresholdsFromTimeLimit} from "../utils";
+import * as color from "../utils/color";
+import * as formatter from "../utils/formatter";
 
 /**
  * 比較用に出力を行の配列へ正規化する。AtCoder の既定ジャッジに合わせ、
@@ -37,7 +32,7 @@ export async function postLocalRunner(
 	sourceCode: string,
 	stdinText: string,
 	programId?: string,
-): Promise<LocalRunnerRunResponse> {
+): Promise<shared.LocalRunnerRunResponse> {
 	const request = async (body: unknown) => {
 		const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
 			method: "POST",
@@ -45,16 +40,16 @@ export async function postLocalRunner(
 			body: JSON.stringify(body),
 		});
 		if (!res.ok) throw new Error(`Local runner request failed: ${res.status}`);
-		return await res.json() as LocalRunnerRunResponse;
+		return await res.json() as shared.LocalRunnerRunResponse;
 	};
-	if (!programId) return await request(buildLocalRunnerRunRequest(sourceCode, stdinText, undefined, true));
+	if (!programId) return await request(shared.buildLocalRunnerRunRequest(sourceCode, stdinText, undefined, true));
 
-	const result = await request(buildLocalRunnerProgramRunRequest(programId, stdinText));
+	const result = await request(shared.buildLocalRunnerProgramRunRequest(programId, stdinText));
 	if (result.status !== "badRequest" || !result.stderr?.startsWith("Prepared program is unavailable:")) {
 		return result;
 	}
 	// daemon再起動・キャッシュ追い出し時だけ、従来の全文送信で自己回復する。
-	return await request(buildLocalRunnerRunRequest(sourceCode, stdinText, undefined, true));
+	return await request(shared.buildLocalRunnerRunRequest(sourceCode, stdinText, undefined, true));
 }
 
 /**
@@ -71,8 +66,8 @@ export async function evaluateRun(
 	programId?: string,
 ): Promise<SampleResult> {
 	const runnerRaw = await postLocalRunner(sourceCode, input, programId);
-	const easyLikeRun: EasyTestRunResult = {
-		status: toEasyTestStatus(runnerRaw.status, runnerRaw.exitCode),
+	const easyLikeRun: shared.EasyTestRunResult = {
+		status: shared.toEasyTestStatus(runnerRaw.status, runnerRaw.exitCode),
 		output: runnerRaw.stdout || "",
 		error: runnerRaw.stderr || "",
 		execTime: runnerRaw.time || 0,
@@ -132,7 +127,7 @@ function formatWaDiff(expected: string, actual: string, options: SampleDisplayOp
 	const exp = toComparableLines(expected);
 	const act = toComparableLines(actual);
 	const total = Math.max(exp.length, act.length);
-	const color = supportsCliColor();
+	const isSupportsCliColor: boolean = color.supportsCliColor();
 
 	// 表示対象の行インデックス。waOnly のときは不一致行のみ（行番号 i は元のまま保持する）。
 	const indices: number[] = [];
@@ -164,7 +159,7 @@ function formatWaDiff(expected: string, actual: string, options: SampleDisplayOp
 		const ln = String(i + 1).padStart(numW);
 		const marker = differ ? "×" : "○";
 		let row = `  ${marker} ${ln} | ${fit(hasE ? exp[i] : NONE)} | ${hasA ? act[i] : NONE}`;
-		if (color) row = `${differ ? ANSI.RED : ANSI.GREEN}${row}${ANSI.RESET}`;
+		if (isSupportsCliColor) row = `${differ ? color.ANSI.RED : color.ANSI.GREEN}${row}${color.ANSI.RESET}`;
 		out.push(row);
 	}
 	const hidden = indices.length - shownIdx.length;
@@ -192,7 +187,7 @@ export function printSampleResult(
 	originalFileName: string,
 	display: SampleDisplayOptions,
 ): void {
-	const details = [`exec=${formatExecTime(r.execTime, thresholdsFromTimeLimit(display.timeLimitMs))}`];
+	const details = [`exec=${formatter.formatExecTime(r.execTime, formatter.thresholdsFromTimeLimit(display.timeLimitMs))}`];
 	// memory は使用ピーク(RSS)ではなく実行スレッドの累積アロケーション量なので alloc と明示する。
 	if (r.memoryKb > 0) details.push(`alloc=${r.memoryKb}KB`);
 	if (r.runnerStatus && r.runnerStatus !== "success") details.push(`runner=${r.runnerStatus}`);
@@ -207,7 +202,7 @@ export function printSampleResult(
 		const {mismatch, total} = getWaMismatchStats(r.expectedOutput, r.actualOutput);
 		if (total > 0) details.push(`NG/TOTAL=${mismatch}/${total}`);
 	}
-	console.log(`[${r.index}] ${colorizeStatus(r.status)} ${details.join(" ")}`);
+	console.log(`[${r.index}] ${color.colorizeStatus(r.status)} ${details.join(" ")}`);
 	if (r.status === "OK" && r.actualOutput.trim().length > 0) {
 		console.log(`  [output]`);
 		console.log(r.actualOutput.replace(/\s+$/, "").split(/\r?\n/).map(line => `    ${line}`).join("\n"));
@@ -224,7 +219,7 @@ export function printSampleResult(
 				.replace(/\bMain\b/g, originalClassName);
 		}
 		const body = displayStderr.split(/\r?\n/).map(line => `    ${line}`).join("\n");
-		console.log(supportsCliColor() ? `${ANSI.RED}${body}${ANSI.RESET}` : body);
+		console.log(color.supportsCliColor() ? `${color.ANSI.RED}${body}${color.ANSI.RESET}` : body);
 	}
 }
 

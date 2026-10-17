@@ -4,9 +4,10 @@ import fs from "node:fs";
 import path from "node:path";
 import type {LocalRunnerRunResponse} from "@atcoder-tools/shared";
 import type {CompileEntry, ProcessResult} from "../types";
-import {DISPATCHER_CLASS_FILE, resolveDispatcherSourceFile, RUNNER_CONFIG,} from "../config";
-import {ensureDirectory, logInfo, logWarn, removeDirectory, shortHash,} from "../utils";
-import {queueDispatcherCompile} from "./dispatcher";
+import * as config from "../config";
+import * as logging from "../utils/logging";
+import * as filesystem from "../utils/filesystem";
+import * as dispatcher from "./dispatcher";
 
 function isWindowsStylePath(targetPath: string) {
 	return /^[A-Za-z]:\\/.test(targetPath);
@@ -18,7 +19,7 @@ function resolveJavaHome() {
 		return "";
 	}
 	if (process.platform === "linux" && isWindowsStylePath(javaHome)) {
-		logInfo(`Ignoring Windows-style JAVA_HOME on Linux: ${javaHome}`);
+		logging.logInfo(`Ignoring Windows-style JAVA_HOME on Linux: ${javaHome}`);
 		return "";
 	}
 	return javaHome;
@@ -28,10 +29,10 @@ const RESOLVED_JAVA_HOME = resolveJavaHome();
 
 function getJavaEnv() {
 	if (!RESOLVED_JAVA_HOME) {
-		logInfo("JAVA_HOME is not set. Using java/javac from PATH.");
+		logging.logInfo("JAVA_HOME is not set. Using java/javac from PATH.");
 		return process.env;
 	}
-	logInfo(`Using Java from: ${RESOLVED_JAVA_HOME}`);
+	logging.logInfo(`Using Java from: ${RESOLVED_JAVA_HOME}`);
 	return {
 		...process.env,
 		JAVA_HOME: RESOLVED_JAVA_HOME,
@@ -42,7 +43,7 @@ function getJavaEnv() {
 export const JAVA_ENV = getJavaEnv();
 export const JAVA_PATH = RESOLVED_JAVA_HOME ? path.join(RESOLVED_JAVA_HOME, "bin", "java") : "java";
 export const JAVAC_PATH = RESOLVED_JAVA_HOME ? path.join(RESOLVED_JAVA_HOME, "bin", "javac") : "javac";
-const DISPATCHER_SOURCE_FILE = resolveDispatcherSourceFile();
+const DISPATCHER_SOURCE_FILE = config.resolveDispatcherSourceFile();
 const DISPATCHER_SOURCE_DIR = path.dirname(DISPATCHER_SOURCE_FILE);
 
 /**
@@ -65,7 +66,7 @@ function newestSourceMtime(sources: string[]): number {
 const compileCache = new Map<string, Promise<CompileEntry>>();
 
 export function warmUpJavaTools() {
-	logInfo("Warm up javac/java...");
+	logging.logInfo("Warm up javac/java...");
 	spawnSync(JAVA_PATH, ["-version"], {env: JAVA_ENV, stdio: "ignore"});
 	spawnSync(JAVAC_PATH, ["-version"], {env: JAVA_ENV, stdio: "ignore"});
 }
@@ -108,7 +109,7 @@ export function getProgramId(sourceCode: string) {
 }
 
 function cleanupOldCache() {
-	if (compileCache.size <= RUNNER_CONFIG.maxCacheSize) {
+	if (compileCache.size <= config.RUNNER_CONFIG.maxCacheSize) {
 		return;
 	}
 	const oldestHash = compileCache.keys().next().value;
@@ -120,7 +121,7 @@ function cleanupOldCache() {
 	}
 	oldestEntryPromise.then((entry) => {
 		if (entry && entry.rootDir) {
-			removeDirectory(entry.rootDir);
+			filesystem.removeDirectory(entry.rootDir);
 		}
 		return null;
 	});
@@ -141,7 +142,7 @@ export function runProcessCommand(
 		// これによりマルチバイト文字がチャンク境界で分断されて文字化けするのを防ぐ。
 		// さらに上限（常駐経路と同じ CAPTURE_LIMIT）で切り詰め、隔離実行や巨大診断で
 		// daemon 側メモリが際限なく膨らむのを防ぐ。
-		const captureLimit = Math.max(1, RUNNER_CONFIG.dispatcherCaptureLimitBytes);
+		const captureLimit = Math.max(1, config.RUNNER_CONFIG.dispatcherCaptureLimitBytes);
 		type OutputSink = {chunks: Buffer[]; length: number; truncated: boolean};
 		const createSink = (): OutputSink => ({chunks: [], length: 0, truncated: false});
 		const stdoutSink = createSink();
@@ -219,15 +220,15 @@ export function runProcessCommand(
 }
 
 export async function compileDispatcher() {
-	ensureDirectory(RUNNER_CONFIG.dispatcherBuildDir);
+	filesystem.ensureDirectory(config.RUNNER_CONFIG.dispatcherBuildDir);
 	const sources = listDispatcherSources();
 	// ソース未変更ならキャッシュ済み Dispatcher.class を再利用し、毎起動の javac を省く。
 	// （複数ファイル構成なので src 配下 *.java の最新 mtime で判定する。
 	//   TLE で dispatcher が SIGKILL→再起動する際の回復も速くなる）
 	try {
-		if (fs.existsSync(DISPATCHER_CLASS_FILE)) {
+		if (fs.existsSync(config.DISPATCHER_CLASS_FILE)) {
 			const sourceMtime = newestSourceMtime(sources);
-			const classMtime = fs.statSync(DISPATCHER_CLASS_FILE).mtimeMs;
+			const classMtime = fs.statSync(config.DISPATCHER_CLASS_FILE).mtimeMs;
 			if (classMtime >= sourceMtime) {
 				return;
 			}
@@ -237,10 +238,10 @@ export async function compileDispatcher() {
 	}
 	const result = await runProcessCommand(
 		JAVAC_PATH,
-		["-encoding", "UTF-8", "-g", "-d", RUNNER_CONFIG.dispatcherBuildDir, ...sources],
-		{env: JAVA_ENV, timeoutMs: RUNNER_CONFIG.compileTimeoutMs},
+		["-encoding", "UTF-8", "-g", "-d", config.RUNNER_CONFIG.dispatcherBuildDir, ...sources],
+		{env: JAVA_ENV, timeoutMs: config.RUNNER_CONFIG.compileTimeoutMs},
 	);
-	if (result.code !== 0 || result.timedOut || !fs.existsSync(DISPATCHER_CLASS_FILE)) {
+	if (result.code !== 0 || result.timedOut || !fs.existsSync(config.DISPATCHER_CLASS_FILE)) {
 		throw new Error(result.stderr || "Failed to compile Dispatcher.java.");
 	}
 }
@@ -289,8 +290,8 @@ function readIsolationMarker(rootDir: string, sourceCode: string): boolean {
 }
 
 async function compileSource(sourceCode: string, hash: string): Promise<CompileEntry> {
-	ensureDirectory(RUNNER_CONFIG.compileRootDir);
-	const rootDir = path.join(RUNNER_CONFIG.compileRootDir, hash);
+	filesystem.ensureDirectory(config.RUNNER_CONFIG.compileRootDir);
+	const rootDir = path.join(config.RUNNER_CONFIG.compileRootDir, hash);
 	const classDir = path.join(rootDir, "classes");
 	const sourceFile = path.join(rootDir, "Main.java");
 	const classFile = path.join(classDir, "Main.class");
@@ -309,8 +310,8 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 		}
 	}
 
-	removeDirectory(rootDir);
-	ensureDirectory(classDir);
+	filesystem.removeDirectory(rootDir);
+	filesystem.ensureDirectory(classDir);
 	fs.writeFileSync(sourceFile, sourceCode, "utf8");
 
 	// 既定では常駐 Dispatcher 内の javac でコンパイルし、外部 javac の JVM 起動コストを回避する。
@@ -322,7 +323,7 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 	let errorText;
 	let requiresIsolation: boolean;
 	if (useInProcessCompile) {
-		const compileResult = await queueDispatcherCompile(sourceFile, classDir);
+		const compileResult = await dispatcher.queueDispatcherCompile(sourceFile, classDir);
 		timedOut = !!compileResult.timedOut;
 		compiled = compileResult.exitCode === 0 && fs.existsSync(classFile);
 		errorText = compileResult.diagnostics;
@@ -331,7 +332,7 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 		const result = await runProcessCommand(
 			JAVAC_PATH,
 			["-encoding", "UTF-8", "-g", "-d", "classes", "Main.java"],
-			{cwd: rootDir, env: JAVA_ENV, timeoutMs: RUNNER_CONFIG.compileTimeoutMs},
+			{cwd: rootDir, env: JAVA_ENV, timeoutMs: config.RUNNER_CONFIG.compileTimeoutMs},
 		);
 		timedOut = result.timedOut;
 		compiled = result.code === 0 && !result.timedOut && fs.existsSync(classFile);
@@ -341,7 +342,7 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 	const compileTime = Date.now() - compileStart;
 
 	if (compiled) {
-		logInfo(`[Compile] OK ${compileTime}ms -> ${shortHash(hash)}`);
+		logging.logInfo(`[Compile] OK ${compileTime}ms -> ${shortHash(hash)}`);
 		writeIsolationMarker(rootDir, requiresIsolation);
 		return {
 			rootDir,
@@ -353,7 +354,7 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 		};
 	}
 
-	logWarn(`[Compile] NG ${compileTime}ms -> ${shortHash(hash)}`);
+	logging.logWarn(`[Compile] NG ${compileTime}ms -> ${shortHash(hash)}`);
 	return {
 		rootDir,
 		classDir,
@@ -361,7 +362,7 @@ async function compileSource(sourceCode: string, hash: string): Promise<CompileE
 		requiresIsolatedProcess: requiresIsolatedProcess(sourceCode),
 		status: "error",
 		error: timedOut
-			? `Compilation timed out after ${RUNNER_CONFIG.compileTimeoutMs}ms.\n${errorText}`.trim()
+			? `Compilation timed out after ${config.RUNNER_CONFIG.compileTimeoutMs}ms.\n${errorText}`.trim()
 			: (errorText || "Compilation failed."),
 	};
 }
@@ -388,7 +389,7 @@ export async function getCompiledEntryByProgramId(programId: string): Promise<Co
 	if (cached) return await cached;
 	if (!/^[0-9a-f]+-[0-9a-f]{32}$/.test(programId)) return null;
 
-	const sourceFile = path.join(RUNNER_CONFIG.compileRootDir, programId, "Main.java");
+	const sourceFile = path.join(config.RUNNER_CONFIG.compileRootDir, programId, "Main.java");
 	try {
 		const sourceCode = fs.readFileSync(sourceFile, "utf8");
 		if (hashCode(sourceCode) !== programId) return null;
@@ -413,17 +414,22 @@ export async function runCodeInIsolatedJvm(entry: CompileEntry, standardInput: s
 			cwd: entry.rootDir,
 			env: JAVA_ENV,
 			input: standardInput,
-			timeoutMs: RUNNER_CONFIG.runTimeoutMs,
+			timeoutMs: config.RUNNER_CONFIG.runTimeoutMs,
 		},
 	);
 	return {
 		status: result.timedOut ? "timeLimitExceeded" : (result.code === 0 ? "success" : "runtimeError"),
 		exitCode: result.timedOut ? 124 : result.code,
 		stdout: result.stdout,
-		stderr: result.timedOut ? (`Execution timed out after ${RUNNER_CONFIG.runTimeoutMs}ms.\n${result.stderr}`).trim() : result.stderr,
-		time: result.timedOut ? RUNNER_CONFIG.runTimeoutMs : (Date.now() - execStart),
+		stderr: result.timedOut ? (`Execution timed out after ${config.RUNNER_CONFIG.runTimeoutMs}ms.\n${result.stderr}`).trim() : result.stderr,
+		time: result.timedOut ? config.RUNNER_CONFIG.runTimeoutMs : (Date.now() - execStart),
 		stdoutTruncated: result.stdoutTruncated,
 		stderrTruncated: result.stderrTruncated,
 		memory: 0,
 	};
+}
+
+function shortHash(hash: string) {
+	if (!hash) return "";
+	return hash.length <= 16 ? hash : `${hash.slice(0, 16)}...`;
 }

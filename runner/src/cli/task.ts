@@ -1,13 +1,8 @@
 import type {Task} from "../types";
-import {
-	buildAtCoderSubmitPostUrl,
-	buildAtCoderSubmitUrl,
-	buildAtCoderTaskUrl,
-	parseAtCoderTaskScreenName,
-} from "@atcoder-tools/shared";
+import * as shared from "@atcoder-tools/shared";
 
 export function parseTask(taskScreenName: string): Task {
-	const task = parseAtCoderTaskScreenName(taskScreenName);
+	const task = shared.parseAtCoderTaskScreenName(taskScreenName);
 	if (!task) {
 		throw new Error(`Invalid taskScreenName: ${taskScreenName}`);
 	}
@@ -23,8 +18,8 @@ export function createTask(contestId: string, taskScreenName: string): Task {
 	return {
 		contestId: task.contestId,
 		taskScreenName: task.taskId,
-		taskUrl: buildAtCoderTaskUrl(task),
-		submitUrl: buildAtCoderSubmitUrl(task),
-		submitPostUrl: buildAtCoderSubmitPostUrl(task.contestId),
+		taskUrl: shared.buildAtCoderTaskUrl(task),
+		submitUrl: shared.buildAtCoderSubmitUrl(task),
+		submitPostUrl: shared.buildAtCoderSubmitPostUrl(task.contestId),
 	};
 }

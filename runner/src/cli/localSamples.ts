@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type {SamplePair} from "../types";
-import {normalizeNewlines} from "../utils";
+import * as shared from "@atcoder-tools/shared";
 
 const INPUT_EXTS = [".in", ".txt", ".input"];
 const OUTPUT_EXTS = [".out", ".output", ".ans", ".expected"];
@@ -52,7 +52,7 @@ function collectPairs(dir: string): SamplePair[] {
 		a.localeCompare(b, undefined, {numeric: true, sensitivity: "base"}),
 	);
 
-	const read = (name: string) => normalizeNewlines(fs.readFileSync(path.join(dir, name), "utf8"));
+	const read = (name: string) => shared.normalizeNewlines(fs.readFileSync(path.join(dir, name), "utf8"));
 	const pairs: SamplePair[] = [];
 	let outputOnlyCount = 0;
 	for (const key of keys) {

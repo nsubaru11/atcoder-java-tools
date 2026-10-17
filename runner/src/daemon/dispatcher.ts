@@ -3,8 +3,8 @@ import readline from "node:readline";
 import type {CompilerDiagnostic} from "@atcoder-tools/shared";
 import type {CompileEntry, DispatcherRunResult} from "../types";
 import {RUNNER_CONFIG, WARMUP_REPEAT_COUNT,} from "../config";
-import {firstLine, logInfo, logWarn, trimForLog,} from "../utils";
-import {compileDispatcher, getCompiledEntry, JAVA_ENV, JAVA_PATH,} from "./compiler";
+import * as logging from "../utils/logging";
+import * as compiler from "./compiler";
 import fs from "node:fs";
 
 export interface DispatcherCompileResult {
@@ -102,12 +102,10 @@ export function stopDispatcher() {
 function handleDispatcherResponse(line: string) {
 	const parts = line.split("\t");
 	const responseType = parts[0];
-	if (responseType === "PONG" || responseType === "RUN") {
-		return;
-	}
+	if (responseType === "PONG" || responseType === "RUN") return;
 	const pendingRequest = dispatcherState.currentRequest;
 	if (!pendingRequest) {
-		logWarn(`[Dispatcher] Unexpected response without a pending request: ${line}`);
+		logging.logWarn(`[Dispatcher] Unexpected response without a pending request: ${line}`);
 		return;
 	}
 	if (parts[1] !== pendingRequest.id) {
@@ -165,11 +163,11 @@ function handleDispatcherResponse(line: string) {
 }
 
 async function startDispatcher() {
-	await compileDispatcher();
+	await compiler.compileDispatcher();
 	await new Promise<void>((resolve, reject) => {
-		const proc = spawn(JAVA_PATH, ["-cp", RUNNER_CONFIG.dispatcherBuildDir, "Dispatcher"], {
+		const proc = spawn(compiler.JAVA_PATH, ["-cp", RUNNER_CONFIG.dispatcherBuildDir, "Dispatcher"], {
 			cwd: RUNNER_CONFIG.dispatcherBuildDir,
-			env: JAVA_ENV,
+			env: compiler.JAVA_ENV,
 			stdio: ["pipe", "pipe", "pipe"],
 		});
 		const lineReader = readline.createInterface({
@@ -271,7 +269,7 @@ export async function warmUpDispatcher(librarySourceRoot: string) {
 	if (hasDispatcherWarmedUp) {
 		return;
 	}
-	logInfo(
+	logging.logInfo(
 		`Warm up dispatcher and common I/O... profile=${RUNNER_CONFIG.warmUpProfile} repeat=${WARMUP_REPEAT_COUNT} timeout=${RUNNER_CONFIG.warmUpRunTimeoutMs}ms`,
 	);
 	const warmupSourceCode = buildWarmUpSourceCode();
@@ -279,7 +277,7 @@ export async function warmUpDispatcher(librarySourceRoot: string) {
 	if (transformed.exitCode !== 0) {
 		throw new Error(`[WarmUp] transform failed: ${firstLine(transformed.diagnostics) || "unknown error"}`);
 	}
-	const warmupEntry = await getCompiledEntry(transformed.sourceCode);
+	const warmupEntry = await compiler.getCompiledEntry(transformed.sourceCode);
 	if (warmupEntry.status !== "compiled") {
 		throw new Error(`[WarmUp] compile failed: ${firstLine(warmupEntry.error) || "unknown error"}`);
 	}
@@ -290,16 +288,16 @@ export async function warmUpDispatcher(librarySourceRoot: string) {
 		}
 		if (result.exitCode !== 0) {
 			const err = firstLine(result.stderr);
-			throw new Error(`[WarmUp] run ${i}/${WARMUP_REPEAT_COUNT} runtime error${err ? `: ${trimForLog(err)}` : ""}`);
+			throw new Error(`[WarmUp] run ${i}/${WARMUP_REPEAT_COUNT} runtime error${err ? `: ${logging.trimForLog(err)}` : ""}`);
 		}
-		logInfo(`[WarmUp] run ${i}/${WARMUP_REPEAT_COUNT} done ${result.time}ms`);
+		logging.logInfo(`[WarmUp] run ${i}/${WARMUP_REPEAT_COUNT} done ${result.time}ms`);
 	}
 	hasDispatcherWarmedUp = true;
 }
 
 export function logCaptureAndBodySizeBalance() {
 	if (RUNNER_CONFIG.maxBodySize < RUNNER_CONFIG.dispatcherCaptureLimitBytes) {
-		logWarn(
+		logging.logWarn(
 			`[Config] MAX_BODY_SIZE (${RUNNER_CONFIG.maxBodySize}) is smaller than LOCAL_RUNNER_CAPTURE_LIMIT_BYTES (${RUNNER_CONFIG.dispatcherCaptureLimitBytes}).`,
 		);
 	}
@@ -501,4 +499,10 @@ export function queueDispatcherTransform(
 			});
 		});
 	return dispatcherState.requestQueue as Promise<DispatcherTransformResult>;
+}
+
+
+function firstLine(text: string | null | undefined) {
+	if (!text) return "";
+	return String(text).replace(/\r\n?/g, "\n").split("\n")[0].trim();
 }

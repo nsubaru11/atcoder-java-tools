@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {CliUsageError, type Command} from "./Command";
-import {prepareSource} from "./source";
+import * as source from "./source";
 
 /** ソースを Main クラス化して Main.java（または指定パス）に書き出す。DEBUG は無効（本番想定）。 */
 export class TomainCommand implements Command {
@@ -24,7 +24,7 @@ export class TomainCommand implements Command {
 		const [sourceFilePath, outFilePath] = positionals;
 		if (!sourceFilePath) throw new CliUsageError();
 
-		const {resolvedSourcePath, transformed} = await prepareSource(sourceFilePath);
+		const {resolvedSourcePath, transformed} = await source.prepareSource(sourceFilePath);
 		const outPath = outFilePath
 			? path.resolve(outFilePath)
 			: path.join(path.dirname(resolvedSourcePath), "Main.java");

@@ -1,17 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import {
-	ANSI,
-	colorizeStatus,
-	formatExecTime,
-	normalizeNewlines,
-	supportsCliColor,
-	thresholdsFromTimeLimit,
-} from "../../utils";
-import {postLocalRunner} from "../sampleJudge";
+import * as color from "../../utils/color";
+import * as formatter from "../../utils/formatter";
+import * as sampleJudge from "../sampleJudge";
 import {CliUsageError, type Command} from "./Command";
-import {parseBoolFlag, parseIntFlag} from "./options";
-import {prepareSource} from "./source";
+import * as options from "./options";
+import * as source from "./source";
+import * as shared from "@atcoder-tools/shared";
 
 /** Local Runner の実行ステータスを短いラベルに変換する。 */
 function runStatusLabel(status: string): string {
@@ -44,12 +39,12 @@ export class RunCommand implements Command {
 		let debug = true; // 既定で DEBUG 有効。-d/--debug で上書き。
 		let timeLimitMs: number | undefined;
 		for (const arg of args) {
-			const d = parseBoolFlag(arg, "--debug", "-d");
+			const d = options.parseBoolFlag(arg, "--debug", "-d");
 			if (d !== undefined) {
 				debug = d;
 				continue;
 			}
-			const timeLimit = parseIntFlag(arg, "--time-limit");
+			const timeLimit = options.parseIntFlag(arg, "--time-limit");
 			if (timeLimit !== undefined) {
 				timeLimitMs = timeLimit;
 				continue;
@@ -60,20 +55,20 @@ export class RunCommand implements Command {
 		const [sourceFilePath, inputFile] = positionals;
 		if (!sourceFilePath) throw new CliUsageError();
 
-		const {transformed, originalFileName, originalClassName, programId} = await prepareSource(
+		const {transformed, originalFileName, originalClassName, programId} = await source.prepareSource(
 			sourceFilePath,
 			debug,
 			{compile: true, validate: false},
 		);
 		const stdin = inputFile
-			? normalizeNewlines(fs.readFileSync(path.resolve(inputFile), "utf8"))
+			? shared.normalizeNewlines(fs.readFileSync(path.resolve(inputFile), "utf8"))
 			: "";
-		const result = await postLocalRunner(transformed, stdin, programId);
+		const result = await sampleJudge.postLocalRunner(transformed, stdin, programId);
 
 		// ステータスは「OK / RE / CE / TLE / IE」に集約。OK=緑、エラー=色付き。遅い実行は time が黄色。
 		const label = runStatusLabel(result.status);
-		const coloredLabel = label === "OK" && supportsCliColor() ? `${ANSI.GREEN}OK${ANSI.RESET}` : colorizeStatus(label);
-		console.log(`[run] ${coloredLabel}  time=${formatExecTime(result.time || 0, thresholdsFromTimeLimit(timeLimitMs))}`);
+		const coloredLabel = label === "OK" && color.supportsCliColor() ? `${color.ANSI.GREEN}OK${color.ANSI.RESET}` : color.colorizeStatus(label);
+		console.log(`[run] ${coloredLabel}  time=${formatter.formatExecTime(result.time || 0, formatter.thresholdsFromTimeLimit(timeLimitMs))}`);
 
 		// 標準出力は既定色（白）。
 		const stdout = (result.stdout || "").replace(/\s+$/, "");
@@ -88,7 +83,7 @@ export class RunCommand implements Command {
 				? stderr.replace(/Main\.java/g, originalFileName).replace(/\bMain\b/g, originalClassName)
 				: stderr;
 			const body = display.split(/\r?\n/).map((line) => `  ${line}`).join("\n");
-			console.log(supportsCliColor() ? `${ANSI.RED}${body}${ANSI.RESET}` : body);
+			console.log(color.supportsCliColor() ? `${color.ANSI.RED}${body}${color.ANSI.RESET}` : body);
 		}
 		return result.exitCode === 0 ? 0 : 1;
 	}

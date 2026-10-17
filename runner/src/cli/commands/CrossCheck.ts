@@ -1,8 +1,8 @@
 import {CliUsageError, Command} from "./Command";
-import {parseBoolFlag, parseIntFlag} from "./options";
-import {evaluateRun, printSampleResult, printSampleSummary, type SampleDisplayOptions} from "../sampleJudge";
-import {prepareSource} from "./source";
-import {loadLocalSamples} from "../localSamples";
+import * as options from "./options";
+import * as sampleJudge from "../sampleJudge";
+import * as source from "./source";
+import * as localSamples from "../localSamples";
 import type {SampleResult} from "../../types";
 
 /**
@@ -25,24 +25,24 @@ export class CrossCheck implements Command {
 	/** ローカルの .in を入力として与え、2つのコードの実行結果を突き合わせます。 **/
 	async execute(args: readonly string[]): Promise<number> {
 		const positionals: string[] = [];
-		const display: SampleDisplayOptions = {};
+		const display: sampleJudge.SampleDisplayOptions = {};
 		for (const arg of args) {
-			const full = parseBoolFlag(arg, "--full");
+			const full = options.parseBoolFlag(arg, "--full");
 			if (full !== undefined) {
 				display.full = full;
 				continue;
 			}
-			const waOnly = parseBoolFlag(arg, "--wa-only");
+			const waOnly = options.parseBoolFlag(arg, "--wa-only");
 			if (waOnly !== undefined) {
 				display.waOnly = waOnly;
 				continue;
 			}
-			const maxLines = parseIntFlag(arg, "--max-lines");
+			const maxLines = options.parseIntFlag(arg, "--max-lines");
 			if (maxLines !== undefined) {
 				display.maxLines = maxLines;
 				continue;
 			}
-			const timeLimit = parseIntFlag(arg, "--time-limit");
+			const timeLimit = options.parseIntFlag(arg, "--time-limit");
 			if (timeLimit !== undefined) {
 				display.timeLimitMs = timeLimit;
 				continue;
@@ -53,18 +53,18 @@ export class CrossCheck implements Command {
 		const [actualSourceFile, expectedSourceFile, testDir] = positionals;
 		if (!actualSourceFile || !expectedSourceFile) throw new CliUsageError();
 
-		const actual = await prepareSource(actualSourceFile, false, {compile: true, validate: false});
-		const expected = await prepareSource(expectedSourceFile, false, {compile: true, validate: false});
+		const actual = await source.prepareSource(actualSourceFile, false, {compile: true, validate: false});
+		const expected = await source.prepareSource(expectedSourceFile, false, {compile: true, validate: false});
 		// テストケース（.in）はテスト対象である actual 側のソースの近傍/指定 testDir から探す。
 		// .out は無視する（あっても比較対象は「もう一方の実行結果」であって .out ではない）。
-		const samples = loadLocalSamples(actual.resolvedSourcePath, testDir);
+		const samples = localSamples.loadLocalSamples(actual.resolvedSourcePath, testDir);
 
 		console.log(`[crosscheck] actual=${actual.originalFileName}  expected=${expected.originalFileName}  cases=${samples.length}`);
 
 		const results: SampleResult[] = [];
 		for (const sample of samples) {
 			// まず expected 側を「判定なし」で実行し、その標準出力を今回の正解とする。
-			const expectedRun = await evaluateRun(
+			const expectedRun = await sampleJudge.evaluateRun(
 				expected.transformed,
 				sample.index,
 				sample.input,
@@ -74,23 +74,23 @@ export class CrossCheck implements Command {
 			if (expectedRun.status !== "OK") {
 				// expected 側が正常終了しなかった場合は比較のしようがないので、
 				// そのケースはスキップし、expected 側の異常終了自体を結果として報告する。
-				printSampleResult(expectedRun, expected.originalClassName, expected.originalFileName, display);
+				sampleJudge.printSampleResult(expectedRun, expected.originalClassName, expected.originalFileName, display);
 				results.push(expectedRun);
 				continue;
 			}
 			// actual 側を、expected の出力を expectedOutput として渡して実行・判定する。
 			// これにより AC = 出力一致 / WA = 出力不一致 として test/localtest と同じ表示が使える。
-			const compared = await evaluateRun(
+			const compared = await sampleJudge.evaluateRun(
 				actual.transformed,
 				sample.index,
 				sample.input,
 				expectedRun.actualOutput,
 				actual.programId,
 			);
-			printSampleResult(compared, actual.originalClassName, actual.originalFileName, display);
+			sampleJudge.printSampleResult(compared, actual.originalClassName, actual.originalFileName, display);
 			results.push(compared);
 		}
-		const allMatched = printSampleSummary(results);
+		const allMatched = sampleJudge.printSampleSummary(results);
 		return allMatched ? 0 : 5;
 	}
 }

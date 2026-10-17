@@ -1,4 +1,4 @@
-import {ensureLocalRunnerReady} from "../ensureServer";
+import * as ensureServer from "../ensureServer";
 import type {Command} from "./Command";
 
 /** Local Runner サーバーだけを先に起動して ready まで待つ（先回り起動）。 */
@@ -9,7 +9,7 @@ export class ServeCommand implements Command {
 	];
 
 	async execute(): Promise<number> {
-		await ensureLocalRunnerReady();
+		await ensureServer.ensureLocalRunnerReady();
 		console.log("Local Runner is up. これ以降の test / submit / localtest は即実行されます。");
 		return 0;
 	}

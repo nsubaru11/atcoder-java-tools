@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import type {RunnerStatusInfo} from "../../types";
 import {CLI_CONFIG} from "../../config";
-import {ANSI, supportsCliColor} from "../../utils";
-import {getSampleCacheDir} from "../sampleCache";
+import * as color from "../../utils/color";
+import * as sampleCache from "../sampleCache";
 import type {Command} from "./Command";
 
 /** ミリ秒を "1h 23m 45s" のような短い表記にする。 */
@@ -18,7 +18,7 @@ function formatUptime(ms: number): string {
 
 /** CLI 側で持っているサンプルキャッシュ（~/.atcoder/cache/samples）のエントリ数。 */
 function countSampleCacheEntries(): number {
-	const dir = getSampleCacheDir();
+	const dir = sampleCache.getSampleCacheDir();
 	if (!dir) return 0;
 	try {
 		return fs.readdirSync(dir).filter((name) => name.endsWith(".json")).length;
@@ -38,7 +38,7 @@ export class StatusCommand implements Command {
 	];
 
 	async execute(): Promise<number> {
-		const color = supportsCliColor();
+		const isSupportCliColor: boolean = color.supportsCliColor();
 		let info: RunnerStatusInfo | null = null;
 		try {
 			const res = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
@@ -54,17 +54,17 @@ export class StatusCommand implements Command {
 
 		const sampleCacheCount = countSampleCacheEntries();
 		if (!info) {
-			const label = color ? `${ANSI.RED}stopped${ANSI.RESET}` : "stopped";
+			const label = isSupportCliColor ? `${color.ANSI.RED}stopped${color.ANSI.RESET}` : "stopped";
 			console.log(`Local Runner: ${label} (${CLI_CONFIG.defaultLocalRunnerUrl})`);
-			console.log(`  sample cache:  ${sampleCacheCount} task(s) (${getSampleCacheDir() || "-"})`);
+			console.log(`  sample cache:  ${sampleCacheCount} task(s) (${sampleCache.getSampleCacheDir() || "-"})`);
 			console.log(`  起動するには: serve（または test/localtest/run で自動起動）`);
 			return 1;
 		}
 
-		const label = color ? `${ANSI.GREEN}running${ANSI.RESET}` : "running";
+		const label = isSupportCliColor ? `${color.ANSI.GREEN}running${color.ANSI.RESET}` : "running";
 		const dispatcher = info.dispatcherRunning
-			? (color ? `${ANSI.GREEN}running${ANSI.RESET}` : "running")
-			: (color ? `${ANSI.YELLOW}stopped${ANSI.RESET}` : "stopped");
+			? (isSupportCliColor ? `${color.ANSI.GREEN}running${color.ANSI.RESET}` : "running")
+			: (isSupportCliColor ? `${color.ANSI.YELLOW}stopped${color.ANSI.RESET}` : "stopped");
 		console.log(`Local Runner: ${label} (${CLI_CONFIG.defaultLocalRunnerUrl})`);
 		console.log(`  pid:           ${info.pid}`);
 		console.log(`  uptime:        ${formatUptime(info.uptimeMs)}`);
@@ -75,7 +75,7 @@ export class StatusCommand implements Command {
 		console.log(`  warmup:        ${info.warmUpProfile}`);
 		console.log(`  base dir:      ${info.baseDir}`);
 		console.log(`  log file:      ${info.logFile}`);
-		console.log(`  sample cache:  ${sampleCacheCount} task(s) (${getSampleCacheDir() || "-"})`);
+		console.log(`  sample cache:  ${sampleCacheCount} task(s) (${sampleCache.getSampleCacheDir() || "-"})`);
 		return 0;
 	}
 }

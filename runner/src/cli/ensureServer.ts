@@ -89,7 +89,6 @@ export async function ensureLocalRunnerReady(): Promise<void> {
 	if (process.env.ATCODER_RUNNER_AUTOSTART === "0") return; // 自動起動を無効化（常駐運用に切替時）
 	if (await pingServer()) return;                            // 既に起動済み
 
-	console.error("Local Runner not responding — starting it...");
 	try {
 		startServer();
 	} catch (e) {

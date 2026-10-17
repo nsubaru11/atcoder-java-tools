@@ -1,14 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import type {Task} from "../../types";
-import {httpGetText, toCookieHeader} from "../atcoder";
-import {extractSamples, extractTimeLimitMs} from "../parser";
-import {createTask, parseTask} from "../task";
-import {runAndReportSamples, type SampleDisplayOptions} from "../sampleJudge";
-import {type CachedTaskData, readCachedSamples, writeCachedSamples} from "../sampleCache";
+import * as atcoder from "../atcoder";
+import * as parser from "../parser";
+import * as taskUtils from "../task";
+import * as sampleJudge from "../sampleJudge";
+import * as sampleCache from "../sampleCache";
 import {CliUsageError, type Command} from "./Command";
-import {parseBoolFlag, parseIntFlag} from "./options";
-import {prepareSource} from "./source";
+import * as options from "./options";
+import * as source from "./source";
 
 // 短縮タスク指定（例: d, e, ex, d1）。AtCoder の問題記号は A〜H と Ex のみ。末尾の数字はファイル変種（D1.java 等）。
 const SHORT_TASK_PATTERN = /^(ex|[a-z])\d*$/i;
@@ -46,7 +46,7 @@ export function detectContestId(startDir: string): string {
 /** 別名コンテストでは、固定対応した問題IDの接頭辞を使う。 */
 export function resolveShortTask(contestId: string, taskLetter: string): Task {
 	const taskPrefix = TASK_PREFIX_BY_CONTEST_ID[contestId] ?? contestId;
-	return createTask(contestId, `${taskPrefix}_${taskLetter}`);
+	return taskUtils.createTask(contestId, `${taskPrefix}_${taskLetter}`);
 }
 
 /** cwd 内で <token>.java を大小無視で探し、実ファイル名（絶対パス）を返す。無ければ大文字版（相対）を返す。 */
@@ -93,13 +93,13 @@ export function expandShortTaskArg(token: string): {task: Task; sourceFilePath: 
  * サンプルケースと実行時間制限を取得する。キャッシュにあればそれを使い、無ければ問題ページを
  * フェッチして抽出・保存する。サンプルは不変なので test → submit の二重取得を避けられる。
  */
-async function getSamplesWithCache(task: Task, cookieHeader: string): Promise<CachedTaskData> {
-	const cached = readCachedSamples(task);
+async function getSamplesWithCache(task: Task, cookieHeader: string): Promise<sampleCache.CachedTaskData> {
+	const cached = sampleCache.readCachedSamples(task);
 	if (cached) return cached;
-	const taskHtml = await httpGetText(task.taskUrl, cookieHeader);
-	const samples = extractSamples(taskHtml);
-	const timeLimitMs = extractTimeLimitMs(taskHtml);
-	writeCachedSamples(task, samples, timeLimitMs);
+	const taskHtml = await atcoder.httpGetText(task.taskUrl, cookieHeader);
+	const samples = parser.extractSamples(taskHtml);
+	const timeLimitMs = parser.extractTimeLimitMs(taskHtml);
+	sampleCache.writeCachedSamples(task, samples, timeLimitMs);
 	return {samples, timeLimitMs};
 }
 
@@ -130,20 +130,20 @@ export abstract class TaskCommand implements Command {
 
 	async execute(args: readonly string[]): Promise<number> {
 		const {task, sourceFilePath, force, debug, display} = this.validate(args);
-		const {transformed, originalFileName, originalClassName, programId} = await prepareSource(
+		const {transformed, originalFileName, originalClassName, programId} = await source.prepareSource(
 			sourceFilePath,
 			debug,
 			{compile: true, validate: false},
 		);
 
-		const cookieHeader = toCookieHeader();
+		const cookieHeader = atcoder.toCookieHeader();
 		const {samples, timeLimitMs} = await getSamplesWithCache(task, cookieHeader);
 		// 問題の実行時間制限が分かれば、exec 表示の警告しきい値（80%で黄、100%で赤）に使う。
 		if (timeLimitMs) {
 			display.timeLimitMs = timeLimitMs;
 			console.log(`Time limit: ${timeLimitMs}ms`);
 		}
-		const allAccepted = await runAndReportSamples(
+		const allAccepted = await sampleJudge.runAndReportSamples(
 			transformed,
 			samples,
 			originalClassName,
@@ -164,12 +164,12 @@ export abstract class TaskCommand implements Command {
 		sourceFilePath: string;
 		force: boolean;
 		debug: boolean;
-		display: SampleDisplayOptions;
+		display: sampleJudge.SampleDisplayOptions;
 	} {
 		const positionals: string[] = [];
 		let force = false;
 		let debug = this.debug; // 既定値。-d/--debug があれば上書き。
-		const display: SampleDisplayOptions = {};
+		const display: sampleJudge.SampleDisplayOptions = {};
 		for (const arg of args) {
 			if (arg === "-f" || arg === "--force") {
 				// test は提出しないので force を受け付けない。
@@ -180,24 +180,24 @@ export abstract class TaskCommand implements Command {
 				continue;
 			}
 			if (this.supportsDebugOption) {
-				const d = parseBoolFlag(arg, "--debug", "-d");
+				const d = options.parseBoolFlag(arg, "--debug", "-d");
 				if (d !== undefined) {
 					debug = d;
 					continue;
 				}
 			}
 			if (this.supportsDisplayOptions) {
-				const full = parseBoolFlag(arg, "--full");
+				const full = options.parseBoolFlag(arg, "--full");
 				if (full !== undefined) {
 					display.full = full;
 					continue;
 				}
-				const waOnly = parseBoolFlag(arg, "--wa-only");
+				const waOnly = options.parseBoolFlag(arg, "--wa-only");
 				if (waOnly !== undefined) {
 					display.waOnly = waOnly;
 					continue;
 				}
-				const maxLines = parseIntFlag(arg, "--max-lines");
+				const maxLines = options.parseIntFlag(arg, "--max-lines");
 				if (maxLines !== undefined) {
 					display.maxLines = maxLines;
 					continue;
@@ -215,7 +215,7 @@ export abstract class TaskCommand implements Command {
 		} else {
 			let taskScreenName: string | undefined;
 			[taskScreenName, sourceFilePath] = positionals;
-			if (taskScreenName) task = parseTask(taskScreenName);
+			if (taskScreenName) task = taskUtils.parseTask(taskScreenName);
 		}
 		if (!task || !sourceFilePath) {
 			throw new CliUsageError();

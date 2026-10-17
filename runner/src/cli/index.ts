@@ -1,6 +1,6 @@
 import {pathToFileURL} from "node:url";
 import {CliUsageError} from "./commands/Command";
-import {getCommand, printUsage} from "./commands/registry";
+import * as registry from "./commands/registry";
 
 /**
  * エントリポイント。
@@ -9,9 +9,9 @@ import {getCommand, printUsage} from "./commands/registry";
  */
 export async function main(rawArgs = process.argv.slice(2)): Promise<number> {
 	const [name, ...rest] = rawArgs;
-	const command = name ? getCommand(name) : undefined;
+	const command = name ? registry.getCommand(name) : undefined;
 	if (!command) {
-		printUsage();
+		registry.printUsage();
 		return 1;
 	}
 
@@ -20,7 +20,7 @@ export async function main(rawArgs = process.argv.slice(2)): Promise<number> {
 	} catch (error) {
 		if (error instanceof CliUsageError) {
 			if (error.message) console.error(error.message);
-			printUsage();
+			registry.printUsage();
 			return 1;
 		}
 		const message = error instanceof Error ? error.message : String(error);

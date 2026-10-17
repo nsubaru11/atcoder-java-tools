@@ -8,33 +8,13 @@ import type {
 	LocalRunnerTransformResponse,
 } from "@atcoder-tools/shared";
 import type {RunnerStatusInfo} from "../types";
-import {
-	LOG_FILE_PATH,
-	prepareLibrarySourceRoot,
-	resolveLibrarySourceRoot,
-	RUNNER_CONFIG,
-	WARMUP_REPEAT_COUNT
-} from "../config";
-import {ensureDirectory, formatRunSummary, logError, logInfo, logWarn,} from "../utils";
-import {
-	getCompileCacheSize,
-	getCompiledEntry,
-	getCompiledEntryByProgramId,
-	getProgramId,
-	JAVA_VERSION,
-	runCodeInIsolatedJvm,
-	RUNNER_LABEL,
-	warmUpJavaTools,
-} from "./compiler";
-import {
-	ensureDispatcherReady,
-	isDispatcherRunning,
-	logCaptureAndBodySizeBalance,
-	queueDispatcherRun,
-	queueDispatcherTransform,
-	stopDispatcher,
-	warmUpDispatcher,
-} from "./dispatcher";
+import * as config from "../config";
+import * as filesystem from "../utils/filesystem";
+import * as formatter from "../utils/formatter";
+import * as color from "../utils/color";
+import * as logging from "../utils/logging";
+import * as compiler from "./compiler";
+import * as dispatcher from "./dispatcher";
 
 const serverStartedAt = Date.now();
 const PRECOMPILE_IDLE_DELAY_MS = 150;
@@ -70,7 +50,7 @@ function isAllowedOrigin(origin: string | undefined): boolean {
 
 async function transformCode(sourceCode: string, debug: boolean, autoImport = true,
 							 validate = true): Promise<LocalRunnerTransformResponse> {
-	const result = await queueDispatcherTransform(sourceCode, resolveLibrarySourceRoot(), debug, autoImport, validate);
+	const result = await dispatcher.queueDispatcherTransform(sourceCode, config.resolveLibrarySourceRoot(), debug, autoImport, validate);
 	return {
 		status: result.exitCode === 0 ? "success" : "compileError",
 		sourceCode: result.sourceCode,
@@ -95,7 +75,7 @@ async function prepareCode(
 	const transformed = await transformCode(sourceCode, debug, autoImport, validate);
 	if (transformed.status !== "success") return transformed;
 
-	const entry = await getCompiledEntry(transformed.sourceCode);
+	const entry = await compiler.getCompiledEntry(transformed.sourceCode);
 	if (entry.status === "error") {
 		return {
 			...transformed,
@@ -103,7 +83,7 @@ async function prepareCode(
 			diagnostics: entry.error || "Java compilation failed.",
 		};
 	}
-	return {...transformed, programId: getProgramId(transformed.sourceCode)};
+	return {...transformed, programId: compiler.getProgramId(transformed.sourceCode)};
 }
 
 function prepareCodeCached(sourceCode: string, debug: boolean, autoImport = true, validate = false) {
@@ -146,7 +126,7 @@ async function runCode({sourceCode, programId, stdin, prepared}: {
 	const overallStart = Date.now();
 	let entry;
 	if (programId) {
-		entry = await getCompiledEntryByProgramId(programId);
+		entry = await compiler.getCompiledEntryByProgramId(programId);
 		if (!entry) return missingProgramResponse(programId);
 	} else if (typeof sourceCode === "string" && !prepared) {
 		const transformed = await transformCode(sourceCode, true, true);
@@ -157,9 +137,9 @@ async function runCode({sourceCode, programId, stdin, prepared}: {
 			};
 		}
 		sourceCode = transformed.sourceCode;
-		entry = await getCompiledEntry(sourceCode);
+		entry = await compiler.getCompiledEntry(sourceCode);
 	} else if (typeof sourceCode === "string") {
-		entry = await getCompiledEntry(sourceCode);
+		entry = await compiler.getCompiledEntry(sourceCode);
 	} else {
 		return missingProgramResponse("(missing)");
 	}
@@ -176,37 +156,37 @@ async function runCode({sourceCode, programId, stdin, prepared}: {
 			stderrTruncated: false,
 			memory: 0,
 		};
-		logWarn(formatRunSummary(response, waitTime, Date.now() - overallStart, "compile"));
+		logging.logWarn(formatter.formatRunSummary(response, waitTime, Date.now() - overallStart, "compile"));
 		return response;
 	}
 
 	if (entry.requiresIsolatedProcess) {
-		logInfo("[Run] Falling back to isolated JVM mode due to FileDescriptor/System.exit/Runtime.halt usage.");
-		const result = await runCodeInIsolatedJvm(entry, stdin || "");
+		logging.logInfo("[Run] Falling back to isolated JVM mode due to FileDescriptor/System.exit/Runtime.halt usage.");
+		const result = await compiler.runCodeInIsolatedJvm(entry, stdin || "");
 		const totalTime = Date.now() - overallStart;
-		logInfo(formatRunSummary(result, waitTime, totalTime, "isolated"));
+		logging.logInfo(formatter.formatRunSummary(result, waitTime, totalTime, "isolated"));
 		return result;
 	}
 
 	try {
-		const result = await queueDispatcherRun(entry, stdin || "");
+		const result = await dispatcher.queueDispatcherRun(entry, stdin || "");
 		if (result.timedOut) {
 			const response: LocalRunnerRunResponse = {
 				status: "timeLimitExceeded",
 				exitCode: 124,
 				stdout: "",
 				stderr: result.error || "",
-				time: RUNNER_CONFIG.runTimeoutMs,
+				time: config.RUNNER_CONFIG.runTimeoutMs,
 				stdoutTruncated: false,
 				stderrTruncated: false,
 				memory: 0,
 			};
-			logWarn(formatRunSummary(response, waitTime, Date.now() - overallStart, "daemon"));
+			logging.logWarn(formatter.formatRunSummary(response, waitTime, Date.now() - overallStart, "daemon"));
 			return response;
 		}
 		const totalTime = Date.now() - overallStart;
 		if (result.stdoutTruncated || result.stderrTruncated) {
-			logWarn(
+			logging.logWarn(
 				`[Run] Output truncated by dispatcher (stdout=${result.stdoutTruncated}, stderr=${result.stderrTruncated}).`,
 			);
 		}
@@ -221,12 +201,12 @@ async function runCode({sourceCode, programId, stdin, prepared}: {
 			// Java は累積アロケーション量をバイトで返す（-1=計測不可）。表示系は KB 想定なので KB に変換。
 			memory: result.memory && result.memory > 0 ? Math.round(result.memory / 1024) : 0,
 		};
-		const logger = response.status === "success" ? logInfo : logWarn;
-		logger(formatRunSummary(response, waitTime, totalTime, "daemon"));
+		const logger = response.status === "success" ? logging.logInfo : logging.logWarn;
+		logger(formatter.formatRunSummary(response, waitTime, totalTime, "daemon"));
 		return response;
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		logError(`[Run] Internal error: ${message}`);
+		logging.logError(`[Run] Internal error: ${message}`);
 		const response: LocalRunnerRunResponse = {
 			status: "internalError",
 			exitCode: -1,
@@ -237,7 +217,7 @@ async function runCode({sourceCode, programId, stdin, prepared}: {
 			stderrTruncated: false,
 			memory: 0,
 		};
-		logError(formatRunSummary(response, waitTime, Date.now() - overallStart, "daemon"));
+		logging.logError(formatter.formatRunSummary(response, waitTime, Date.now() - overallStart, "daemon"));
 		return response;
 	}
 }
@@ -253,7 +233,7 @@ function schedulePrecompile(sourceCode: string): void {
 			try {
 				await prepareCodeCached(scheduledSource, true, true, false);
 			} catch (error) {
-				logWarn(`[Precompile] ${error instanceof Error ? error.message : String(error)}`);
+				logging.logWarn(`[Precompile] ${error instanceof Error ? error.message : String(error)}`);
 			}
 		})();
 	}, PRECOMPILE_IDLE_DELAY_MS);
@@ -282,7 +262,7 @@ const server = http.createServer(async (req, res) => {
 	res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
 	if (!originAllowed) {
-		logWarn(`[Server] Rejected request from disallowed origin: ${origin}`);
+		logging.logWarn(`[Server] Rejected request from disallowed origin: ${origin}`);
 		res.writeHead(403, {"Content-Type": "text/plain"});
 		res.end("Forbidden origin");
 		return;
@@ -305,7 +285,7 @@ const server = http.createServer(async (req, res) => {
 	for await (const chunk of req) {
 		const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
 		size += buffer.length;
-		if (size > RUNNER_CONFIG.maxBodySize) {
+		if (size > config.RUNNER_CONFIG.maxBodySize) {
 			res.writeHead(413, {"Content-Type": "text/plain"});
 			res.end("Request Entity Too Large");
 			return;
@@ -338,8 +318,8 @@ const server = http.createServer(async (req, res) => {
 			response = [
 				{
 					language: "Java",
-					compilerName: `java${JAVA_VERSION}`,
-					label: RUNNER_LABEL,
+					compilerName: `java${compiler.JAVA_VERSION}`,
+					label: compiler.RUNNER_LABEL,
 				},
 			] satisfies LocalRunnerCompilerInfo[];
 		} else if (request.mode === "precompile" && typeof request.sourceCode === "string") {
@@ -366,19 +346,19 @@ const server = http.createServer(async (req, res) => {
 				status: "running",
 				pid: process.pid,
 				uptimeMs: Date.now() - serverStartedAt,
-				javaVersion: JAVA_VERSION,
-				runnerLabel: RUNNER_LABEL,
-				dispatcherRunning: isDispatcherRunning(),
-				compileCacheSize: getCompileCacheSize(),
-				compileCacheMax: RUNNER_CONFIG.maxCacheSize,
-				warmUpProfile: RUNNER_CONFIG.warmUpProfile,
-				baseDir: RUNNER_CONFIG.baseDir,
-				logFile: LOG_FILE_PATH,
+				javaVersion: compiler.JAVA_VERSION,
+				runnerLabel: compiler.RUNNER_LABEL,
+				dispatcherRunning: dispatcher.isDispatcherRunning(),
+				compileCacheSize: compiler.getCompileCacheSize(),
+				compileCacheMax: config.RUNNER_CONFIG.maxCacheSize,
+				warmUpProfile: config.RUNNER_CONFIG.warmUpProfile,
+				baseDir: config.RUNNER_CONFIG.baseDir,
+				logFile: config.LOG_FILE_PATH,
 			} satisfies RunnerStatusInfo;
 		} else if (request.mode === "shutdown") {
 			res.writeHead(200, {"Content-Type": "application/json", "Connection": "close"});
 			res.end(JSON.stringify({status: "accepted"}));
-			logInfo("Shutdown requested via API.");
+			logging.logInfo("Shutdown requested via API.");
 			setTimeout(() => shutdown("api"), 50);
 			return;
 		} else {
@@ -397,38 +377,40 @@ const server = http.createServer(async (req, res) => {
 });
 
 async function bootstrap() {
-	ensureDirectory(RUNNER_CONFIG.baseDir);
-	ensureDirectory(RUNNER_CONFIG.compileRootDir);
-	const libraryRoots = prepareLibrarySourceRoot();
-	logInfo(`Local runner base directory: ${RUNNER_CONFIG.baseDir}`);
-	logInfo(`Library source: ${libraryRoots.source}`);
-	logInfo(`Prepared library source: ${libraryRoots.prepared}`);
-	logInfo(`Log file: ${LOG_FILE_PATH}`);
-	logInfo(`Log rotation size: ${RUNNER_CONFIG.maxLogFileSize} bytes`);
-	logInfo(`Dispatcher capture limit: ${RUNNER_CONFIG.dispatcherCaptureLimitBytes} bytes`);
-	logInfo(`WarmUp profile: ${RUNNER_CONFIG.warmUpProfile} (repeat=${WARMUP_REPEAT_COUNT}, timeout=${RUNNER_CONFIG.warmUpRunTimeoutMs}ms)`);
-	logCaptureAndBodySizeBalance();
-	if (process.platform === "linux" && RUNNER_CONFIG.baseDir.startsWith("/dev/shm")) {
-		logInfo("Using /dev/shm for low-latency compile cache.");
+	filesystem.ensureDirectory(config.RUNNER_CONFIG.baseDir);
+	filesystem.ensureDirectory(config.RUNNER_CONFIG.compileRootDir);
+	const libraryRoots = config.prepareLibrarySourceRoot();
+	logging.logInfo(`Local runner base directory: ${config.RUNNER_CONFIG.baseDir}`);
+	logging.logInfo(`Library source: ${libraryRoots.source}`);
+	logging.logInfo(`Prepared library source: ${libraryRoots.prepared}`);
+	logging.logInfo(`Log file: ${config.LOG_FILE_PATH}`);
+	logging.logInfo(`Log rotation size: ${config.RUNNER_CONFIG.maxLogFileSize} bytes`);
+	logging.logInfo(`Dispatcher capture limit: ${config.RUNNER_CONFIG.dispatcherCaptureLimitBytes} bytes`);
+	logging.logInfo(`WarmUp profile: ${config.RUNNER_CONFIG.warmUpProfile} (repeat=${config.WARMUP_REPEAT_COUNT}, timeout=${config.RUNNER_CONFIG.warmUpRunTimeoutMs}ms)`);
+	dispatcher.logCaptureAndBodySizeBalance();
+	if (process.platform === "linux" && config.RUNNER_CONFIG.baseDir.startsWith("/dev/shm")) {
+		logging.logInfo("Using /dev/shm for low-latency compile cache.");
 	}
-	warmUpJavaTools();
-	ensureDirectory(RUNNER_CONFIG.dispatcherBuildDir);
-	await ensureDispatcherReady();
-	await warmUpDispatcher(resolveLibrarySourceRoot());
+	compiler.warmUpJavaTools();
+	filesystem.ensureDirectory(config.RUNNER_CONFIG.dispatcherBuildDir);
+	await dispatcher.ensureDispatcherReady();
+	await dispatcher.warmUpDispatcher(config.resolveLibrarySourceRoot());
 	// 既定でループバック(127.0.0.1)にのみバインドし、LAN/リモートからの無認証アクセスを遮断する。
 	// どうしても外部公開が必要な場合のみ LOCAL_RUNNER_HOST で上書き可能（非推奨）。
 	const host = process.env.LOCAL_RUNNER_HOST || "127.0.0.1";
-	server.listen(RUNNER_CONFIG.port, host, () => {
-		logInfo(`LocalRunner server listening on http://${host}:${RUNNER_CONFIG.port}`);
-		logInfo(`Allowed browser origins: ${ALLOWED_ORIGINS_OVERRIDE.length > 0 ? ALLOWED_ORIGINS_OVERRIDE.join(", ") : DEFAULT_ALLOWED_ORIGIN_HOSTS.map((h) => `*.${h}`).join(", ")}`);
-		logInfo(`Runner label: ${RUNNER_LABEL}`);
+	server.listen(config.RUNNER_CONFIG.port, host, () => {
+		const message = "✓ LocalRunner server is ready:";
+		const link = `http://${host}:${config.RUNNER_CONFIG.port}`;
+		logging.logInfo(color.supportsRunnerColor() ? `${color.ANSI.GREEN}${message}${color.ANSI.RESET} ${color.ANSI.CYAN}${link}${color.ANSI.RESET}` : `${message} ${link}`);
+		logging.logInfo(`Allowed browser origins: ${ALLOWED_ORIGINS_OVERRIDE.length > 0 ? ALLOWED_ORIGINS_OVERRIDE.join(", ") : DEFAULT_ALLOWED_ORIGIN_HOSTS.map((h) => `*.${h}`).join(", ")}`);
+		logging.logInfo(`Runner label: ${compiler.RUNNER_LABEL}`);
 	});
 }
 
 function shutdown(signal: string) {
-	logInfo(`Shutting down LocalRunner server (${signal})...`);
+	logging.logInfo(`Shutting down LocalRunner server (${signal})...`);
 	if (precompileTimer) clearTimeout(precompileTimer);
-	stopDispatcher();
+	dispatcher.stopDispatcher();
 	server.close(() => {
 		process.exit(0);
 	});
@@ -437,13 +419,13 @@ function shutdown(signal: string) {
 }
 
 server.on("error", (error) => {
-	logError(`[Server] ${error.message}`);
+	logging.logError(`[Server] ${error.message}`);
 	process.exit(1);
 });
 
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("exit", () => stopDispatcher());
+process.on("exit", () => dispatcher.stopDispatcher());
 
 const isDirectRun = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
 
@@ -452,7 +434,7 @@ if (isDirectRun) {
 		await bootstrap();
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		logError(`[Bootstrap] ${message}`);
+		logging.logError(`[Bootstrap] ${message}`);
 		process.exit(1);
 	}
 }

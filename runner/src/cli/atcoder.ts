@@ -1,23 +1,10 @@
-import {
-	buildAtCoderSubmissionsMeUrl,
-	buildAtCoderSubmissionStatusJsonUrl,
-	buildAtCoderSubmissionUrl,
-} from "@atcoder-tools/shared";
+import * as shared from "@atcoder-tools/shared";
 import fs from "node:fs";
 import path from "node:path";
 import type {SubmissionFinalResult, SubmitResult, Task} from "../types";
 import {CLI_CONFIG} from "../config";
-import {colorizeStatus, sleep} from "../utils";
-import {
-	chooseJavaLanguageIdFromOptions,
-	extractCsrfToken,
-	extractLanguageOptionsFromSubmitPage,
-	extractSubmissionIdFromHtml,
-	extractSubmitFailureReason,
-	extractSubmitForm,
-	isAtCoderLoginPage,
-	parseSubmissionStatusJson,
-} from "./parser";
+import * as color from "../utils/color";
+import * as parser from "./parser";
 
 const AUTH_ERROR_MESSAGE = [
 	"[auth] Checking AtCoder session...",
@@ -28,7 +15,7 @@ const AUTH_ERROR_MESSAGE = [
 ].join("\n");
 
 function ensureNotLoginPage(body: string) {
-	if (isAtCoderLoginPage(body)) throw new Error(AUTH_ERROR_MESSAGE);
+	if (parser.isAtCoderLoginPage(body)) throw new Error(AUTH_ERROR_MESSAGE);
 }
 
 export function toCookieHeader() {
@@ -103,15 +90,15 @@ async function httpGetTextWith429Retry(url: string, cookieHeader = "", maxAttemp
 		const waitMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
 			? retryAfterSec * 1000
 			: 700 + attempt * 700;
-		await sleep(waitMs);
+		await shared.sleep(waitMs);
 	}
 	throw new Error(`GET failed (429) for ${url}`);
 }
 
 export async function fetchLatestSubmissionId(task: Task, cookieHeader: string) {
-	const listUrl = buildAtCoderSubmissionsMeUrl(task.contestId, {task: task.taskScreenName});
+	const listUrl = shared.buildAtCoderSubmissionsMeUrl(task.contestId, {task: task.taskScreenName});
 	const html = await httpGetTextWith429Retry(listUrl, cookieHeader);
-	return extractSubmissionIdFromHtml(html, task.contestId);
+	return parser.extractSubmissionIdFromHtml(html, task.contestId);
 }
 
 async function waitForNewSubmissionId(task: Task, cookieHeader: string, previousSubmissionId: string) {
@@ -121,7 +108,7 @@ async function waitForNewSubmissionId(task: Task, cookieHeader: string, previous
 		if (latestId && latestId !== previousSubmissionId) {
 			return latestId;
 		}
-		await sleep(CLI_CONFIG.submissionIdDetectIntervalMs);
+		await shared.sleep(CLI_CONFIG.submissionIdDetectIntervalMs);
 	}
 	return "";
 }
@@ -153,7 +140,7 @@ async function postSubmitWithRetry(url: string, headers: Record<string, string>,
 			CLI_CONFIG.submitPostRetryBaseMs * (attempt + 1),
 		);
 		console.log(`Warning: submit is rate-limited (429). Retrying in ${waitMs}ms...`);
-		await sleep(waitMs);
+		await shared.sleep(waitMs);
 	}
 	throw new Error("Unreachable submit retry state.");
 }
@@ -163,10 +150,12 @@ export async function submitToAtCoder(task: Task, sourceCode: string, cookieHead
 		throw new Error(AUTH_ERROR_MESSAGE);
 	}
 	const submitPage = await httpGetText(task.submitUrl, cookieHeader);
-	const csrfToken = extractCsrfToken(submitPage);
-	const submitForm = extractSubmitForm(submitPage, task);
+	const csrfToken = parser.extractCsrfToken(submitPage);
+	const submitForm = parser.extractSubmitForm(submitPage, task);
 	const fixedLanguageId = CLI_CONFIG.defaultLanguageId;
-	const submitPageJavaLanguageId = chooseJavaLanguageIdFromOptions(extractLanguageOptionsFromSubmitPage(submitPage));
+	const submitPageJavaLanguageId = parser.chooseJavaLanguageIdFromOptions(
+		parser.extractLanguageOptionsFromSubmitPage(submitPage),
+	);
 	const languageCandidates: string[] = [];
 	for (const candidate of [fixedLanguageId, submitPageJavaLanguageId]) {
 		if (!candidate) continue;
@@ -224,11 +213,11 @@ export async function submitToAtCoder(task: Task, sourceCode: string, cookieHead
 				submissionUrl: urlFromRedirect,
 			};
 		}
-		const htmlSubmissionId = extractSubmissionIdFromHtml(html, task.contestId);
+		const htmlSubmissionId = parser.extractSubmissionIdFromHtml(html, task.contestId);
 		if (htmlSubmissionId && (!canTrackByDiff || htmlSubmissionId !== previousSubmissionId)) {
 			return {
 				submissionId: htmlSubmissionId,
-				submissionUrl: buildAtCoderSubmissionUrl(task.contestId, htmlSubmissionId),
+				submissionUrl: shared.buildAtCoderSubmissionUrl(task.contestId, htmlSubmissionId),
 			};
 		}
 		if (canTrackByDiff) {
@@ -236,11 +225,11 @@ export async function submitToAtCoder(task: Task, sourceCode: string, cookieHead
 			if (latestId) {
 				return {
 					submissionId: latestId,
-					submissionUrl: buildAtCoderSubmissionUrl(task.contestId, latestId),
+					submissionUrl: shared.buildAtCoderSubmissionUrl(task.contestId, latestId),
 				};
 			}
 		}
-		lastRejectReason = extractSubmitFailureReason(html) || "Submit did not create a new submission ID.";
+		lastRejectReason = parser.extractSubmitFailureReason(html) || "Submit did not create a new submission ID.";
 	}
 
 	if (canTrackByDiff) {
@@ -248,7 +237,7 @@ export async function submitToAtCoder(task: Task, sourceCode: string, cookieHead
 	}
 	return {
 		submissionId: "-",
-		submissionUrl: buildAtCoderSubmissionsMeUrl(task.contestId, {task: task.taskScreenName}),
+		submissionUrl: shared.buildAtCoderSubmissionsMeUrl(task.contestId, {task: task.taskScreenName}),
 		trackingUnavailable: true,
 	};
 }
@@ -274,15 +263,15 @@ export async function pollSubmissionFinal(
 	submissionId: string,
 	cookieHeader: string,
 ): Promise<SubmissionFinalResult> {
-	const statusUrl = buildAtCoderSubmissionStatusJsonUrl(contestId, [submissionId]);
+	const statusUrl = shared.buildAtCoderSubmissionStatusJsonUrl(contestId, [submissionId]);
 	const started = Date.now();
 	let lastStatus = "";
 	while (Date.now() - started < CLI_CONFIG.submissionPollTimeoutMs) {
 		const body = await httpGetTextWith429Retry(statusUrl, cookieHeader);
-		const snapshot = parseSubmissionStatusJson(body, submissionId);
+		const snapshot = parser.parseSubmissionStatusJson(body, submissionId);
 		const display = snapshot.status || lastStatus || "WJ";
 		if (display !== lastStatus) {
-			console.log(`Status: ${colorizeStatus(display)}`);
+			console.log(`Status: ${color.colorizeStatus(display)}`);
 			lastStatus = display;
 		}
 		const isTerminal = TERMINAL_SUBMISSION_STATUSES.has(snapshot.status.toUpperCase());
@@ -292,7 +281,7 @@ export async function pollSubmissionFinal(
 		}
 		// ジャッジ中はサーバ推奨間隔(Interval)を尊重。まだ Result 未反映等の一過性状態なら最小間隔で再試行。
 		const waitMs = Math.max(snapshot.intervalMs, CLI_CONFIG.submissionPollIntervalMs);
-		await sleep(waitMs);
+		await shared.sleep(waitMs);
 	}
 	return {status: lastStatus || "PENDING", execTime: "", memory: ""};
 }

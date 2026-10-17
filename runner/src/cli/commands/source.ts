@@ -1,15 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import {
-	buildLocalRunnerPrepareRequest,
-	buildLocalRunnerTransformRequest,
-	type LocalRunnerPrepareResponse,
-	type LocalRunnerTransformResponse,
-} from "@atcoder-tools/shared";
+import * as shared from "@atcoder-tools/shared";
 import {CLI_CONFIG} from "../../config";
-import {normalizeNewlines} from "../../utils";
-import {ensureLocalRunnerReady} from "../ensureServer";
-import {resolveSourceFilePath} from "../transform";
+import * as ensureServer from "../ensureServer";
+import * as transform from "../transform";
 
 /** prepareSource の戻り値（複数コマンドで共有する整形済みソース情報）。 */
 export type PreparedSource = {
@@ -34,9 +28,9 @@ export async function prepareSource(
 	debug = false,
 	options: {compile?: boolean; validate?: boolean} = {},
 ): Promise<PreparedSource> {
-	const resolvedSourcePath = resolveSourceFilePath(sourceFilePath);
-	const source = normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
-	await ensureLocalRunnerReady();
+	const resolvedSourcePath = transform.resolveSourceFilePath(sourceFilePath);
+	const sourceText = shared.normalizeNewlines(fs.readFileSync(resolvedSourcePath, "utf8"));
+	await ensureServer.ensureLocalRunnerReady();
 	const compile = options.compile === true;
 	const validate = options.validate ?? !compile;
 	let preparedByServer = compile;
@@ -44,8 +38,8 @@ export async function prepareSource(
 		method: "POST",
 		headers: {"Content-Type": "application/json"},
 		body: JSON.stringify(compile
-			? buildLocalRunnerPrepareRequest(source, debug, true, validate)
-			: buildLocalRunnerTransformRequest(source, debug, true, validate)),
+			? shared.buildLocalRunnerPrepareRequest(sourceText, debug, true, validate)
+			: shared.buildLocalRunnerTransformRequest(sourceText, debug, true, validate)),
 	});
 	// 更新前の常駐daemonが残っている場合も、そのコマンドだけ従来経路で動作させる。
 	if (compile && response.status === 400) {
@@ -53,11 +47,11 @@ export async function prepareSource(
 		response = await fetch(CLI_CONFIG.defaultLocalRunnerUrl, {
 			method: "POST",
 			headers: {"Content-Type": "application/json"},
-			body: JSON.stringify(buildLocalRunnerTransformRequest(source, debug, true, validate)),
+			body: JSON.stringify(shared.buildLocalRunnerTransformRequest(sourceText, debug, true, validate)),
 		});
 	}
 	if (!response.ok) throw new Error(`Local runner transform failed: ${response.status}`);
-	const transformedResult = await response.json() as LocalRunnerTransformResponse | LocalRunnerPrepareResponse;
+	const transformedResult = await response.json() as shared.LocalRunnerTransformResponse | shared.LocalRunnerPrepareResponse;
 	if (transformedResult.status !== "success") {
 		throw new Error(transformedResult.diagnostics || "Java source transformation failed.");
 	}

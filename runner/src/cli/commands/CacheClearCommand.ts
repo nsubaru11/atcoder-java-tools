@@ -1,4 +1,4 @@
-import {clearSampleCache, clearSampleCacheForTask} from "../sampleCache";
+import * as sampleCache from "../sampleCache";
 import type {Command} from "./Command";
 
 /**
@@ -16,7 +16,7 @@ export class CacheClearCommand implements Command {
 	execute(args: readonly string[]): number {
 		const flag = args[0];
 		if (flag === "-a") {
-			const removed = clearSampleCache();
+			const removed = sampleCache.clearSampleCache();
 			console.log(`サンプルキャッシュを全削除しました（${removed} 件）。`);
 			return 0;
 		}
@@ -26,7 +26,7 @@ export class CacheClearCommand implements Command {
 				console.error("Usage: cacheclear -t <taskScreenName>");
 				return 1;
 			}
-			const removed = clearSampleCacheForTask(taskScreenName);
+			const removed = sampleCache.clearSampleCacheForTask(taskScreenName);
 			console.log(removed
 				? `サンプルキャッシュを削除しました: ${taskScreenName}`
 				: `対象のサンプルキャッシュは見つかりませんでした: ${taskScreenName}`);

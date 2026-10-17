@@ -1,4 +1,4 @@
-# ローカルランナー通信プロトコル（現行仕様）
+# ローカルランナー通信プロトコル
 
 daemon（Bun/Node 側、`runner/src/daemon/dispatcher.ts`）と常駐 JVM（`runner/java/src/Dispatcher.java`）の間で交わされる、子プロセスの標準入出力を介したテキストプロトコルの取り決めです。
 Java と TypeScript の 2 実装が同じ約束に従う必要があり、両者の整合を保証するコンパイラは存在しないため、本書をその契約の正典とします。
